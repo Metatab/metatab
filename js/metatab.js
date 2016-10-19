@@ -21,6 +21,9 @@
     const ELIDED_TERM = '<elided_term>';
     const NO_TERM = '<no_term>';
 
+    var parentTerm;
+    var recordTerm;
+
     var splitTerm = function(term){
         
         if ( term.indexOf(".") >= 0 ){
@@ -94,7 +97,7 @@
         
         this.clone = function(){
             
-            c = new Term(this.term, this.value, this.termArgs);
+            var c = new Term(this.term, this.value, this.termArgs);
             c.parentTerm = this.parentTerm;
             c.recordTerm = this.recordTerm;
             c.children = this.children;
@@ -127,7 +130,7 @@
     var generateRows = function (path, cb) {
         console.log("parsing file");
 
-        fs = require('fs')
+        var fs = require('fs')
         fs.readFile(path, 'utf8', function (err,data) {
           if (err) {
             return console.log(err);
@@ -195,7 +198,7 @@
         
             var self = this;
             
-            var LastParentTerm = 'root';
+            var lastParentTerm = 'root';
             var paramMap = {};
         
             generateTerms(path, function(term){
@@ -236,7 +239,7 @@
     
     var parse = function(path){
         
-        interp = new TermInterpreter(path, function(term){
+        var interp = new TermInterpreter(path, function(term){
             console.log(term.toString()); 
         });
         
