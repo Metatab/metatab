@@ -4,11 +4,12 @@
 import sys
 
 
-def main(sys_args):
+def main():
     import argparse
+    import sys
     from metatab import __meta__
-    from metatab.parser import TermInterpreter, TermGenerator
-    from metatab.parser import CsvPathRowGenerator, DeclareTermInterpreter
+    from metatab.parser import TermInterpreter, TermGenerator, Term
+    from metatab.parser import CsvPathRowGenerator
 
     parser = argparse.ArgumentParser(
         prog='struct_tab',
@@ -29,16 +30,13 @@ def main(sys_args):
 
     parser.add_argument('file', help='Path to a CSV file with STF data.')
 
-    args = parser.parse_args(sys_args[1:])
+    args = parser.parse_args(sys.argv[1:])
 
     rg = CsvPathRowGenerator(args.file)
 
     term_gen = list(TermGenerator(rg))
 
-    if args.declare:
-        term_interp = DeclareTermInterpreter(term_gen)
-    else:
-        term_interp = TermInterpreter(term_gen)
+    term_interp = TermInterpreter(term_gen)
 
     if args.interp:
         for t in list(term_interp):
@@ -49,11 +47,11 @@ def main(sys_args):
             print(t)
         exit(0)
 
-    dicts = term_interp.as_dict()
-
     if args.declare:
-        term_interp.import_declare_doc(dicts)
+        term_interp.handle_declare(Term('Declare', 'metadata.csv', file_name=args.file))
         dicts = term_interp.declare_dict
+    else:
+        dicts = term_interp.as_dict()
 
     if args.json:
         import json
@@ -62,5 +60,5 @@ def main(sys_args):
         import yaml
         print(yaml.dump(dicts, default_flow_style=False, indent=4))
 
-    term_interp = DeclareTermInterpreter(term_gen, False)
+
 
