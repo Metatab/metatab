@@ -5,4 +5,4 @@
 import sys
 from metatab.cli import main
 
-main(sys.argv)
+main()
