@@ -21,20 +21,23 @@
     const ELIDED_TERM = '<elided_term>';
     const NO_TERM = '<no_term>';
 
+    var parentTerm;
+    var recordTerm;
+
     var splitTerm = function(term){
         
         if ( term.indexOf(".") >= 0 ){
             var parts = term.split(".");
-            var parentTerm = parts[0].trim();
-            var recordTerm = parts[1].trim();
+            parentTerm = parts[0].trim();
+            recordTerm = parts[1].trim();
         
             if (parentTerm == ''){
                 parentTerm = ELIDED_TERM;
             }
 
         } else {
-            var parentTerm = NO_TERM;
-            var recordTerm = term.trim()
+            parentTerm = NO_TERM;
+            recordTerm = term.trim()
          
         }
 
