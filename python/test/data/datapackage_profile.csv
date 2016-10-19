@@ -1,0 +1,8 @@
+,,
+"TermValueName","resources","url"
+"TermValueName","fields","name"
+"Synonym","resource","resources"
+"Synonym","schema","resources.schema"
+"Synonym","field","schema.fields"
+,,
+"ChildPropertyType","schema.fields","list"

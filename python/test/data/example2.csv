@@ -1,0 +1,10 @@
+"Term","value",
+"Title","Registered Voters, By County",
+"Description","Percent of the eligible population registered to vote and the percent who voted in statewide elections.",
+"Identifier","cdph.ca.gov-hci-registered_voters-county",
+"Version",201404,
+,,
+"Section","documentation","title"
+"Homepage","https://www.cdph.ca.gov/programs/pages/healthycommunityindicators.aspx","Healthy Communities Data and Indicators Project (HCI)"
+"Documentation","https://www.cdph.ca.gov/programs/Documents/HCI_RegisteredVoters_653_Narrative_and_examples_6-2-14.pdf","Indicator Documentation for Voter Registration / Participation"
+".description","Voter Registration/Participation: Percent of the eligible population registered to vote and the percent who voted in statewide elections",

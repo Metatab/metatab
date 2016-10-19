@@ -1,0 +1,4 @@
+# Requirements for the numbers server
+
+gunicorn==18 # Can't get 19 to work.
+git+https://github.com/CivicKnowledge/metatab.git

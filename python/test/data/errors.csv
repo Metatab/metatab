@@ -1,0 +1,56 @@
+"Declare","http://doesntexist.csv",,,
+"Title","Registered Voters, By County",,,
+"Description","Percent of the eligible population registered to vote and the percent who voted in statewide elections.",,,
+"Identifier","cdph.ca.gov-hci-registered_voters-county",,,
+,201404,,,
+,"cdph.ca.gov-hci-registered_voters-county-201304",,,
+"Format","excel",,,
+"Spatial","California <04000US06>",,,
+"Time","2002-2014",,,
+"SpatialGrain","County <05000US>",,,
+,,,,
+"Section","Resources","table","Grain","Title"
+"Datafile","http://example.com/example1.csv","registered_voters","County","The First Example Data File"
+"Datafile","http://example.com/example2.csv","registered_voters","Tract","The Second Example Data File"
+,,"Healthy Communities Data and Indicators Project (HCI)",,
+,,"Indicator Documentation for Voter Registration / Participation",,
+".description","Voter Registration/Participation: Percent of the eligible population registered to vote and the percent who voted in statewide elections",,,
+,,,,
+"Section ","Contacts","email",,
+"Creator","Office of Health Equity","HCIOHE@cdph.ca.gov",,
+"Wrangler","Eric Busboom","eric@civicknowledge.com",,
+,,,,
+"Section ","Notes",,,
+"Note","This file is an example of a data bundle, a simple format for linking data to metadata using spreadsheets. See the specification for more details. ",,,
+"Documentation","https://docs.google.com/document/d/16tb7x73AyF8pJ6e6IBcaIJAioEZCNBGDEksKYTXfdfg/edit#",,,
+".title","Data Bundles Packaging Specification",,,
+,,,,
+"Section","Schema",,"valuetype","description"
+"Table","registered_voters",,,"HCI Indicator 653.0: Percent of adults age 18 years and older who are registered voters"
+"Column","reportyear","int","year range","Year or years that indicator was reported"
+"Column","type","str","dimension","Type of record"
+"Column","gvid","str","gvid","GVid version of the geotype and geotypeval"
+"Column","geoname","str","label for gvid","Census name of geographic area"
+"Column","geotype","str","label","Code for type of geographic area"
+"Column","geotypevalue","str","census","Census geoid code"
+"Column","county_fips","str","FIPS county code","County FIPS code"
+"Column","county_name","str","label for counrty_fips","County name"
+"Column","region_code","str","census code","Numeric code of region"
+"Column","region_name","str","label for region_code","Name of region"
+"Column","raceth","str","raceth/civick","Civic Knowledge race / ethnicity code."
+"Column","raceth_name","str","label for raceeth","Race / Ethnicity Name"
+"Column","race_eth_code","str","raceth/hci","Race / ethnicity code"
+"Column","race_eth_name","str","label for race_eth_code","Race / ethnicity name"
+"Column","numerator","int","count","Adults who are registered to vote, or who voted, depending on type of record"
+"Column","denominator","int","count","Population of Adults, 18 years or older"
+"Column","percent","float","percent of numerator over denominator","Percent of adults who are registered to vote, or who voted, depending on type of record"
+"Column","ll_95ci","float","ci95l for percent","Lower bound of 95% confidence interval"
+"Column","ul_95ci","float","ci95u for percent","Upper bound of 95% confidence interval"
+"Column","se","float","se for percent","Standard error"
+"Column","rse","float","rse for percent","Relative standard error (se/percent * 100) expressed as a percent"
+"Column","ca_decile","float","decile","Statewide decile ranking"
+"Column","ca_rr","float","ratio","Ratio of indicator to state average"
+"Column","vap","float","measure","Voter age population, from CA Department of Finance."
+"Column","ind_id","str","dimension",
+"Column","ind_definition","str","dimension",
+"Column","version","str","other",

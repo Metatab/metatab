@@ -1,0 +1,60 @@
+{
+    "resources": [
+        {
+            "name": "the-first-resource",
+            "format": "csv",
+            "url": "http://example.com/resource1.csv",
+            "title": "First Resource",
+            "mediatype": "text/csv",
+            "schema": {
+                "fields": [
+                    {
+                        "type": "string",
+                        "description": "description",
+                        "name": "country"
+                    },
+                    {
+                        "type": "string",
+                        "description": "description",
+                        "name": "country"
+                    },
+                    {
+                        "type": "string",
+                        "description": "description",
+                        "name": "country"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "the-second-resource",
+            "format": "csv",
+            "url": "http://example.com/resource2.csv",
+            "title": "Second Resource",
+            "mediatype": "text/csv",
+            "schema": {
+                "fields": [
+                    {
+                        "type": "string",
+                        "description": "description",
+                        "name": "country"
+                    },
+                    {
+                        "type": "string",
+                        "description": "description",
+                        "name": "country"
+                    },
+                    {
+                        "type": "string",
+                        "description": "description",
+                        "name": "country"
+                    }
+                ]
+            }
+        }
+    ],
+    "version": "1.3.4",
+    "description": "Percent of the eligible population registered to vote and the percent who voted in statewide elections.",
+    "name": "cdph.ca.gov-hci-registered_voters-county",
+    "title": "Registered Voters, By County"
+}

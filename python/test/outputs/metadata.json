@@ -1,0 +1,293 @@
+{
+    "sections": {
+        "contacts": {
+            "terms": [
+                "Wrangler",
+                "Wrangler.Email",
+                "Wrangler.Name",
+                "Creator",
+                "Creator.Email",
+                "Creator.Name",
+                "Publisher",
+                "Publisher.Email",
+                "Publisher.Name"
+            ],
+            "args": [
+                "email"
+            ]
+        },
+        "declaredterms": {
+            "terms": [
+                "DeclareTerm"
+            ],
+            "args": []
+        },
+        "resources": {
+            "terms": [
+                "Datafile",
+                "Datafile.Grain",
+                "Datafile.Table",
+                "Datafile.Title",
+                "Datafile.Url",
+                "Documentation",
+                "Documentation.Description",
+                "Documentation.Title",
+                "Documentation.Url",
+                "Homepage",
+                "Homepage.Title",
+                "Homepage.Url"
+            ],
+            "args": [
+                "table",
+                "grain",
+                "title"
+            ]
+        },
+        "declaredsections": {
+            "terms": [
+                "DeclareSection"
+            ],
+            "args": []
+        },
+        "schema": {
+            "terms": [
+                "Table",
+                "Table.Column",
+                "Table.Description",
+                "Table.Name",
+                "Column",
+                "Column.Datatype",
+                "Column.Description",
+                "Column.Name",
+                "Column.Valuetype"
+            ],
+            "args": [
+                "datatype",
+                "valuetype",
+                "description"
+            ]
+        },
+        "root": {
+            "terms": [
+                "Declare",
+                "Include",
+                "Section",
+                "Synonym",
+                "Title",
+                "Description",
+                "Time",
+                "Version",
+                "Format",
+                "Identifier",
+                "Note",
+                "Obsoletes",
+                "Spatial",
+                "SpatialGrain"
+            ],
+            "args": []
+        }
+    },
+    "terms": {
+        "<no_term>.include": {
+            "term_name": "Include",
+            "section": "root"
+        },
+        "<no_term>.declare": {
+            "term_name": "Declare",
+            "section": "root"
+        },
+        "<no_term>.title": {
+            "term_name": "Title",
+            "section": "root"
+        },
+        "datafile.grain": {
+            "term_name": "Datafile.Grain",
+            "section": "resources"
+        },
+        "homepage.url": {
+            "term_name": "Homepage.Url",
+            "section": "resources"
+        },
+        "<no_term>.synonym": {
+            "term_name": "Synonym",
+            "childpropertytype": "sequence",
+            "termvaluename": "term",
+            "section": "root"
+        },
+        "homepage.title": {
+            "term_name": "Homepage.Title",
+            "section": "resources"
+        },
+        "<no_term>.datafile": {
+            "term_name": "Datafile",
+            "termvaluename": "url",
+            "section": "resources"
+        },
+        "<no_term>.obsoletes": {
+            "term_name": "Obsoletes",
+            "section": "root"
+        },
+        "documentation.url": {
+            "term_name": "Documentation.Url",
+            "section": "resources"
+        },
+        "table.description": {
+            "term_name": "Table.Description",
+            "section": "schema"
+        },
+        "<no_term>.table": {
+            "term_name": "Table",
+            "termvaluename": "name",
+            "section": "schema"
+        },
+        "documentation.description": {
+            "term_name": "Documentation.Description",
+            "section": "resources"
+        },
+        "<no_term>.publisher": {
+            "term_name": "Publisher",
+            "termvaluename": "name",
+            "section": "contacts"
+        },
+        "wrangler.email": {
+            "term_name": "Wrangler.Email",
+            "section": "contacts"
+        },
+        "publisher.name": {
+            "term_name": "Publisher.Name",
+            "section": "contacts"
+        },
+        "<no_term>.note": {
+            "term_name": "Note",
+            "section": "root"
+        },
+        "<no_term>.description": {
+            "term_name": "Description",
+            "section": "root"
+        },
+        "creator.email": {
+            "term_name": "Creator.Email",
+            "section": "contacts"
+        },
+        "column.valuetype": {
+            "term_name": "Column.Valuetype",
+            "section": "schema"
+        },
+        "<no_term>.declareterm": {
+            "term_name": "DeclareTerm",
+            "termvaluename": "term",
+            "section": "DeclaredTerms"
+        },
+        "datafile.table": {
+            "term_name": "Datafile.Table",
+            "section": "resources"
+        },
+        "table.column": {
+            "term_name": "Table.Column",
+            "childpropertytype": "sequence",
+            "termvaluename": "name",
+            "section": "schema"
+        },
+        "<no_term>.documentation": {
+            "term_name": "Documentation",
+            "section": "resources"
+        },
+        "wrangler.name": {
+            "term_name": "Wrangler.Name",
+            "section": "contacts"
+        },
+        "column.description": {
+            "term_name": "Column.Description",
+            "section": "schema"
+        },
+        "documentation.title": {
+            "term_name": "Documentation.Title",
+            "section": "resources"
+        },
+        "<no_term>.column": {
+            "term_name": "Column",
+            "termvaluename": "name",
+            "synonym": "Table.Column",
+            "section": "schema"
+        },
+        "<no_term>.identifier": {
+            "term_name": "Identifier",
+            "section": "root"
+        },
+        "column.datatype": {
+            "term_name": "Column.Datatype",
+            "section": "schema"
+        },
+        "creator.name": {
+            "term_name": "Creator.Name",
+            "section": "contacts"
+        },
+        "column.name": {
+            "term_name": "Column.Name",
+            "section": "schema"
+        },
+        "<no_term>.format": {
+            "term_name": "Format",
+            "section": "root"
+        },
+        "<no_term>.spatialgrain": {
+            "term_name": "SpatialGrain",
+            "section": "root"
+        },
+        "<no_term>.section": {
+            "term_name": "Section",
+            "childpropertytype": "sequence",
+            "termvaluename": "name",
+            "section": "root"
+        },
+        "<no_term>.declaresection": {
+            "term_name": "DeclareSection",
+            "childpropertytype": "sequence",
+            "termvaluename": "section",
+            "section": "DeclaredSections"
+        },
+        "datafile.url": {
+            "term_name": "Datafile.Url",
+            "section": "resources"
+        },
+        "table.name": {
+            "term_name": "Table.Name",
+            "section": "schema"
+        },
+        "<no_term>.time": {
+            "term_name": "Time",
+            "section": "root"
+        },
+        "datafile.title": {
+            "term_name": "Datafile.Title",
+            "section": "resources"
+        },
+        "<no_term>.creator": {
+            "term_name": "Creator",
+            "termvaluename": "name",
+            "section": "contacts"
+        },
+        "<no_term>.homepage": {
+            "term_name": "Homepage",
+            "termvaluename": "url",
+            "section": "resources"
+        },
+        "<no_term>.spatial": {
+            "term_name": "Spatial",
+            "section": "root"
+        },
+        "<no_term>.wrangler": {
+            "term_name": "Wrangler",
+            "termvaluename": "name",
+            "section": "contacts"
+        },
+        "publisher.email": {
+            "term_name": "Publisher.Email",
+            "section": "contacts"
+        },
+        "<no_term>.version": {
+            "term_name": "Version",
+            "section": "root"
+        }
+    }
+}
