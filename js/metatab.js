@@ -121,10 +121,7 @@
             return new Term(row[0], row[1], row.slice(2));
         }  catch (e) {
             return null
-            
         } 
-        
-         
     };
 
     

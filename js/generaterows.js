@@ -57,7 +57,8 @@
         // Based on the value of ref and the environment, return a row generator
         var rowNum = 0;
         if (isNode()){
-            if(ref.startsWith('http:') || ref.startsWith('https:')){
+
+            if(ref.indexOf('http:') || ref.indexOf('https:')){
                 CsvParse.parse(ref, {
                 	download: true,
                 	step: function(row) {
