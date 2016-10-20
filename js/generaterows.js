@@ -59,13 +59,11 @@
         if (isNode()){
 
             if(ref.indexOf('http:') === 0 || ref.indexOf('https:') === 0 ){
+                
                 CsvParse.parse(ref, {
                 	download: true,
                 	step: function(row) {
-                		cb(++rowNum, row.data);
-                	},
-                	complete: function() {
-                		//
+                		cb(++rowNum, row.data[0]);
                 	}
                 });
             } else {
