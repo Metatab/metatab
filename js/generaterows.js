@@ -58,7 +58,7 @@
         var rowNum = 0;
         if (isNode()){
 
-            if(ref.indexOf('http:') || ref.indexOf('https:')){
+            if(ref.indexOf('http:') === 0 || ref.indexOf('https:') === 0 ){
                 CsvParse.parse(ref, {
                 	download: true,
                 	step: function(row) {
