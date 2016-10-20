@@ -1,5 +1,11 @@
 /* 
- Row Generators. Read a URL and generate row data 
+ Row Generators. Read a URL and generate row data. 
+ 
+ Handles:
+ * Local fioles
+ * Remote Files
+ * Spreadsheet data in Google Spreadsheets
+ 
 */
 
 (function (root, factory) {
