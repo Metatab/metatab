@@ -2,23 +2,30 @@
  Row Generators. Read a URL and generate row data 
 */
 
-
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
         // AMD
+        //console.log('AMD');
         define(['papaparse'], factory);
+       
     } else if (typeof exports === 'object') {
         // CommonJS
-        module.exports = factory(require('papaparse') );
+        //console.log('CommonJS');
+        // Papaparse runs in the browser, babyparse is for node. 
+        module.exports = factory(require('./papaparse') );
+       
     } else {
         // Browser globals (Note: root is window)
+        // console.log('Browser');
         root.returnExports = factory(root.Papa );
+       
     }
-}(this, function (Papa) {
+}(this, function (CsvParse, xhr) {
     
     /*
     Read CSV data from the local file system
     */
+    
     
     function GenerationError(message) {
         this.message = message;
@@ -42,13 +49,13 @@
     var generateRows = function (ref, cb) {
         
         // Based on the value of ref and the environment, return a row generator
+        var rowNum = 0;
         if (isNode()){
-            if(ref.startsWith('http:') || ref.startWith('https:')){
-                Papa.parse(ref, {
+            if(ref.startsWith('http:') || ref.startsWith('https:')){
+                CsvParse.parse(ref, {
                 	download: true,
-                	worker: true,
                 	step: function(row) {
-                		cb(row.data);
+                		cb(++rowNum, row.data);
                 	},
                 	complete: function() {
                 		//
@@ -56,29 +63,38 @@
                 });
             } else {
                 // Assume local filesystem
-                 require('fs').readFile(path, 'utf8', function (err,data) {
+                 require('fs').readFile(ref, 'utf8', function (err,data) {
                     if (err) {
                         console.log(err);
                         return;
                     }
                 
-                    var pr = Papa.parse(data,{
+                    CsvParse.parse(data,{
                         worker: true,
                         step: function(row) {
-                		    cb(row.data);
-                	    },
-                	    complete: function() {
-                		    //
+                            cb(++rowNum,row.data[0]);
                 	    }
                     });
                 });   
             }
         } else if (isBrowser()){
-            if(ref.startsWith('http:') || ref.startWith('https:')){
-                
-            } else {
+            if  (ref instanceof File){ /*global File*/
+                CsvParse.parse(ref, {
+                	step: function(row) {
+                		cb(++rowNum,row.data[0]);
+                	}
+                });
+            } else if(ref.startsWith('http:') || ref.startsWith('https:')){
+                CsvParse.parse(ref, {
+                	download: true,
+                	worker: true,
+                	step: function(row) {
+                		cb(++rowNum,row.data[0]);
+                	}
+                });
+            }  else {
                 throw GenerationError(
-                    "In browser, can only fetch via http/https");
+                    "In browser, can only fetch via http/https or use File() ");
             }
             
         } else if (isSpreadsheet()){
@@ -112,8 +128,8 @@
     
         
     return {
-      generateRows: generateRows,
+      generate: generateRows,
 
 
     };
-})
+}));

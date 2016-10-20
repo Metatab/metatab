@@ -8,15 +8,15 @@
 (function (root, factory) {
   if (typeof define === 'function' && define.amd) {
       // AMD
-    define(['papaparse'], factory);
+    define(['generaterows'], factory);
   } else if (typeof exports === 'object') {
       // CommonJS
-    module.exports = factory(require('papaparse') );
+    module.exports = factory(require('./generaterows') );
   } else {
     // Browser globals (Note: root is window)
-    root.returnExports = factory(root.Papa );
+    root.returnExports = factory (root.GenerateRows);
   }
-}(this, function (Papa) {
+}(this, function (GenerateRows) {
 
     const ELIDED_TERM = '<elided_term>';
     const NO_TERM = '<no_term>';
@@ -127,28 +127,11 @@
          
     };
 
-    var generateRows = function (path, cb) {
-       
-        var fs = require('fs')
-        fs.readFile(path, 'utf8', function (err,data) {
-          if (err) {
-            return console.log(err);
-          }
-          
-          var pr = Papa.parse(data);
-          
-          // TODO: Handle errors in rows
-          
-          for(var i = 0; i < pr['data'].length; i++){
-              cb(i, pr['data'][i]);
-          }
-              
-        });
-    };
     
     var generateTerms = function(path, cb){
         
-        generateRows(path, function(rowNum, row){
+        GenerateRows.generate(path, function(rowNum, row){
+
             var term = termFromRow(row);
             if (term && term.term ){
                 term.row = rowNum;
@@ -199,14 +182,14 @@
     
         this.installDeclareTerms = function(){
             
-            var declareTerms = {
-                NO_TERM + '.section': {'termvaluename': 'name'},
+           /* var declareTerms = {
+                (NO_TERM + '.section'): {'termvaluename': 'name'},
                 NO_TERM + '.synonym': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
                 NO_TERM + '.declareterm': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
                 NO_TERM + '.declaresection': {'termvaluename': 'section_name', 'childpropertytype': 'sequence'},
                 NO_TERM + '.declarevalueset': {'termvaluename': 'name', 'childpropertytype': 'sequence'},
                 'declarevalueset.value': {'termvaluename': 'value', 'childpropertytype': 'sequence'},
-            };
+            };*/
         
         }
     
@@ -256,10 +239,10 @@
                 
                 if (nt.recordTerm.toLowerCase() == 'declare'){
                     var fn;
-                    if(nt.value.startswith('http'){
+                    if(nt.value.startsWith('http')){
                         fn = nt.value.replace(/\/$/, "");
                     } else {
-                        fn = join(dirname(t.file_name), t.value.replace(/\/$/, "");
+                        fn = join(dirname(t.file_name), t.value.replace(/\/$/, ""));
                     }
                 }
                 
@@ -286,7 +269,7 @@
     }
     
     return {
-      generateRows: generateRows,
+
       parse: parse
     };
 }));
