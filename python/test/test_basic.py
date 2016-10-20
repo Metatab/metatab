@@ -18,12 +18,26 @@ class MyTestCase(unittest.TestCase):
 
             print term_interp.errors_as_dict()
 
+    def test_root(self):
+        import json
+        from os.path import dirname, join
+        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
+        fn = join(dirname(__file__), 'data', 'children2.csv')
+
+        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
+
+        term_interp = TermInterpreter(term_gen)
+
+        for t in term_interp:
+            print t
+
+        print json.dumps(term_interp.as_dict(),indent=4)
+
     def test_children(self):
         import json
         from os.path import dirname, join
         from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
         fn = join(dirname(__file__), 'data', 'children.csv')
-
 
         term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
 
@@ -31,7 +45,6 @@ class MyTestCase(unittest.TestCase):
 
         for t in term_interp.as_dict()['parent']:
             self.assertEquals({'prop1': 'prop1', 'prop2': 'prop2', '@value': 'parent'}, t)
-
 
     def test_includes(self):
         import json
@@ -50,7 +63,6 @@ class MyTestCase(unittest.TestCase):
         self.assertEquals(['include2.csv',
                            'https://raw.githubusercontent.com/CivicKnowledge/structured_tables/master/test/data/include3.csv'],
                           d['include'])
-
 
     def test_parse_everything(self):
         import json
@@ -98,8 +110,6 @@ class MyTestCase(unittest.TestCase):
 
                 terms = list(TermGenerator(rg))
 
-                #for i, t in enumerate(terms):
-                #    print i, t
 
                 self.assertEqual(141, len(terms))
 
@@ -120,14 +130,17 @@ class MyTestCase(unittest.TestCase):
 
                 terms = TermInterpreter(TermGenerator(rg))
 
-                self.assertListEqual(['creator', 'datafile', 'description', 'documentation', 'format', 'homepage',
-                                      'identifier', 'note', 'obsoletes', 'spatial', 'spatialgrain', 'table',
-                                      'time', 'title', 'version', 'wrangler'],
-                                     sorted(terms.as_dict().keys()) )
+                d = terms.as_dict()
+
+                self.assertListEqual(sorted(['creator', 'datafile', 'description', 'documentation',
+                                             'format', 'homepage','identifier', 'note', 'obsoletes',
+                                             'spatial', 'spatialgrain', 'table', 'time', 'title',
+                                             'version', 'wrangler']),
+                                     sorted(d.keys()) )
 
     def test_declarations(self):
         from os.path import dirname, join
-        from metatab import CsvPathRowGenerator, TermGenerator, TermInterpreter, Term
+        from metatab import CsvPathRowGenerator, RowGenerator, TermGenerator, TermInterpreter, Term
 
         import csv, json
 
@@ -135,9 +148,12 @@ class MyTestCase(unittest.TestCase):
 
         fn = join(dirname(__file__), 'data', 'example1.csv') # Not acutally used. Sets base directory
 
-        term_interp = TermInterpreter(TermGenerator(CsvPathRowGenerator(fn)))
+        term_interp = TermInterpreter(TermGenerator(RowGenerator([['Declare','metadata.csv']], fn)))
 
-        term_interp.handle_declare(Term('Declare','metadata.csv', file_name=fn))
+        print json.dumps(term_interp.as_dict(), indent=4);
+
+
+        return
 
         d = term_interp.declare_dict
 

@@ -1,0 +1,14 @@
+"# Like children.csv, but with different values for debugging. ",,,
+,,,
+"Section","Arguments","prop1","prop2"
+"Parent","parent","prop11","prop12"
+,,,
+"Section","ExplicitChildren",,
+"Parent","parent",,
+"Parent.Prop1","prop21",,
+"Parent.Prop2","prop22",,
+,,,
+"Section","ElidedChildren",,
+"Parent","parent",,
+".Prop1","prop31",,
+".Prop2","prop32",,
