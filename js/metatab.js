@@ -1,7 +1,7 @@
 /*!
-	Metatab-JS
+	Metatab For Javascript
 	v0.0.1
-	https://github.com/CivicKnowledge/metatab-js
+	https://github.com/CivicKnowledge/metatab
 */
 
 
@@ -128,8 +128,7 @@
     };
 
     var generateRows = function (path, cb) {
-        console.log("parsing file");
-
+       
         var fs = require('fs')
         fs.readFile(path, 'utf8', function (err,data) {
           if (err) {
@@ -186,12 +185,29 @@
     
     var TermInterpreter = function (path, cb) {
       
+        this.terms = {};
+        this.sections = {};
+        this.errors = [];
+      
         this.substituteSynonym = function(nt, t){
             
         }
         
         this.join = function(t1, t2){
             return t1+'.'+t2
+        }
+    
+        this.installDeclareTerms = function(){
+            
+            var declareTerms = {
+                NO_TERM + '.section': {'termvaluename': 'name'},
+                NO_TERM + '.synonym': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
+                NO_TERM + '.declareterm': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
+                NO_TERM + '.declaresection': {'termvaluename': 'section_name', 'childpropertytype': 'sequence'},
+                NO_TERM + '.declarevalueset': {'termvaluename': 'name', 'childpropertytype': 'sequence'},
+                'declarevalueset.value': {'termvaluename': 'value', 'childpropertytype': 'sequence'},
+            };
+        
         }
     
         this.run = function(){
@@ -207,24 +223,44 @@
             
                 self.substituteSynonym(nt, term);
             
-                if (nt.record_term == ELIDED_TERM && lastParentTerm){
+                
+                if (nt.parentTerm == ELIDED_TERM && lastParentTerm){
+                    // If the parent term was elided -- the term starts with '.'
+                    // then substitute in the last parent term
                     nt.parentTerm = lastParentTerm;
                 } else if ( ! nt.isArgChild){
+                    // If the parent term was not elided, and the term is
+                    // in Column A of the spreadsheet ( rather than a child term 
+                    // in the term arg list, Col C+), then we can use it for the 
+                    // last parent term. 
                     lastParentTerm = nt.recordTerm;
                 }
             
                 if (parseInt(term.recordTerm) in paramMap){
+                    // Convert child terms from the args, which are initially 
+                    // given recordTerm names of integers, according to their 
+                    // position in the arg list. 
                     nt.recordTerm = String(paramMap[parseInt(term.recordTerm)]);
                 }
                 
                 
                 if (nt.recordTerm.toLowerCase() == 'section'){
+                    // Section terms set the param map
                     paramMap = {};
                     for(var i = 0; i < nt.termArgs.length; i++){
                         paramMap[i] = String(nt.termArgs[i]).toLowerCase();
                     }
                     
-                    
+                    return;
+                }
+                
+                if (nt.recordTerm.toLowerCase() == 'declare'){
+                    var fn;
+                    if(nt.value.startswith('http'){
+                        fn = nt.value.replace(/\/$/, "");
+                    } else {
+                        fn = join(dirname(t.file_name), t.value.replace(/\/$/, "");
+                    }
                 }
                 
             
