@@ -4,6 +4,9 @@
 	https://github.com/CivicKnowledge/metatab
 */
 
+function dirname(path) {
+    return path.replace(/\\/g,'/').replace(/\/[^\/]*$/, '');
+}
 
 (function (root, factory) {
   if (typeof define === 'function' && define.amd) {
@@ -56,7 +59,7 @@
         this.parentTerm = p[0];
         this.recordTerm = p[1];
         
-        this.value = value.trim();
+        this.value = value && value.trim();
         
         if (Array.isArray(termArgs)){
             this.termArgs = []
@@ -113,7 +116,25 @@
             return c;
             
         }
-
+        
+        this.joinedTerm = function(){
+            return this.parentTerm + '.' + this.recordTerm;
+        }
+        
+        this.joinedTermLc = function(){
+            return this.parentTerm.toLowerCase() + '.' +
+                   this.recordTerm.toLowerCase();
+        }
+        
+        this.termIs = function(v){
+            if (this.recordTerm.toLowerCase() == v.toLowerCase()  || 
+                this.joinedTermLc() == v.toLowerCase()){
+                return true;
+            } else {
+                return false;
+            }
+        }
+        
     };
 
     var termFromRow = function(row){
@@ -137,12 +158,12 @@
                 cb(term);
                 
                 // Include another file
-                if (term.recordTerm.toLowerCase() != 'include' ){
+                if (term.termIs('include') ){
                     // Do includy stuff
                 }
                 
                 // Generate child terms
-                if (term.recordTerm.toLowerCase() != 'section' ){
+                if (!term.termIs('section') ){
                     for(var i = 0; i < term.termArgs.length; i++){
                         if (term.value.trim()){
                             var childTerm = 
@@ -163,10 +184,10 @@
         });
     }
     
-    var TermInterpreter = function (path, cb) {
+    var TermInterpreter = function (path) {
       
-        this.terms = {};
-        this.sections = {};
+        this.terms = new Map();
+        this.sections = new Map();
         this.errors = [];
       
         this.substituteSynonym = function(nt, t){
@@ -178,43 +199,52 @@
         }
     
         this.installDeclareTerms = function(){
-            
-           /* var declareTerms = {
-                (NO_TERM + '.section'): {'termvaluename': 'name'},
-                NO_TERM + '.synonym': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
-                NO_TERM + '.declareterm': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
-                NO_TERM + '.declaresection': {'termvaluename': 'section_name', 'childpropertytype': 'sequence'},
-                NO_TERM + '.declarevalueset': {'termvaluename': 'name', 'childpropertytype': 'sequence'},
-                'declarevalueset.value': {'termvaluename': 'value', 'childpropertytype': 'sequence'},
-            };*/
-        
+
+           this.terms['root.section'] = {'termvaluename': 'name'};
+           this.terms['root.synonym'] = {'termvaluename': 'term_name', 'childpropertytype': 'sequence'};
+           this.terms['root.declareterm'] = {'termvaluename': 'term_name', 'childpropertytype': 'sequence'};
+           this.terms['root.declaresection'] = {'termvaluename': 'section_name', 'childpropertytype': 'sequence'};
+           this.terms['root.declarevalueset'] = {'termvaluename': 'name', 'childpropertytype': 'sequence'};
+           this.terms['declarevalueset.value']= {'termvaluename': 'value', 'childpropertytype': 'sequence'};
+
         }
     
-        this.run = function(){
+        this.run = function(cb){
         
             var self = this;
             
             var lastParentTerm = 'root';
-            var paramMap = {};
+            var paramMap = [];
+            var root = null;
+            var lastTermMap = new Map();
         
             generateTerms(path, function(term){
             
+                if ( ! root ){
+                    root = new Term('Root', null);
+                    root.row=0;
+                    root.col=0;
+                    root.file_name=term.file_name;
+                    lastTermMap.set(ELIDED_TERM,root);
+                    lastTermMap.set(root.recordTerm,root);
+                    cb(root);
+                }
+            
                 var nt = term.clone();
-            
-                self.substituteSynonym(nt, term);
-            
-                
-                if (nt.parentTerm == ELIDED_TERM && lastParentTerm){
+    
+                if (nt.parentTerm == ELIDED_TERM){
                     // If the parent term was elided -- the term starts with '.'
                     // then substitute in the last parent term
                     nt.parentTerm = lastParentTerm;
-                } else if ( ! nt.isArgChild){
+                } else if (nt.parentTerm == NO_TERM ){
                     // If the parent term was not elided, and the term is
                     // in Column A of the spreadsheet ( rather than a child term 
                     // in the term arg list, Col C+), then we can use it for the 
                     // last parent term. 
-                    lastParentTerm = nt.recordTerm;
+                    nt.parentTerm = root.recordTerm;
                 }
+            
+                self.substituteSynonym(nt, term);
             
                 if (parseInt(term.recordTerm) in paramMap){
                     // Convert child terms from the args, which are initially 
@@ -222,51 +252,64 @@
                     // position in the arg list. 
                     nt.recordTerm = String(paramMap[parseInt(term.recordTerm)]);
                 }
-                
-                
-                if (nt.recordTerm.toLowerCase() == 'section'){
+
+                if (nt.termIs('section')){
                     // Section terms set the param map
-                    paramMap = {};
+                    paramMap = [];
                     for(var i = 0; i < nt.termArgs.length; i++){
                         paramMap[i] = String(nt.termArgs[i]).toLowerCase();
                     }
-                    
+                    lastParentTerm = root.recordTerm
                     return;
                 }
                 
-                if (nt.recordTerm.toLowerCase() == 'declare'){
-                    var fn;
-                    if(nt.value.startsWith('http')){
-                        fn = nt.value.replace(/\/$/, "");
+
+                if (nt.termIs('declare')){
+                    var path;
+                    if(nt.value.indexOf('http')===0){
+                        path = nt.value.replace(/\/$/, "");
                     } else {
-                        fn = join(dirname(t.file_name), t.value.replace(/\/$/, ""));
+                        path = dirname(nt.file_name)+"/"+
+                             nt.value.replace(/\/$/, "");
                     }
+                    
+                    var dci = TermInterpreter(path);
+                    dci.installDeclareTerms();
+                    
+                   self.importDeclareDoc();
                 }
                 
-            
+                try {
+                    nt.childPropertyType = self.terms.get(nt.joinedTerm()) 
+                        .get('childpropertytype', 'any');
+                } catch(e){
+                    
+                }
+
+                try {
+                    nt.termValueName = self.terms.get(nt.joinedTerm()) 
+                        .get('termvaluename', '@value');
+                } catch(e) {
+                    
+                }
+
+                nt.valid =  self.terms.has(nt.joinedTermLc());
+                
                 cb(nt);
             });
         };
-        
-        
-        
     };
     
     
-    var parse = function(path){
+    var parse = function(path, cb){
         
-        var interp = new TermInterpreter(path, function(term){
-            console.log(term.toString()); 
-        });
-        
-        console.log(interp);
-        
-        interp.run();
+        var interp = new TermInterpreter(path);
+
+        interp.run(cb);
                 
     }
     
     return {
-
       parse: parse
     };
 }));
