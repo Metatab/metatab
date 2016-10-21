@@ -74,6 +74,10 @@ class Term(object):
 
         self.is_arg_child = is_arg_child  # If true, term was
 
+        # There are some restrictions on what terms can be used for omitted parents,
+        # otherwise consecutive terms with elided parents will get nested.
+        self.can_be_parent = (not self.is_arg_child and self.parent_term != ELIDED_TERM)
+
         self.children = []  # WHen terms are linked, hold term's children.
 
     @classmethod
@@ -117,6 +121,19 @@ class Term(object):
 
     def add_child(self, child):
         self.children.append(child)
+
+    def join(self):
+        return "{}.{}".format(self.parent_term, self.record_term)
+
+    def join_lc(self):
+        return "{}.{}".format(self.parent_term.lower(), self.record_term.lower())
+
+    def term_is(self, v):
+
+        if self.record_term.lower() == v.lower() or self.join_lc() == v.lower():
+            return True
+        else:
+            return False
 
     def __repr__(self):
         return "<Term: {}{}.{} {} {} >".format(self.file_ref(), self.parent_term,
@@ -270,7 +287,7 @@ class TermGenerator(object):
                      col=1,
                      file_name=self._path)
 
-            if t.record_term.lower() == 'include':
+            if t.term_is('include'):
 
                 yield t
 
@@ -293,7 +310,7 @@ class TermGenerator(object):
             yield t
 
             # Yield any child terms, from the term row arguments
-            if t.record_term.lower() != 'section':
+            if not t.term_is('section'):
                 for col, value in enumerate(t.args, 0):
                     if str(value).strip():
                         yield Term(t.record_term.lower() + '.' + str(col), str(value), [],
@@ -329,13 +346,15 @@ class TermInterpreter(object):
 
         self.errors = []
 
+        self.root = None;
+
     @property
     def sections(self):
         return self._sections
 
     @property
     def synonyms(self):
-        return {k: v['synonym'] for k, v in self._terms.items() if 'synonym' in v}
+        return {k.lower(): v['synonym'] for k, v in self._terms.items() if 'synonym' in v}
 
     @property
     def terms(self):
@@ -343,45 +362,34 @@ class TermInterpreter(object):
 
     @property
     def declare_dict(self):
+
+        # Run the parser, if it has not been run yet.
+        if not self.root:
+            for _ in self: pass
+
         return {
             'sections': self.sections,
             'terms': self.terms,
         }
 
+    def install_declare_terms(self):
+        self._terms.update({
+            'root.section': {'termvaluename': 'name'},
+            'root.synonym': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
+            'root.declareterm': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
+            'root.declaresection': {'termvaluename': 'section_name', 'childpropertytype': 'sequence'},
+            'root.declarevalueset': {'termvaluename': 'name', 'childpropertytype': 'sequence'},
+            'declarevalueset.value': {'termvaluename': 'value', 'childpropertytype': 'sequence'},
+        })
+
     def as_dict(self):
         """Iterate, link terms and convert to a dict"""
 
-        return self.convert_to_dict(self.link_terms())
+        # Run the parser, if it has not been run yet.
+        if not self.root:
+            for _ in self: pass
 
-    def link_terms(self):
-        """Return a heirarchy of records from a stream of terms
-
-        NOTE: This method will iterate over self.
-
-        :param term_generator:
-        """
-
-        root = Term('Root', None)
-        last_term_map = {NO_TERM: root}
-
-        for term in self:
-
-            try:
-                parent = last_term_map[term.parent_term]
-            except KeyError as e:
-
-                raise ParserError("Failed to find parent term in last term map: {} {} \nTerm: \n{}"
-                                  .format(e.__class__.__name__, e, term))
-
-            parent.add_child(term)
-
-            if not term.is_arg_child and term.parent_term != ELIDED_TERM:
-                # Recs created from term args don't go in the maps.
-                # Nor do record term records with elided parent terms
-                last_term_map[ELIDED_TERM] = term
-                last_term_map[term.record_term] = term
-
-        return root
+        return self.convert_to_dict(self.root)
 
     @classmethod
     def convert_to_dict(cls, term):
@@ -411,7 +419,7 @@ class TermInterpreter(object):
                     try:
                         d[c.record_term].append(cls.convert_to_dict(c))
                     except KeyError:
-                        # The c.term property doesn't exist, so add a scalar
+                        # The c.term property doesn't exist, so add a scalar or a msp
                         d[c.record_term] = cls.convert_to_dict(c)
                     except AttributeError as e:
                         # d[c.term] exists, but is a scalar, so convert it to a list
@@ -434,92 +442,99 @@ class TermInterpreter(object):
                 'file': e.term.file_name,
                 'row': e.term.row,
                 'col': e.term.col,
-                'term': self.join(e.term.parent_term, e.term.record_term),
+                'term': e.term.join(),
                 'error': str(e)
             })
 
         return errors
 
-    @staticmethod
-    def join(t1, t2):
-        return '.'.join((t1, t2))
-
     def __iter__(self):
         import copy
 
         last_parent_term = 'root'
+        last_term_map = {}
+        last_section = None
+        self.root = None
 
-        # Remapping the default record value to another property name
-        for t in self._term_gen:
+        for i, t in enumerate(self._term_gen):
+
+            if self.root is None:
+                self.root = Term('Root', None, row=0, col=0, file_name=t.file_name)
+                last_section = self.root
+                last_term_map[ELIDED_TERM] = self.root
+                last_term_map[self.root.record_term] = self.root
+                yield self.root
 
             nt = copy.copy(t)
 
-            # Substitute synonyms
-            try:
-                syn_term = self.synonyms[self.join(t.parent_term, t.record_term)]
-
-                nt.parent_term, nt.record_term = Term.split_term_lower(syn_term);
-            except KeyError:
-                pass
-
-            if nt.parent_term == ELIDED_TERM and last_parent_term:
+            if nt.parent_term == ELIDED_TERM:
                 nt.parent_term = last_parent_term
-            elif not nt.is_arg_child:
-                last_parent_term = nt.record_term
+            elif nt.parent_term == NO_TERM:
+                nt.parent_term = self.root.record_term
+
+            # Substitute synonyms
+            if nt.join_lc() in self.synonyms:
+                nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc()]);
 
             # Remap integer record terms to names from the parameter map
             try:
+
                 nt.record_term = str(self._param_map[int(t.record_term)])
             except ValueError:
                 pass  # the record term wasn't an integer
+
             except IndexError:
                 pass  # Probably no parameter map.
 
-            # Handle other special terms
-            if hasattr(self, 'handle_' + t.record_term.lower()):
-                getattr(self, 'handle_' + t.record_term.lower())(t)
-                if self._remove_special:
-                    continue
 
-            nt.child_property_type = self._terms.get(self.join(nt.parent_term, nt.record_term), {}) \
-                .get('childpropertytype', 'any')
+            if nt.term_is('root.section'):
+                self._param_map = [p.lower() if p else i for i, p in enumerate(nt.args)]
 
-            nt.term_value_name = self._terms.get(self.join(nt.parent_term, nt.record_term), {}) \
-                .get('termvaluename', '@value')
+                # Parentage should not persist across sections
+                last_parent_term = self.root.record_term
+                last_section = nt
+                continue
 
-            nt.valid = self.join(nt.parent_term.lower(), nt.record_term.lower()) in self._terms
+            if nt.term_is('root.declare'):
+                from os.path import dirname, join
+
+                if t.value.startswith('http'):
+                    fn = nt.value.strip('/')
+                else:
+                    fn = join(dirname(nt.file_name), nt.value.strip('/'))
+
+                ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(fn)), False)
+                ti.install_declare_terms()
+
+                try:
+                    self.import_declare_doc(ti.as_dict())
+                except IncludeError as e:
+                    e.term = t
+                    self.errors.append(e)
+
+            nt.child_property_type = self._terms.get(nt.join(), {}).get('childpropertytype', 'any')
+
+            nt.term_value_name = self._terms.get(nt.join(), {}).get('termvaluename', '@value')
+
+            nt.valid = nt.join_lc() in self._terms
+
+            nt.section = last_section;
+
+            if nt.can_be_parent:
+                last_parent_term = nt.record_term
+                # Recs created from term args don't go in the maps.
+                # Nor do record term records with elided parent terms
+                last_term_map[ELIDED_TERM] = nt
+                last_term_map[nt.record_term] = nt
+
+            try:
+                parent = last_term_map[nt.parent_term]
+                parent.add_child(nt)
+            except KeyError as e:
+                raise ParserError("Failed to find parent term in last term map: {} {} \nTerm: \n{}"
+                                      .format(e.__class__.__name__, e, nt))
 
             yield nt
-
-    def handle_section(self, t):
-        self._param_map = [p.lower() if p else i for i, p in enumerate(t.args)]
-
-    def handle_declare(self, t):
-        """Load the information in the file referenced by a Delare term, but don't
-        insert the terms in the file into the stream"""
-        from os.path import dirname, join
-
-        if t.value.startswith('http'):
-            fn = t.value.strip('/')
-        else:
-            fn = join(dirname(t.file_name), t.value.strip('/'))
-
-        ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(fn)), False)
-
-        ti._terms.update({
-            NO_TERM + '.section': {'termvaluename': 'name'},
-            NO_TERM + '.synonym': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
-            NO_TERM + '.declareterm': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
-            NO_TERM + '.declaresection': {'termvaluename': 'section_name', 'childpropertytype': 'sequence'},
-            NO_TERM + '.declarevalueset': {'termvaluename': 'name', 'childpropertytype': 'sequence'},
-            'declarevalueset.value': {'termvaluename': 'value', 'childpropertytype': 'sequence'},
-        })
-
-        try:
-            self.import_declare_doc(ti.as_dict())
-        except IncludeError as e:
-            e.term = t
-            self.errors.append(e)
 
     def import_declare_doc(self, d):
         """Import a declare doc that has been parsed and converted to a dict"""
@@ -534,7 +549,13 @@ class TermInterpreter(object):
 
         if 'declareterm' in d:
             for e in d['declareterm']:
-                terms = self.join(*Term.split_term_lower(e['term_name']))
+                parent_term, record_term = Term.split_term_lower(e['term_name'])
+
+                if parent_term == NO_TERM:
+                    parent_term = 'root'
+
+                terms = '.'.join((parent_term, record_term))
+
                 self._terms[terms] = e
 
                 if 'section' in e and e['section']:
