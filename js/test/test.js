@@ -17,5 +17,7 @@ if (false){
 var Metatab = require('../metatab.js');
 
 
-//Metatab.parse('./children.csv');
-Metatab.parse(csv_url);
+Metatab.parse('./children.csv', function(term){
+    console.log(term.toString());
+});
+//Metatab.parse(csv_url);
