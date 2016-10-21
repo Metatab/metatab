@@ -139,7 +139,7 @@ class MyTestCase(unittest.TestCase):
 
 
 
-                self.assertListEqual(sorted(['creator', 'datafile', 'description', 'documentation',
+                self.assertListEqual(sorted(['creator', 'datafile', 'declare', 'description', 'documentation',
                                              'format', 'homepage','identifier', 'note', 'obsoletes',
                                              'spatial', 'spatialgrain', 'table', 'time', 'title',
                                              'version', 'wrangler']),
