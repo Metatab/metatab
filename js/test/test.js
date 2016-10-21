@@ -16,8 +16,10 @@ if (false){
 
 var Metatab = require('../metatab.js');
 
-
 Metatab.parse('./children.csv', function(term){
     console.log(term.toString());
+}, function(interp){ 
+    console.log(JSON.stringify(interp.toDict()));
 });
+
 //Metatab.parse(csv_url);

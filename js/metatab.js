@@ -93,6 +93,8 @@ function dirname(path) {
 
         this.isArgChild= null;
         
+        this.canBeParent = ( !this.isChidArg && this.parentTerm != ELIDED_TERM);
+        
         this.toString = function(){
             return "<Term "+this.parentTerm+"."+this.recordTerm+"="+
             this.value+" "+JSON.stringify(this.termArgs)+" >"
@@ -112,6 +114,7 @@ function dirname(path) {
             c.childPropertyType = this.childPropertyType;
             c.valid = this.valid;
             c.isArgChild = this.isArgChild;
+            c.canBeParent = this.canBeParent;
             
             return c;
             
@@ -146,7 +149,7 @@ function dirname(path) {
     };
 
     
-    var generateTerms = function(path, cb){
+    var generateTerms = function(path, rowCb, finishCb){
         
         GenerateRows.generate(path, function(rowNum, row){
 
@@ -155,7 +158,7 @@ function dirname(path) {
                 term.row = rowNum;
                 term.col = 1;
                 term.fileName = path;
-                cb(term);
+                rowCb(term);
                 
                 // Include another file
                 if (term.termIs('include') ){
@@ -173,7 +176,7 @@ function dirname(path) {
                             childTerm.row = rowNum;
                             childTerm.col = i + 2;
                             childTerm.fileName = path;
-                            cb(childTerm);
+                            rowCb(childTerm);
                         }
                     }
                 }
@@ -181,7 +184,7 @@ function dirname(path) {
             } else {
                 // TODO Handle error
             }
-        });
+        }, finishCb);
     }
     
     var TermInterpreter = function (path) {
@@ -209,25 +212,25 @@ function dirname(path) {
 
         }
     
-        this.run = function(cb){
+        this.run = function(cb, finishCb){
         
             var self = this;
             
             var lastParentTerm = 'root';
             var paramMap = [];
-            var root = null;
+            self.rootTerm = null;
             var lastTermMap = new Map();
         
             generateTerms(path, function(term){
             
-                if ( ! root ){
-                    root = new Term('Root', null);
-                    root.row=0;
-                    root.col=0;
-                    root.file_name=term.file_name;
-                    lastTermMap.set(ELIDED_TERM,root);
-                    lastTermMap.set(root.recordTerm,root);
-                    cb(root);
+                if ( ! self.rootTerm ){
+                    self.rootTerm = new Term('Root', null);
+                    self.rootTerm.row=0;
+                    self.rootTerm.col=0;
+                    self.rootTerm.file_name=term.file_name;
+                    lastTermMap.set(ELIDED_TERM,self.rootTerm);
+                    lastTermMap.set(self.rootTerm.recordTerm,self.rootTerm);
+                    cb(self.rootTerm);
                 }
             
                 var nt = term.clone();
@@ -241,7 +244,7 @@ function dirname(path) {
                     // in Column A of the spreadsheet ( rather than a child term 
                     // in the term arg list, Col C+), then we can use it for the 
                     // last parent term. 
-                    nt.parentTerm = root.recordTerm;
+                    nt.parentTerm = self.rootTerm.recordTerm;
                 }
             
                 self.substituteSynonym(nt, term);
@@ -259,7 +262,7 @@ function dirname(path) {
                     for(var i = 0; i < nt.termArgs.length; i++){
                         paramMap[i] = String(nt.termArgs[i]).toLowerCase();
                     }
-                    lastParentTerm = root.recordTerm
+                    lastParentTerm = self.rootTerm.recordTerm
                     return;
                 }
                 
@@ -295,18 +298,97 @@ function dirname(path) {
 
                 nt.valid =  self.terms.has(nt.joinedTermLc());
                 
+                if (nt.canBeParent){
+                    lastParentTerm = nt.recordTerm;
+                    lastTermMap.set(ELIDED_TERM, nt);
+                    lastTermMap.set(nt.recordTerm, nt);
+                }
+                
+                var parent = lastTermMap.get(nt.parentTerm);
+                if (parent){
+                    parent.children.push(nt);
+                }
+                
                 cb(nt);
+            }, function(){
+                if (finishCb){
+                    finishCb(self);
+                }
             });
+            
         };
+        
+        
+        this.toDict = function(term){
+            return this._toDict(this.rootTerm);
+        }
+        
+        this._toDict = function(term){
+            
+            function is_scalar(obj){
+                return (/string|number|boolean/).test(typeof obj);
+                
+            };
+            
+            function is_array(obj){
+                return (Object.prototype.toString.call( obj ) === '[object Array]' );
+            }
+            
+            if (term.children){
+
+                var d = {};
+    
+                for( var i = 0; i < term.children.length; i++ ){
+                    var c = term.children[i];
+                    
+                    if (c.childPropertyType == 'scalar') {
+                        d[c.recordTerm] = this._toDict(c);
+                        
+                    } else if (c.childPropertyType == 'sequence') {
+                        if (c.recordTerm in d) {
+                            d[c.recordTerm].push(this._toDict(c));
+                        } else  {
+                            // The c.term property doesn't exist, so add a list
+                            d[c.recordTerm] =  [this._toDict(c)];
+                        }
+    
+                    } else {
+                        
+                        if ( c.recordTerm in d ){
+                            if (! is_array(d[c.recordTerm])){
+                                //The entry exists, but is a scalar, so convert it to a list
+                                d[c.recordTerm] = [d[c.recordTerm]];
+                            }
+
+                            d[c.recordTerm].push( this._toDict(c));
+                        } else {
+                            // Doesn't exist, so add as a scalar
+                            d[c.recordTerm] = this._toDict(c);
+                        }
+                    }
+                }
+                
+                if (term.value) {
+                    d[term.termValueName] = term.value;
+                }
+                
+                return d;
+
+            } else {
+                return term.value;
+            }
+        
+        };
+        
     };
     
     
-    var parse = function(path, cb){
+    var parse = function(path, cb, finishCb){
         
         var interp = new TermInterpreter(path);
 
-        interp.run(cb);
-                
+        interp.run(cb, finishCb);
+
     }
     
     return {

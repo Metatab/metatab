@@ -52,7 +52,7 @@
     var isNode=new Function("try {return this===global;}catch(e){return false;}");
     var isSpreadsheet=new Function("try { return Logger && SpreadsheetApp; return true; }catch(e){return false;}");
     
-    var generateRows = function (ref, cb) {
+    var generateRows = function (ref, cb,finishCb) {
         
         // Based on the value of ref and the environment, return a row generator
         var rowNum = 0;
@@ -64,6 +64,9 @@
                 	download: true,
                 	step: function(row) {
                 		cb(++rowNum, row.data[0]);
+                	},
+                	complete: function(){
+                	     finishCb();
                 	}
                 });
             } else {
@@ -78,6 +81,9 @@
                         worker: true,
                         step: function(row) {
                             cb(++rowNum,row.data[0]);
+                	    },
+                	    complete: function(){
+                	        finishCb();
                 	    }
                     });
                 });   
@@ -87,6 +93,9 @@
                 CsvParse.parse(ref, {
                 	step: function(row) {
                 		cb(++rowNum,row.data[0]);
+                	},
+                	complete: function(){
+                	     finishCb();
                 	}
                 });
             } else if(ref.startsWith('http:') || ref.startsWith('https:')){
@@ -95,6 +104,9 @@
                 	worker: true,
                 	step: function(row) {
                 		cb(++rowNum,row.data[0]);
+                	},
+                	complete: function(){
+                	     finishCb();
                 	}
                 });
             }  else {
@@ -128,13 +140,13 @@
         } else {
             throw GenerationError(
                 "Can't determine environment, so don't know how to fetch data");
-        }     
+        } 
+
+        
     };
     
         
     return {
       generate: generateRows,
-
-
     };
 }));
