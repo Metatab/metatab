@@ -1,6 +1,20 @@
 import unittest
 
 
+import collections
+
+# From http://stackoverflow.com/a/6027615
+def flatten(d, parent_key='', sep='_'):
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+
+    return dict(items)
+
 def test_data(*paths):
     from os.path import dirname, join
 
@@ -71,13 +85,16 @@ class MyTestCase(unittest.TestCase):
 
     def test_parse_everything(self):
         import json
-        from os.path import dirname, join
+        from os.path import dirname, join, exists
         from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
 
         for fn in ['example1.csv','example2.csv','example1-web.csv',
-                  'include1.csv','include2.csv', 'include3.csv' ]:
+                   'include1.csv','include2.csv', 'include3.csv',
+                   'children.csv','children2.csv']:
 
             path = test_data(fn)
+
+            json_path = test_data('json',fn.replace('.csv', '.json'))
 
             with open(path) as f:
                 term_gen = list(TermGenerator(CsvPathRowGenerator(path)))
@@ -86,7 +103,14 @@ class MyTestCase(unittest.TestCase):
 
                 d = term_interp.as_dict()
 
-                print fn, len(d)
+                if not exists(json_path):
+                    with open(json_path,'w') as f:
+                        json.dump(d,f, indent=4)
+
+                with open(json_path) as f:
+                    d2 = json.load(f)
+
+                self.assertDictEqual(flatten(d), flatten(d2));
 
     def test_terms(self):
         from os.path import dirname, join
@@ -136,8 +160,6 @@ class MyTestCase(unittest.TestCase):
                 terms = TermInterpreter(TermGenerator(rg))
 
                 d = terms.as_dict()
-
-
 
                 self.assertListEqual(sorted(['creator', 'datafile', 'declare', 'description', 'documentation',
                                              'format', 'homepage','identifier', 'note', 'obsoletes',
