@@ -1,4 +1,10 @@
 
+const path = require('path');
+
+function testData(v){
+    return path.join('../../')
+}
+
 var csv_url = 'https://raw.githubusercontent.com/CivicKnowledge/metatab/master/python/test/data/children.csv';
 
 if (false){

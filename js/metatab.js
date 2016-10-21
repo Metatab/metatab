@@ -219,7 +219,9 @@ function dirname(path) {
             var lastParentTerm = 'root';
             var paramMap = [];
             self.rootTerm = null;
+            
             var lastTermMap = new Map();
+            var lastSection = null;
         
             generateTerms(path, function(term){
             
@@ -263,10 +265,10 @@ function dirname(path) {
                         paramMap[i] = String(nt.termArgs[i]).toLowerCase();
                     }
                     lastParentTerm = self.rootTerm.recordTerm
+                    lastSection = nt;
                     return;
                 }
                 
-
                 if (nt.termIs('declare')){
                     var path;
                     if(nt.value.indexOf('http')===0){
@@ -279,24 +281,18 @@ function dirname(path) {
                     var dci = TermInterpreter(path);
                     dci.installDeclareTerms();
                     
-                   self.importDeclareDoc();
+                    self.importDeclareDoc();
+                    
                 }
                 
-                try {
-                    nt.childPropertyType = self.terms.get(nt.joinedTerm()) 
-                        .get('childpropertytype', 'any');
-                } catch(e){
-                    
-                }
-
-                try {
-                    nt.termValueName = self.terms.get(nt.joinedTerm()) 
-                        .get('termvaluename', '@value');
-                } catch(e) {
-                    
+                if (self.terms.has(nt.joinedTerm()) ){
+                    var tInfo =  self.terms.get(nt.joinedTerm());
+                    nt.childPropertyType = tInfo.get('childpropertytype', 'any');
+                    nt.termValueName = tInfo.get('termvaluename', '@value');
                 }
 
                 nt.valid =  self.terms.has(nt.joinedTermLc());
+                nt.section = lastSection;
                 
                 if (nt.canBeParent){
                     lastParentTerm = nt.recordTerm;
@@ -307,6 +303,10 @@ function dirname(path) {
                 var parent = lastTermMap.get(nt.parentTerm);
                 if (parent){
                     parent.children.push(nt);
+                } else { 
+                    // This probably can't happen. And, if it can, it may be
+                    // sensible to make the parent the root. 
+                    throw "Could not find parent for "+nt.toString();
                 }
                 
                 cb(nt);
