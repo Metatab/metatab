@@ -128,7 +128,7 @@ class Term(object):
     def join_lc(self):
         return "{}.{}".format(self.parent_term.lower(), self.record_term.lower())
 
-    def termIs(self, v):
+    def term_is(self, v):
 
         if self.record_term.lower() == v.lower() or self.join_lc() == v.lower():
             return True
@@ -287,7 +287,7 @@ class TermGenerator(object):
                      col=1,
                      file_name=self._path)
 
-            if t.record_term.lower() == 'include':
+            if t.term_is('include'):
 
                 yield t
 
@@ -310,7 +310,7 @@ class TermGenerator(object):
             yield t
 
             # Yield any child terms, from the term row arguments
-            if t.record_term.lower() != 'section':
+            if not t.term_is('section'):
                 for col, value in enumerate(t.args, 0):
                     if str(value).strip():
                         yield Term(t.record_term.lower() + '.' + str(col), str(value), [],
@@ -362,6 +362,11 @@ class TermInterpreter(object):
 
     @property
     def declare_dict(self):
+
+        # Run the parser, if it has not been run yet.
+        if not self.root:
+            for _ in self: pass
+
         return {
             'sections': self.sections,
             'terms': self.terms,
@@ -414,7 +419,7 @@ class TermInterpreter(object):
                     try:
                         d[c.record_term].append(cls.convert_to_dict(c))
                     except KeyError:
-                        # The c.term property doesn't exist, so add a scalar
+                        # The c.term property doesn't exist, so add a scalar or a msp
                         d[c.record_term] = cls.convert_to_dict(c)
                     except AttributeError as e:
                         # d[c.term] exists, but is a scalar, so convert it to a list
@@ -443,22 +448,19 @@ class TermInterpreter(object):
 
         return errors
 
-    @staticmethod
-    def join(t1, t2):
-        return '.'.join((t1, t2))
-
     def __iter__(self):
         import copy
 
         last_parent_term = 'root'
         last_term_map = {}
+        last_section = None
         self.root = None
 
-        # Remapping the default record value to another property name
         for i, t in enumerate(self._term_gen):
 
-            if i == 0:
+            if self.root is None:
                 self.root = Term('Root', None, row=0, col=0, file_name=t.file_name)
+                last_section = self.root
                 last_term_map[ELIDED_TERM] = self.root
                 last_term_map[self.root.record_term] = self.root
                 yield self.root
@@ -476,19 +478,24 @@ class TermInterpreter(object):
 
             # Remap integer record terms to names from the parameter map
             try:
+
                 nt.record_term = str(self._param_map[int(t.record_term)])
             except ValueError:
                 pass  # the record term wasn't an integer
+
             except IndexError:
                 pass  # Probably no parameter map.
 
-            if nt.termIs('root.section'):
+
+            if nt.term_is('root.section'):
                 self._param_map = [p.lower() if p else i for i, p in enumerate(nt.args)]
+
                 # Parentage should not persist across sections
                 last_parent_term = self.root.record_term
+                last_section = nt
                 continue
 
-            if nt.termIs('declare'):
+            if nt.term_is('root.declare'):
                 from os.path import dirname, join
 
                 if t.value.startswith('http'):
@@ -505,15 +512,13 @@ class TermInterpreter(object):
                     e.term = t
                     self.errors.append(e)
 
-                continue
+            nt.child_property_type = self._terms.get(nt.join(), {}).get('childpropertytype', 'any')
 
-            nt.child_property_type = self._terms.get(nt.join(), {}) \
-                .get('childpropertytype', 'any')
-
-            nt.term_value_name = self._terms.get(nt.join(), {}) \
-                .get('termvaluename', '@value')
+            nt.term_value_name = self._terms.get(nt.join(), {}).get('termvaluename', '@value')
 
             nt.valid = nt.join_lc() in self._terms
+
+            nt.section = last_section;
 
             if nt.can_be_parent:
                 last_parent_term = nt.record_term
@@ -549,7 +554,7 @@ class TermInterpreter(object):
                 if parent_term == NO_TERM:
                     parent_term = 'root'
 
-                terms = self.join(parent_term, record_term)
+                terms = '.'.join((parent_term, record_term))
 
                 self._terms[terms] = e
 

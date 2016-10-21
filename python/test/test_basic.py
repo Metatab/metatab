@@ -1,13 +1,18 @@
 import unittest
 
 
+def test_data(*paths):
+    from os.path import dirname, join
+
+    return join(dirname(dirname(dirname(__file__))), 'test-data',  *paths)
+
 
 class MyTestCase(unittest.TestCase):
 
     def test_web(self):
         from os.path import dirname, join
         from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
-        fn = join(dirname(__file__), 'data', 'example1-web.csv')
+        fn = test_data('example1-web.csv')
 
         with open(fn) as f:
             term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
@@ -22,7 +27,7 @@ class MyTestCase(unittest.TestCase):
         import json
         from os.path import dirname, join
         from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
-        fn = join(dirname(__file__), 'data', 'children2.csv')
+        fn = test_data('children.csv')
 
         term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
 
@@ -35,9 +40,9 @@ class MyTestCase(unittest.TestCase):
 
     def test_children(self):
         import json
-        from os.path import dirname, join
+
         from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
-        fn = join(dirname(__file__), 'data', 'children.csv')
+        fn = test_data('children.csv')
 
         term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
 
@@ -51,7 +56,7 @@ class MyTestCase(unittest.TestCase):
         from os.path import dirname, join
         from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
 
-        fn = join(dirname(__file__), 'data', 'include1.csv')
+        fn = test_data('include1.csv')
 
         term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
 
@@ -72,7 +77,7 @@ class MyTestCase(unittest.TestCase):
         for fn in ['example1.csv','example2.csv','example1-web.csv',
                   'include1.csv','include2.csv', 'include3.csv' ]:
 
-            path = join(dirname(__file__), 'data', fn)
+            path = test_data(fn)
 
             with open(path) as f:
                 term_gen = list(TermGenerator(CsvPathRowGenerator(path)))
@@ -90,7 +95,7 @@ class MyTestCase(unittest.TestCase):
         import csv
         import json
 
-        fn = join(dirname(__file__), 'data', 'example1.csv')
+        fn = test_data('example1.csv')
 
         with open(fn) as f:
             str_data = f.read();
@@ -132,6 +137,8 @@ class MyTestCase(unittest.TestCase):
 
                 d = terms.as_dict()
 
+
+
                 self.assertListEqual(sorted(['creator', 'datafile', 'description', 'documentation',
                                              'format', 'homepage','identifier', 'note', 'obsoletes',
                                              'spatial', 'spatialgrain', 'table', 'time', 'title',
@@ -146,14 +153,12 @@ class MyTestCase(unittest.TestCase):
 
         # Direct use of function
 
-        fn = join(dirname(__file__), 'data', 'example1.csv') # Not acutally used. Sets base directory
+        ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(test_data('metadata.csv'))), False)
+        ti.install_declare_terms()
+
+        fn = test_data('example1.csv') # Not acutally used. Sets base directory
 
         term_interp = TermInterpreter(TermGenerator(RowGenerator([['Declare','metadata.csv']], fn)))
-
-        print json.dumps(term_interp.as_dict(), indent=4);
-
-
-        return
 
         d = term_interp.declare_dict
 
@@ -161,7 +166,7 @@ class MyTestCase(unittest.TestCase):
 
         terms = d['terms']
 
-        self.assertIn('<no_term>.homepage', terms.keys())
+        self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
         self.assertEquals(46, len(terms.keys()))
 
@@ -172,7 +177,7 @@ class MyTestCase(unittest.TestCase):
 
         # Use the Declare term
 
-        fn = join(dirname(__file__), 'data', 'example1.csv')
+        fn = test_data('example1.csv')
         term_interp = TermInterpreter(TermGenerator(CsvPathRowGenerator(fn)))
 
         _ = term_interp.declare_dict
@@ -181,7 +186,7 @@ class MyTestCase(unittest.TestCase):
 
         terms = d['terms']
 
-        self.assertIn('<no_term>.homepage', terms.keys())
+        self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
         self.assertEquals(46, len(terms.keys()))
 
