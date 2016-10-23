@@ -209,7 +209,7 @@ class MyTestCase(unittest.TestCase):
 
         sections = d['sections']
 
-        self.assertEquals(['contacts', 'declaredsections', 'declaredterms', 'root', 'resources', 'schema'],
+        self.assertEquals(['contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schema'],
                           sections.keys())
 
         # Use the Declare term
@@ -229,7 +229,7 @@ class MyTestCase(unittest.TestCase):
 
         sections = d['sections']
 
-        self.assertEquals(['contacts', 'declaredsections', 'declaredterms', 'root', 'resources', 'schema'],
+        self.assertEquals(['contacts','declaredterms', 'declaredsections',  'root', 'resources', 'schema'],
                           sections.keys())
 
 
