@@ -23,7 +23,12 @@ function dirname(path) {
 }(this, function (GenerateRows) {
 
     const ELIDED_TERM = '<elided_term>';
-    const NO_TERM = '<no_term>';
+    const ROOT_TERM = 'root';
+
+    var normalizeTerm = function(term){
+        var parts = splitTermLower(term);
+        return parts[0] + '.' + parts[1];
+    }
 
     var splitTerm = function(term){
         
@@ -40,7 +45,7 @@ function dirname(path) {
             }
 
         } else {
-            parentTerm = NO_TERM;
+            parentTerm = ROOT_TERM;
             recordTerm = term.trim()
          
         }
@@ -270,12 +275,6 @@ function dirname(path) {
                     // If the parent term was elided -- the term starts with '.'
                     // then substitute in the last parent term
                     nt.parentTerm = lastParentTerm;
-                } else if (nt.parentTerm == NO_TERM ){
-                    // If the parent term was not elided, and the term is
-                    // in Column A of the spreadsheet ( rather than a child term 
-                    // in the term arg list, Col C+), then we can use it for the 
-                    // last parent term. 
-                    nt.parentTerm = self.rootTerm.recordTerm;
                 }
             
                 self.substituteSynonym(nt, term);
@@ -425,53 +424,37 @@ function dirname(path) {
                             if (e.hasOwnProperty(k)) { 
                                 var ki = parseInt(k);
                                 if( typeof ki == 'number'){
-                                    args[k] = e[k]; 
+                                    args[k] = e[k] || null; 
+                                    
                                 }
                             }
                         }
-                        
                         this.sections[ e['section_name'].toLowerCase()] = 
                                 { 'args': args, 'terms': []};
-    
                     }
                 }
             }
     
-            return ;
-            /*
-    
-            if 'declareterm' in d:
-                for e in d['declareterm']:
-                    parent_term, record_term = Term.split_term_lower(e['term_name'])
-    
-                    if parent_term == NO_TERM:
-                        parent_term = 'root'
-    
-                    terms = '.'.join((parent_term, record_term))
-    
-                    self._terms[terms] = e
-    
-                    if 'section' in e and e['section']:
-    
-                        if e['section'] not in self._sections:
-                            self._sections[e['section'].lower()] = {
-                                'args': [],
-                                'terms': list()
-                            }
-    
-                        st = self._sections[e['section'].lower()]['terms']
-    
-                        if e['section'] not in st:
-                            st.append(e['term_name'])
-    
-            if 'declarevalueset' in d:
-                for e in d['declarevalueset']:
-                    for k, v in self._terms.items():
-                        if 'valueset' in v and e.get('name', None) == v['valueset']:
-                            v['valueset'] = e['value']
-            */
+            if ('declareterm' in d){
+                for (var e of d['declareterm']){
+                    if (e){
+                        this.terms[normalizeTerm(e['term_name'])] = e;
+                        var sk = e['section'].toLowerCase();
+  
+                        if ('section' in e && e['section'] && !(sk in this.sections)){
+                            this.sections[sk] = { 'args': [], 'terms': [] };
+                        }
+                        
+                        var st = this.sections[sk]['terms'];
+
+                        if (!(e['section'] in st)) {
+                            st.push(e['term_name']);
+                        }
+                    }
+                }
+            }
+            
        };
-       
     };
    
     var parse = function(path){

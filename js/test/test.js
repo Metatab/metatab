@@ -27,7 +27,7 @@ if (false){
 }
 
 for (var term of Metatab.parse( testData('example1.csv'))){
-    console.log(term.toString());
+    //console.log(term.toString());
 }
 
 
