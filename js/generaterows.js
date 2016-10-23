@@ -78,7 +78,6 @@
                     }
                 
                     CsvParse.parse(data,{
-                        worker: true,
                         step: function(row) {
                             cb(++rowNum,row.data[0]);
                 	    },
@@ -101,7 +100,6 @@
             } else if(ref.startsWith('http:') || ref.startsWith('https:')){
                 CsvParse.parse(ref, {
                 	download: true,
-                	worker: true,
                 	step: function(row) {
                 		cb(++rowNum,row.data[0]);
                 	},
@@ -145,8 +143,67 @@
         
     };
     
+    var generateRowsSync = function (ref) {
+        
+        // Based on the value of ref and the environment, return a row generator
+        var rowNum = 0;
+        if (isNode()){
+
+            if(ref.indexOf('http:') === 0 || ref.indexOf('https:') === 0 ){
+                
+                var streamer = new CsvParse.NetworkStreamer({});
+                return streamer.stream(ref);
+                
+            } else {
+                // Assume local filesystem
+                var data = require('fs').readFileSync(ref, 'utf8');
+                var streamer = new CsvParse.StringStreamer({});
+                return streamer.stream(data);
+            }
+        } else if (isBrowser()){
+            if  (ref instanceof File){ /*global File*/
+                var streamer = new CsvParse.FileStreamer({});
+                return streamer.stream(data);
+            } else if(ref.startsWith('http:') || ref.startsWith('https:')){
+                var streamer = new CsvParse.NetworkStreamer({});
+                return streamer.stream(ref);
+            }  else {
+                throw GenerationError(
+                    "In browser, can only fetch via http/https or use File() ");
+            }
+            
+        } else if (isSpreadsheet()){
+            if(ref.startsWith('http:') || ref.startWith('https:')){
+                var text = UrlFetchApp.fetch(url).getContentText();
+            } else if(ref.startsWith('gs:') ) {
+                // gs: means 'google spreadsheet' -- get rows from a
+                // remote spreadsheet, by spreadsheet id. 
+                
+                // The url format is: gs:<docid>#<sheetname>
+                
+                const remoteSheet = SpreadsheetApp.openById(docId) 
+                                      .getSheetByName(sheetName);
+                
+            } else  {
+                // Get rows from the local spreadsheet
+                const  rows = SpreadsheetApp.getActiveSpreadsheet()
+                    .getSheetByName(metaSheetName)
+                    .getDataRange()
+                    .getValues();
+                    
+                for(var i =0; i < aspread.length; i++){
+                    cb(i, rows[i]);
+                }
+            }
+        } else {
+            throw GenerationError(
+                "Can't determine environment, so don't know how to fetch data");
+        } 
+    };
+      
         
     return {
       generate: generateRows,
+      generateSync: generateRowsSync,
     };
 }));

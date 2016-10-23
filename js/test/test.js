@@ -1,8 +1,9 @@
 
 const path = require('path');
+var Metatab = require('../metatab.js');
 
 function testData(v){
-    return path.join('../../')
+    return path.join(path.dirname(path.dirname(path.dirname(__filename))), 'test-data',v);
 }
 
 var csv_url = 'https://raw.githubusercontent.com/CivicKnowledge/metatab/master/python/test/data/children.csv';
@@ -17,15 +18,16 @@ if (false){
     GenerateRows.generate(csv_url, function(row){
         console.log("B", row);
     });
+    
+
+    for ( var term of  Metatab.parseTerms(testData('children.csv'))){
+        console.log(term.toString());
+    }
+ 
+}
+
+for (var term of Metatab.parse( testData('declare-only.csv'))){
+    console.log(term.toString());
 }
 
 
-var Metatab = require('../metatab.js');
-
-Metatab.parse('./children.csv', function(term){
-    console.log(term.toString());
-}, function(interp){ 
-    console.log(JSON.stringify(interp.toDict()));
-});
-
-//Metatab.parse(csv_url);

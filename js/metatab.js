@@ -4,6 +4,7 @@
 	https://github.com/CivicKnowledge/metatab
 */
 
+"use strict";
 function dirname(path) {
     return path.replace(/\\/g,'/').replace(/\/[^\/]*$/, '');
 }
@@ -24,10 +25,10 @@ function dirname(path) {
     const ELIDED_TERM = '<elided_term>';
     const NO_TERM = '<no_term>';
 
-    var parentTerm;
-    var recordTerm;
-
     var splitTerm = function(term){
+        
+        var parentTerm;
+        var recordTerm;
         
         if ( term.indexOf(".") >= 0 ){
             var parts = term.split(".");
@@ -52,14 +53,17 @@ function dirname(path) {
         return [terms[0].toLowerCase(), terms[1].toLowerCase()];
     };
     
-
-    var Term = function (term, value, termArgs) {
+    var Term = function (term, value, termArgs,  rowN, colN, fileName) {
         this.term = term;
+        this.row = rowN;
+        this.col = colN;
+        this.fileName = fileName;
+
+        this.value = value && value.trim();
+        
         var p =  splitTermLower(this.term);
         this.parentTerm = p[0];
         this.recordTerm = p[1];
-        
-        this.value = value && value.trim();
         
         if (Array.isArray(termArgs)){
             this.termArgs = []
@@ -82,22 +86,30 @@ function dirname(path) {
         this.children = [];
         
         this.section = null;
-        this.fileName = null;
-        this.row = null;
-        this.col = null;
         
         this.termValueName = '@value';  
 
         this.childPropertyType  = 'any';
-        this.valid = null;
+        this.valid = Boolean(term);
 
         this.isArgChild= null;
         
         this.canBeParent = ( !this.isChidArg && this.parentTerm != ELIDED_TERM);
         
         this.toString = function(){
-            return "<Term "+this.parentTerm+"."+this.recordTerm+"="+
-            this.value+" "+JSON.stringify(this.termArgs)+" >"
+            
+            var fn;
+            if (this.fileName){
+                var fileParts = this.fileName.split("/"); 
+                fn = fileParts.pop();
+            } else {
+                fn = '<null>';
+            }
+            
+            return "<Term "+fn+" "+this.row+":"+this.col+" "
+            +this.parentTerm+"."+this.recordTerm+"="+
+            this.value+" "+JSON.stringify(this.termArgs)+
+            " >"
         }
         
         this.clone = function(){
@@ -131,68 +143,80 @@ function dirname(path) {
         
         this.termIs = function(v){
             if (this.recordTerm.toLowerCase() == v.toLowerCase()  || 
-                this.joinedTermLc() == v.toLowerCase()){
+                this.joinedTermLc() == v.toLowerCase() ||
+                this.recordTerm.toLowerCase().indexOf('.'+v.toLowerCase()) > -1
+            ){
                 return true;
             } else {
                 return false;
             }
         }
         
-    };
+        // Return child terms created from the row args. 
+        this.argChildren = function(){
+            
+            if(this.termIs('section')){
+                return [];
+            }
+            
+            var childTerms = [];
+            
+            for(var j = 0; j < this.termArgs.length; j++){
+                childTerms.push(
+                    new Term(this.recordTerm.toLowerCase()+"."+String(j), 
+                        String(this.termArgs[j]), [], i, j+2, this.fileName ));
+            }
+            
+            return childTerms;
+        }
 
-    var termFromRow = function(row){
-        try {
-            return new Term(row[0], row[1], row.slice(2));
-        }  catch (e) {
-            return null
-        } 
-    };
-
-    
-    var generateTerms = function(path, rowCb, finishCb){
         
-        GenerateRows.generate(path, function(rowNum, row){
+    };
 
-            var term = termFromRow(row);
-            if (term && term.term ){
-                term.row = rowNum;
-                term.col = 1;
-                term.fileName = path;
-                rowCb(term);
+
+    var generateTerms = function(path, cb){
+        
                 
-                // Include another file
-                if (term.termIs('include') ){
-                    // Do includy stuff
+        if (!cb){
+            cb=function(term){
+                terms.push(term);
+            }
+        }
+        
+        var terms = [];
+        var rows = GenerateRows.generateSync(path);
+        var i = 0;
+        
+        for(var row of rows['data']){
+
+            var term = new Term(row[0], row[1], row.slice(2), ++i, 1, path);
+            
+            if(term.valid){
+                cb(term);
+                
+                for (var child of term.argChildren() ) {
+                    cb(child);
                 }
                 
-                // Generate child terms
-                if (!term.termIs('section') ){
-                    for(var i = 0; i < term.termArgs.length; i++){
-                        if (term.value.trim()){
-                            var childTerm = 
-                                new Term(term.recordTerm.toLowerCase()+"."+String(i), 
-                                         String(term.termArgs[i]), 
-                                         [] );
-                            childTerm.row = rowNum;
-                            childTerm.col = i + 2;
-                            childTerm.fileName = path;
-                            rowCb(childTerm);
-                        }
+                if (term.termIs('include') ){
+                    for(var includedTerm of generateTerms(term.value)){
+                        cb(includedTerm);
                     }
                 }
-                
-            } else {
-                // TODO Handle error
             }
-        }, finishCb);
+        }
+
+        return terms;
+
     }
     
     var TermInterpreter = function (path) {
       
-        this.terms = new Map();
-        this.sections = new Map();
+        this.terms = {};
+        this.sections = {};
         this.errors = [];
-      
+        this.path = path;
+
         this.substituteSynonym = function(nt, t){
             
         }
@@ -212,7 +236,7 @@ function dirname(path) {
 
         }
     
-        this.run = function(cb, finishCb){
+        this.run = function(){
         
             var self = this;
             
@@ -222,9 +246,10 @@ function dirname(path) {
             
             var lastTermMap = new Map();
             var lastSection = null;
-        
-            generateTerms(path, function(term){
+            var terms = [];
             
+            for ( var term of generateTerms(this.path)){
+
                 if ( ! self.rootTerm ){
                     self.rootTerm = new Term('Root', null);
                     self.rootTerm.row=0;
@@ -232,10 +257,14 @@ function dirname(path) {
                     self.rootTerm.file_name=term.file_name;
                     lastTermMap.set(ELIDED_TERM,self.rootTerm);
                     lastTermMap.set(self.rootTerm.recordTerm,self.rootTerm);
-                    cb(self.rootTerm);
+                    
+                    terms.push(self.rootTerm);
+
                 }
             
                 var nt = term.clone();
+                
+                nt.fileName = self.path;
     
                 if (nt.parentTerm == ELIDED_TERM){
                     // If the parent term was elided -- the term starts with '.'
@@ -258,7 +287,7 @@ function dirname(path) {
                     nt.recordTerm = String(paramMap[parseInt(term.recordTerm)]);
                 }
 
-                if (nt.termIs('section')){
+                if (nt.termIs('root.section')){
                     // Section terms set the param map
                     paramMap = [];
                     for(var i = 0; i < nt.termArgs.length; i++){
@@ -266,32 +295,40 @@ function dirname(path) {
                     }
                     lastParentTerm = self.rootTerm.recordTerm
                     lastSection = nt;
-                    return;
+                    continue;
                 }
                 
                 if (nt.termIs('declare')){
                     var path;
+                   
                     if(nt.value.indexOf('http')===0){
                         path = nt.value.replace(/\/$/, "");
                     } else {
-                        path = dirname(nt.file_name)+"/"+
+                        path = dirname(nt.fileName)+"/"+
                              nt.value.replace(/\/$/, "");
                     }
                     
-                    var dci = TermInterpreter(path);
+                    var dci = new TermInterpreter(path);
                     dci.installDeclareTerms();
                     
-                    self.importDeclareDoc();
+                    var declareTerms = dci.run(); 
                     
-                }
+                    this.importDeclareDoc(dci.toDict());
+
+                    console.log(dci.toDict());
+
+                    //console.log(JSON.stringify(this.sections, null, 4));
                 
-                if (self.terms.has(nt.joinedTerm()) ){
-                    var tInfo =  self.terms.get(nt.joinedTerm());
-                    nt.childPropertyType = tInfo.get('childpropertytype', 'any');
-                    nt.termValueName = tInfo.get('termvaluename', '@value');
+                }
+              
+                if (nt.joinedTerm() in self.terms ){
+                    
+                    var tInfo =  self.terms[nt.joinedTerm()];
+                    nt.childPropertyType = tInfo['childpropertytype'] || 'any';
+                    nt.termValueName = tInfo['termvaluename'] || '@value';
                 }
 
-                nt.valid =  self.terms.has(nt.joinedTermLc());
+                nt.valid =  nt.joinedTermLc() in self.terms;
                 nt.section = lastSection;
                 
                 if (nt.canBeParent){
@@ -309,15 +346,14 @@ function dirname(path) {
                     throw "Could not find parent for "+nt.toString();
                 }
                 
-                cb(nt);
-            }, function(){
-                if (finishCb){
-                    finishCb(self);
-                }
-            });
+                terms.push(nt);
+               
+            }
             
-        };
+            return terms;
         
+        };
+
         
         this.toDict = function(term){
             return this._toDict(this.rootTerm);
@@ -380,19 +416,78 @@ function dirname(path) {
         
         };
         
+       this.importDeclareDoc = function(d){
+    
+            if ('declaresection' in d){
+                for (var e of d['declaresection']){
+                    if (e){
+
+                        var args = [];
+                        
+                        for (var k in e) {
+                            if (e.hasOwnProperty(k)) { 
+                                var ki = parseInt(k);
+                                if( typeof ki == 'number'){
+                                    args[k] = e[k]; 
+                                }
+                            }
+                        }
+                        
+                        this.sections[ e['section_name'].toLowerCase()] = 
+                                { 'args': args, 'terms': []};
+    
+                    }
+                }
+            }
+    
+            return ;
+            /*
+    
+            if 'declareterm' in d:
+                for e in d['declareterm']:
+                    parent_term, record_term = Term.split_term_lower(e['term_name'])
+    
+                    if parent_term == NO_TERM:
+                        parent_term = 'root'
+    
+                    terms = '.'.join((parent_term, record_term))
+    
+                    self._terms[terms] = e
+    
+                    if 'section' in e and e['section']:
+    
+                        if e['section'] not in self._sections:
+                            self._sections[e['section'].lower()] = {
+                                'args': [],
+                                'terms': list()
+                            }
+    
+                        st = self._sections[e['section'].lower()]['terms']
+    
+                        if e['section'] not in st:
+                            st.append(e['term_name'])
+    
+            if 'declarevalueset' in d:
+                for e in d['declarevalueset']:
+                    for k, v in self._terms.items():
+                        if 'valueset' in v and e.get('name', None) == v['valueset']:
+                            v['valueset'] = e['value']
+            */
+       };
+       
     };
-    
-    
-    var parse = function(path, cb, finishCb){
+   
+    var parse = function(path){
         
         var interp = new TermInterpreter(path);
 
-        interp.run(cb, finishCb);
+        return interp.run();
 
     }
     
     return {
-      parse: parse
+      parse: parse,
+      parseTerms: generateTerms
     };
 }));
 
