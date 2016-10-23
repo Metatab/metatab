@@ -315,9 +315,7 @@ function dirname(path) {
                     
                     this.importDeclareDoc(dci.toDict());
 
-                    console.log(dci.toDict());
-
-                    //console.log(JSON.stringify(this.sections, null, 4));
+                    console.log(JSON.stringify(this.sections, null, 4));
                 
                 }
               
@@ -370,12 +368,11 @@ function dirname(path) {
                 return (Object.prototype.toString.call( obj ) === '[object Array]' );
             }
             
-            if (term.children){
+            if (term.children.length){
 
                 var d = {};
     
-                for( var i = 0; i < term.children.length; i++ ){
-                    var c = term.children[i];
+                for( var c of term.children){
                     
                     if (c.childPropertyType == 'scalar') {
                         d[c.recordTerm] = this._toDict(c);
