@@ -7,7 +7,7 @@ objects.
 
 """
 
-NO_TERM = '<no_term>'  # No parent term -- no '.' --  in term cell
+ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
 
 
@@ -81,6 +81,10 @@ class Term(object):
         self.children = []  # WHen terms are linked, hold term's children.
 
     @classmethod
+    def normalize_term(cls, term):
+        return "{}.{}".format(*cls.split_term_lower(term))
+
+    @classmethod
     def split_term(cls, term):
         """
         Split a term in to parent and record term components
@@ -95,7 +99,7 @@ class Term(object):
                 parent_term = ELIDED_TERM
 
         else:
-            parent_term, record_term = NO_TERM, term.strip()
+            parent_term, record_term = ROOT_TERM, term.strip()
 
         return parent_term, record_term
 
@@ -140,10 +144,7 @@ class Term(object):
                                                self.record_term, self.value, self.args)
 
     def __str__(self):
-        if self.parent_term == NO_TERM:
-            return "{}{}: {}".format(self.file_ref(), self.record_term, self.value)
-
-        elif self.parent_term == ELIDED_TERM:
+        if self.parent_term == ELIDED_TERM:
             return "{}.{}: {}".format(self.file_ref(), self.record_term, self.value)
 
         else:
@@ -469,8 +470,7 @@ class TermInterpreter(object):
 
             if nt.parent_term == ELIDED_TERM:
                 nt.parent_term = last_parent_term
-            elif nt.parent_term == NO_TERM:
-                nt.parent_term = self.root.record_term
+
 
             # Substitute synonyms
             if nt.join_lc() in self.synonyms:
@@ -495,7 +495,7 @@ class TermInterpreter(object):
                 last_section = nt
                 continue
 
-            if nt.term_is('root.declare'):
+            if nt.term_is('declare'):
                 from os.path import dirname, join
 
                 if t.value.startswith('http'):
@@ -505,6 +505,9 @@ class TermInterpreter(object):
 
                 ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(fn)), False)
                 ti.install_declare_terms()
+
+                import json
+                print json.dumps(ti.as_dict(), indent=4);
 
                 try:
                     self.import_declare_doc(ti.as_dict())
@@ -544,26 +547,20 @@ class TermInterpreter(object):
                 if e:
                     self._sections[e['section_name'].lower()] = {
                         'args': [v for k, v in sorted((k, v) for k, v in e.items() if isinstance(k, int))],
-                        'terms': list()
+                        'terms': []
                     }
 
         if 'declareterm' in d:
             for e in d['declareterm']:
-                parent_term, record_term = Term.split_term_lower(e['term_name'])
 
-                if parent_term == NO_TERM:
-                    parent_term = 'root'
-
-                terms = '.'.join((parent_term, record_term))
-
-                self._terms[terms] = e
+                self._terms[Term.normalize_term(e['term_name'])] = e
 
                 if 'section' in e and e['section']:
 
                     if e['section'] not in self._sections:
                         self._sections[e['section'].lower()] = {
                             'args': [],
-                            'terms': list()
+                            'terms': []
                         }
 
                     st = self._sections[e['section'].lower()]['terms']

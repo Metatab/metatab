@@ -37,6 +37,21 @@ class MyTestCase(unittest.TestCase):
 
             print term_interp.errors_as_dict()
 
+    def test_delcare_doc(self):
+        import json
+        from os.path import dirname, join
+        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
+        fn = test_data('declare-only.csv')
+
+        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
+
+        term_interp = TermInterpreter(term_gen)
+
+        for t in term_interp:
+            print t
+
+        print json.dumps(term_interp.as_dict(), indent=4)
+
     def test_root(self):
         import json
         from os.path import dirname, join
@@ -146,12 +161,12 @@ class MyTestCase(unittest.TestCase):
                 self.assertEqual('metadata.csv', terms[0].value)
 
                 self.assertTrue(terms[48].file_name.endswith('example1.csv'))
-                self.assertEqual('<no_term>', terms[48].parent_term)
+                self.assertEqual('root', terms[48].parent_term)
                 self.assertEqual('column', terms[48].record_term)
                 self.assertEqual('geoname', terms[48].value)
 
                 self.assertTrue(terms[100].file_name.endswith('example1.csv'))
-                self.assertEqual('<no_term>', terms[100].parent_term)
+                self.assertEqual('root', terms[100].parent_term)
                 self.assertEqual('column', terms[100].record_term)
                 self.assertEqual('percent', terms[100].value)
 
