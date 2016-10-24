@@ -8,11 +8,11 @@ MAINTAINER Eric Busboom "eric@civicknowledge.com"
 
 VOLUME /data
 
-COPY requirements /tmp
+COPY requirements.txt /tmp
 RUN pip install -r /tmp/requirements.txt
 
 RUN pip install git+https://github.com/CivicKnowledge/metatab.git
 
 EXPOSE 80
 
-CMD python -metatab.numbering -UGA
+CMD python -mmetatab.numbering -UGA
