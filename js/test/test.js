@@ -1,6 +1,9 @@
 
 const path = require('path');
-var Metatab = require('../metatab.js');
+const Metatab = require('../metatab.js');
+const assert = require('assert');
+const fs = require('fs');
+const flatten = require('./flatten.js');
 
 function testData(v){
     return path.join(path.dirname(path.dirname(path.dirname(__filename))), 'test-data',v);
@@ -26,8 +29,10 @@ if (false){
  
 }
 
-for (var term of Metatab.parse( testData('example1.csv'))){
-    //console.log(term.toString());
-}
+var ti = new Metatab.TermInterpreter( testData('example1.csv'))
+var obj = JSON.parse(fs.readFileSync(testData('json/example1.json'), 'utf8'));
 
+ti.run();
 
+var errors = flatten.compareDict(ti.toDict(), obj);
+if (errors.length) console.log(errors);
