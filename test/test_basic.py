@@ -18,7 +18,8 @@ def flatten(d, parent_key='', sep='_'):
 def test_data(*paths):
     from os.path import dirname, join, abspath
 
-    return abspath(join(dirname(dirname(dirname(dirname(__file__)))), 'test-data',  *paths))
+    return abspath(join(dirname(dirname(dirname(__file__))), 'test-data',  *paths))
+
 
 
 class MyTestCase(unittest.TestCase):
