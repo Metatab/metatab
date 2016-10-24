@@ -27,7 +27,17 @@ for (var fn of ['issue1','example1', 'example2','children']){
     ti.run();
     
     var errors = flatten.compareDict(obj, ti.toDict());
-    if (errors.length) console.log(fn, errors);
+    if (errors.length){ 
+        console.log('======= ',fn);
+        console.log(errors);
+        console.log('---- ');
+        dumpTerms(ti);
+        console.log(flatten.flatten(obj));
+        console.log('---- ');
+        console.log(flatten.flatten(ti.toDict()));
+    } else {
+        console.log("OK",fn);
+    }
 }
 
 

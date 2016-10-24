@@ -103,9 +103,10 @@ function dirname(path) {
         this.valid = Boolean(term) && Boolean(this.recordTerm);
 
         this.isArgChild = false;
+        this.wasElided = (this.parentTerm == ELIDED_TERM);
 
         this.canBeParent = function(){ 
-            return (!this.isArgChild && this.parentTerm != ELIDED_TERM);
+            return (!this.isArgChild && !this.wasElided);
         }
 
         this.toString = function() {
@@ -139,7 +140,7 @@ function dirname(path) {
             c.childPropertyType = this.childPropertyType;
             c.valid = this.valid;
             c.isArgChild = this.isArgChild;
-         
+            c.wasElided = this.wasElided;
 
             return c;
 
@@ -322,6 +323,7 @@ function dirname(path) {
                 if (nt.parentTerm == ELIDED_TERM) {
                     // If the parent term was elided -- the term starts with '.'
                     // then substitute in the last parent term
+                    nt.wasElided == true; // probably should already be set
                     nt.parentTerm = lastParentTerm;
                 }
 
