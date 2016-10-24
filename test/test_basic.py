@@ -1,5 +1,5 @@
+from __future__ import print_function
 import unittest
-
 
 import collections
 
@@ -16,9 +16,9 @@ def flatten(d, parent_key='', sep='_'):
     return dict(items)
 
 def test_data(*paths):
-    from os.path import dirname, join
+    from os.path import dirname, join, abspath
 
-    return join(dirname(dirname(dirname(__file__))), 'test-data',  *paths)
+    return abspath(join(dirname(dirname(dirname(dirname(__file__)))), 'test-data',  *paths))
 
 
 class MyTestCase(unittest.TestCase):
@@ -33,9 +33,9 @@ class MyTestCase(unittest.TestCase):
 
             term_interp = TermInterpreter(term_gen)
 
-            print term_interp.as_dict().keys()
+            print(term_interp.as_dict().keys())
 
-            print term_interp.errors_as_dict()
+            print(term_interp.errors_as_dict())
 
     def test_delcare_doc(self):
         import json
@@ -48,9 +48,9 @@ class MyTestCase(unittest.TestCase):
         term_interp = TermInterpreter(term_gen)
 
         for t in term_interp:
-            print t
+            print(t)
 
-        print json.dumps(term_interp.as_dict(), indent=4)
+        print(json.dumps(term_interp.as_dict(), indent=4))
 
     def test_root(self):
         import json
@@ -63,9 +63,9 @@ class MyTestCase(unittest.TestCase):
         term_interp = TermInterpreter(term_gen)
 
         for t in term_interp:
-            print t
+            print(t)
 
-        print json.dumps(term_interp.as_dict(),indent=4)
+        print(json.dumps(term_interp.as_dict(),indent=4))
 
     def test_children(self):
         import json
@@ -151,7 +151,7 @@ class MyTestCase(unittest.TestCase):
 
                 rg = rg_args[0](*rg_args[1:])
 
-                print rg.__class__.__name__
+                print(rg.__class__.__name__)
 
                 terms = list(TermGenerator(rg))
 
@@ -244,9 +244,9 @@ class MyTestCase(unittest.TestCase):
         term_interp = TermInterpreter(term_gen)
 
         for t in term_interp:
-            print t
+            print(t)
 
-        print json.dumps(term_interp.as_dict(), indent=4)
+        print(json.dumps(term_interp.as_dict(), indent=4))
 
 if __name__ == '__main__':
     unittest.main()

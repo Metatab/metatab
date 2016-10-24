@@ -510,8 +510,6 @@ class TermInterpreter(object):
                 ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(fn)), False)
                 ti.install_declare_terms()
 
-                import json
-                print json.dumps(ti.as_dict(), indent=4);
 
                 try:
                     self.import_declare_doc(ti.as_dict())
