@@ -5,6 +5,9 @@ const assert = require('assert');
 const fs = require('fs');
 const flatten = require('./flatten.js');
 
+var urlbase = 'https://raw.githubusercontent.com/CivicKnowledge/metatab/master/test-data/';
+
+
 function testData(v){
     return path.join(path.dirname(path.dirname(path.dirname(__filename))), 'test-data',v);
 }
@@ -17,16 +20,17 @@ function dumpTerms(ti){
     }
 }
 
-var csv_url = 'https://raw.githubusercontent.com/CivicKnowledge/metatab/master/python/test/data/children.csv';
+for (var fn of ['issue1','example1', 'example2','children']){
+    var ti = new Metatab.TermInterpreter( testData(fn+'.csv'))
+    var obj = JSON.parse(fs.readFileSync(testData('json/'+fn+'.json'), 'utf8'));
+    
+    ti.run();
+    
+    var errors = flatten.compareDict(obj, ti.toDict());
+    if (errors.length) console.log(fn, errors);
+}
 
 
-var ti = new Metatab.TermInterpreter( testData('issue1.csv'))
-var obj = JSON.parse(fs.readFileSync(testData('json/issue1.json'), 'utf8'));
-
-ti.run();
-
-var errors = flatten.compareDict(obj, ti.toDict());
-if (errors.length) console.log(errors);
 
 
 
