@@ -16,9 +16,8 @@ VOLUMES= -v /data
 
 ENV =  -eVIRTUAL_HOST=$(NAME).docker1.civicknowledge.com
 
-LINKS = --link numbering-redis:redis
 
-.PHONY: build push shell run start stop restart reload rm rmf release
+.PHONY: build push shell run start stop restart reload rm rmf release test
 
 build:
 	$(DOCKER) build -t $(NS)/$(REPO):$(VERSION) .
@@ -55,3 +54,4 @@ release: build
 	make push -e VERSION=$(VERSION)
 
 default: build
+

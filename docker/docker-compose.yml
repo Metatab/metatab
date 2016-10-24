@@ -1,0 +1,22 @@
+
+
+redis:
+  build: ./redis
+  ports:
+  - "6379:6379"
+
+numbers:
+  build: ./numbers
+  ports:
+  - "80"
+  links:
+  - redis
+
+metatab:
+  build: ./metatab
+  ports:
+  - 80
+  volumes:
+  - /data
+
+
