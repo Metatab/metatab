@@ -25,6 +25,8 @@ only for production systems and the Google Spreadsheet plugin that generate ID n
 
 To build and run the test metatab container:
 
+.. code-block:: bash
+
     $ cd docker/metatab
     $ make build
     $ make start
