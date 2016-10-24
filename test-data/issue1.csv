@@ -1,0 +1,5 @@
+"Declare","metadata.csv",,,
+,,,,
+"Section","Schema","datatype","valuetype","description"
+"Table","registered_voters",,,"HCI Indicator 653.0: Percent of adults age 18 years and older who are registered voters"
+"Column","reportyear","int","year range","Year or years that indicator was reported"
