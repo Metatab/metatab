@@ -105,7 +105,8 @@ class MyTestCase(unittest.TestCase):
 
         for fn in ['example1.csv','example2.csv','example1-web.csv',
                    'include1.csv','include2.csv', 'include3.csv',
-                   'children.csv','children2.csv']:
+                   'children.csv','children2.csv',
+                   'issue1.csv']:
 
             path = test_data(fn)
 
@@ -232,6 +233,20 @@ class MyTestCase(unittest.TestCase):
         self.assertEquals(['contacts','declaredterms', 'declaredsections',  'root', 'resources', 'schema'],
                           sections.keys())
 
+    def test_issue1(self):
+        import json
+        from os.path import dirname, join
+        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
+        fn = test_data('issue1.csv')
+
+        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
+
+        term_interp = TermInterpreter(term_gen)
+
+        for t in term_interp:
+            print t
+
+        print json.dumps(term_interp.as_dict(), indent=4)
 
 if __name__ == '__main__':
     unittest.main()

@@ -102,9 +102,11 @@ function dirname(path) {
         this.childPropertyType = 'any';
         this.valid = Boolean(term) && Boolean(this.recordTerm);
 
-        this.isArgChild = null;
+        this.isArgChild = false;
 
-        this.canBeParent = (!this.isChidArg && this.parentTerm != ELIDED_TERM);
+        this.canBeParent = function(){ 
+            return (!this.isArgChild && this.parentTerm != ELIDED_TERM);
+        }
 
         this.toString = function() {
 
@@ -120,7 +122,7 @@ function dirname(path) {
             return "<Term " + fn + " " + this.row + ":" + this.col + " " +
                 this.parentTerm + "." + this.recordTerm + "=" +
                 this.value + " " + JSON.stringify(this.termArgs) +
-                " >"
+            " >";
         }
 
         this.clone = function() {
@@ -137,7 +139,7 @@ function dirname(path) {
             c.childPropertyType = this.childPropertyType;
             c.valid = this.valid;
             c.isArgChild = this.isArgChild;
-            c.canBeParent = this.canBeParent;
+         
 
             return c;
 
@@ -174,9 +176,13 @@ function dirname(path) {
             var childTerms = [];
 
             for (var j = 0; j < this.termArgs.length; j++) {
-                childTerms.push(
-                    new Term(this.recordTerm.toLowerCase() + "." + String(j),
-                        String(this.termArgs[j]), [], i, j + 2, this.fileName));
+                
+                var t =  new Term(this.recordTerm.toLowerCase() + "." + String(j),
+                    String(this.termArgs[j]), [], i, j + 2, this.fileName);
+                    
+                t.isArgChild = true;
+                childTerms.push(t);
+                        
             }
 
             return childTerms;
@@ -372,7 +378,7 @@ function dirname(path) {
                 nt.valid = nt.joinedTermLc() in self.terms;
                 nt.section = lastSection;
 
-                if (nt.canBeParent) {
+                if (nt.canBeParent()) {
                     lastParentTerm = nt.recordTerm;
                     lastTermMap.set(ELIDED_TERM, nt);
                     lastTermMap.set(nt.recordTerm, nt);

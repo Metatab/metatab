@@ -1,5 +1,4 @@
-"Declare","metadata.csv",,,
 ,,,,
-"Section","Schema","datatype","valuetype","description"
-"Table","registered_voters",,,"HCI Indicator 653.0: Percent of adults age 18 years and older who are registered voters"
-"Column","reportyear","int","year range","Year or years that indicator was reported"
+"Section","Resources","table","Grain","Title"
+"Documentation","https://www.cdph.ca.gov/programs/Documents/HCI_RegisteredVoters_653_Narrative_and_examples_6-2-14.pdf","Indicator Documentation for Voter Registration / Participation",,
+".description","Voter Registration/Participation: Percent of the eligible population registered to vote and the percent who voted in statewide elections",,,

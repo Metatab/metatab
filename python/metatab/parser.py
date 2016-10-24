@@ -116,8 +116,12 @@ class Term(object):
 
     def file_ref(self):
         """Return a string for the file, row and column of the term."""
+
+        from os.path import split
+
         if self.file_name is not None and self.row is not None:
-            return "{} {}:{} ".format(self.file_name, self.row, self.col)
+            parts = split(self.file_name);
+            return "{} {}:{} ".format(parts[-1], self.row, self.col)
         elif self.row is not None:
             return " {}:{} ".format(self.row, self.col)
         else:

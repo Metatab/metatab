@@ -9,30 +9,24 @@ function testData(v){
     return path.join(path.dirname(path.dirname(path.dirname(__filename))), 'test-data',v);
 }
 
-var csv_url = 'https://raw.githubusercontent.com/CivicKnowledge/metatab/master/python/test/data/children.csv';
-
-if (false){
-    var GenerateRows = require('../generaterows.js');
-    
-    GenerateRows.generate('./children.csv', function(row){
-        console.log("A", row);
-    });
-    
-    GenerateRows.generate(csv_url, function(row){
-        console.log("B", row);
-    });
-    
-
-    for ( var term of  Metatab.parseTerms(testData('children.csv'))){
-        console.log(term.toString());
+function dumpTerms(ti){
+    for(var i = 0; i < ti.parsedTerms.length; i++){
+        for(var j = 0; j < ti.parsedTerms[i].length; j++){
+            console.log(ti.parsedTerms[i][j].toString());
+        }
     }
- 
 }
 
-var ti = new Metatab.TermInterpreter( testData('example1.csv'))
-var obj = JSON.parse(fs.readFileSync(testData('json/example1.json'), 'utf8'));
+var csv_url = 'https://raw.githubusercontent.com/CivicKnowledge/metatab/master/python/test/data/children.csv';
+
+
+var ti = new Metatab.TermInterpreter( testData('issue1.csv'))
+var obj = JSON.parse(fs.readFileSync(testData('json/issue1.json'), 'utf8'));
 
 ti.run();
 
-var errors = flatten.compareDict(ti.toDict(), obj);
+var errors = flatten.compareDict(obj, ti.toDict());
 if (errors.length) console.log(errors);
+
+
+

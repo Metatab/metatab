@@ -47,8 +47,8 @@
     var compareDict = function(a,b){
         var errors = [];
     
-        var fa = flatten(a);
-        var fb = flatten(b);
+        var fa = flatten(JSON.parse(JSON.stringify(a)));
+        var fb = flatten(JSON.parse(JSON.stringify(b)));
         
         for(var k in fb){
             if (!(k in fa)){
