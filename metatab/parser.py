@@ -170,12 +170,17 @@ class CsvPathRowGenerator(object):
         return self._path
 
     def open(self):
-
+        import sys
         if self._path.startswith('http'):
-            import urllib2
+            import six.moves.urllib as urllib
             try:
-                f = urllib2.urlopen(self._path)
-            except urllib2.URLError:
+                if sys.version_info[0] < 3: 
+                    f = urllib.request.urlopen(self._path)
+                else:
+                    f = urllib.request.urlopen(self._path)
+                
+                
+            except urllib.error.URLError:
                 raise IncludeError("Failed to find file by url: {}".format(self._path))
 
             f.name = self._path  # to be symmetric with files.
@@ -183,7 +188,12 @@ class CsvPathRowGenerator(object):
             from os.path import join
 
             try:
-                f = open(self._path)
+                
+                if sys.version_info[0] < 3: 
+                    f = open(self._path, 'r')
+                else:
+                    f = open(self._path, 'rb') # 'b' because were using unicodecsv
+                
             except IOError:
                 raise IncludeError("Failed to find file: {}".format(self._path))
 
@@ -196,8 +206,10 @@ class CsvPathRowGenerator(object):
             self._f = None
 
     def __iter__(self):
-        import csv
+        import unicodecsv as  csv
+
         self.open()
+
 
         # Python 3, should use yield from
         for row in csv.reader(self._f):
@@ -226,7 +238,7 @@ class CsvDataRowGenerator(object):
 
     def __iter__(self):
         import csv
-        from cStringIO import StringIO
+        from six import StringIO
 
         f = StringIO(self._data)
 

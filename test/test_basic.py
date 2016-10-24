@@ -18,7 +18,8 @@ def flatten(d, parent_key='', sep='_'):
 def test_data(*paths):
     from os.path import dirname, join, abspath
 
-    return abspath(join(dirname(dirname(dirname(__file__))), 'test-data',  *paths))
+
+    return abspath(join(dirname(dirname(abspath(__file__))), 'test-data',  *paths))
 
 
 
@@ -201,7 +202,7 @@ class MyTestCase(unittest.TestCase):
 
         d = term_interp.declare_dict
 
-        self.assertEqual(['terms', 'sections'], d.keys())
+        self.assertEqual(sorted(['terms', 'sections']), sorted(d.keys()))
 
         terms = d['terms']
 
@@ -211,8 +212,8 @@ class MyTestCase(unittest.TestCase):
 
         sections = d['sections']
 
-        self.assertEquals(['contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schema'],
-                          sections.keys())
+        self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schema'},
+                          set(sections.keys()))
 
         # Use the Declare term
 
@@ -221,7 +222,7 @@ class MyTestCase(unittest.TestCase):
 
         _ = term_interp.declare_dict
 
-        self.assertEqual(['terms', 'sections'], d.keys())
+        self.assertEqual({'terms', 'sections'}, set(d.keys()))
 
         terms = d['terms']
 
@@ -231,8 +232,8 @@ class MyTestCase(unittest.TestCase):
 
         sections = d['sections']
 
-        self.assertEquals(['contacts','declaredterms', 'declaredsections',  'root', 'resources', 'schema'],
-                          sections.keys())
+        self.assertEquals({'contacts','declaredterms', 'declaredsections',  'root', 'resources', 'schema'},
+                          set(sections.keys()))
 
     def test_issue1(self):
         import json
