@@ -1,7 +1,13 @@
 Metatab
 =======
 
-Parse and manipulate a Structured Tabluar File
+Parse and manipulate structured data in a tabular format. 
+
+`Metatab <http://metatab.org>`_ is a data format that allows structured information -- the sort you'd normally store in JSON, YAML or XML -- to be stored and edited in tabular forms like CSV or Excel. Metatab files look exactly like you'd expect, so they
+are very easy for non technical users to read and edit, using tools they already have. Metatab is an excellt format
+for creating, storing and transmitting metadata. For more information about metatab, visit http://metatab.org. 
+
+This repository has a python module and executable. For a Javascript version, see the `metatab-js <https://github.com/CivicKnowledge/metatab-js>`_ repository.
 
 Install the package with:
 
