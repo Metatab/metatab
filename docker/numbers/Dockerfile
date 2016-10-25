@@ -11,7 +11,7 @@ VOLUME /data
 COPY requirements.txt /tmp
 RUN pip install -r /tmp/requirements.txt
 
-RUN pip install git+https://github.com/CivicKnowledge/metatab.git # 1
+RUN pip install git+https://github.com/CivicKnowledge/metatab-py.git # 1
 
 EXPOSE 80
 

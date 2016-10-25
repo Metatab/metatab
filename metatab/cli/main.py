@@ -25,8 +25,11 @@ def main():
     g.add_argument('-y', '--yaml', default=False, action='store_true',
                    help='Parse a file and print out a YAML representation')
 
-    parser.add_argument('-d', '--declare', default=False, action='store_true',
+    parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
                  help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
+
+    parser.add_argument('-D', '--declare', help='Parse and incorporate a declaration before parsing the file.'+
+                        ' (Adds the declaration to the start of the file as the first term. )')
 
     parser.add_argument('file', help='Path to a CSV file with STF data.')
 
@@ -36,7 +39,13 @@ def main():
 
     term_gen = list(TermGenerator(rg))
 
+    if args.declare:
+        term_gen = [Term('Root.Declare',args.declare,[],row=0, col=0, file_name='<commandline>')] + term_gen
+
     term_interp = TermInterpreter(term_gen)
+
+    if args.show_declaration:
+        term_interp.install_declare_terms()
 
     if args.interp:
         for t in list(term_interp):
@@ -47,9 +56,12 @@ def main():
             print(t)
         exit(0)
 
-    if args.declare:
-        term_interp.handle_declare(Term('Declare', 'metadata.csv', file_name=args.file))
-        dicts = term_interp.declare_dict
+    term_interp.run();
+
+    if args.show_declaration:
+        declare_ti = TermInterpreter([])
+        declare_ti.import_declare_doc(term_interp.as_dict())
+        dicts = declare_ti.declare_dict
     else:
         dicts = term_interp.as_dict()
 
@@ -58,7 +70,7 @@ def main():
         print(json.dumps(dicts, indent=4))
     elif args.yaml:
         import yaml
-        print(yaml.dump(dicts, default_flow_style=False, indent=4))
+        print(yaml.safe_dump(dicts, default_flow_style=False, indent=4))
 
 
 

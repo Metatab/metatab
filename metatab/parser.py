@@ -29,7 +29,7 @@ class Term(object):
         file_name Filename or URL of faile that contains term
         row: Row number of term
         col Column number of term
-        is_arg_child Term was generated from arguments of parent
+        term_parent Term was generated from arguments of parent
         child_property_type What datatype to use in dict conversion
         valid Did term pass validation tests? Usually based on DeclaredTerm values.
 
@@ -37,13 +37,13 @@ class Term(object):
 
     def __init__(self, term, value, term_args=[],
                  row=None, col=None, file_name=None,
-                 is_arg_child=None):
+                 parent=None):
         """
 
         :param term: Simple or compoint term name
         :param value: Term value, from second column of spreadsheet
         :param term_args: Colums 2+ from term row
-
+        :param term_parent: If set, the term is an arg child, and the term_parent is the parent term.
 
         """
 
@@ -72,11 +72,11 @@ class Term(object):
         self.child_property_type = 'any'
         self.valid = None
 
-        self.is_arg_child = is_arg_child  # If true, term was
+        self.parent = parent  # If set, term was generated from term args
 
         # There are some restrictions on what terms can be used for omitted parents,
         # otherwise consecutive terms with elided parents will get nested.
-        self.can_be_parent = (not self.is_arg_child and self.parent_term != ELIDED_TERM)
+        self.can_be_parent = (not self.parent and self.parent_term != ELIDED_TERM)
 
         self.children = []  # WHen terms are linked, hold term's children.
 
@@ -144,8 +144,9 @@ class Term(object):
             return False
 
     def __repr__(self):
-        return "<Term: {}{}.{} {} {} >".format(self.file_ref(), self.parent_term,
-                                               self.record_term, self.value, self.args)
+        return "<Term: {}{}.{} {} {} {}>".format(self.file_ref(), self.parent_term,
+                                               self.record_term, self.value, self.args,
+                                                 "P" if self.can_be_parent else "C")
 
     def __str__(self):
         if self.parent_term == ELIDED_TERM:
@@ -174,12 +175,11 @@ class CsvPathRowGenerator(object):
         if self._path.startswith('http'):
             import six.moves.urllib as urllib
             try:
-                if sys.version_info[0] < 3: 
+                if sys.version_info[0] < 3:
                     f = urllib.request.urlopen(self._path)
                 else:
                     f = urllib.request.urlopen(self._path)
-                
-                
+
             except urllib.error.URLError:
                 raise IncludeError("Failed to find file by url: {}".format(self._path))
 
@@ -209,7 +209,6 @@ class CsvPathRowGenerator(object):
         import unicodecsv as  csv
 
         self.open()
-
 
         # Python 3, should use yield from
         for row in csv.reader(self._f):
@@ -334,7 +333,7 @@ class TermGenerator(object):
                                    row=line_n,
                                    col=col + 2,  # The 0th argument starts in col 2
                                    file_name=self._path,
-                                   is_arg_child=True)
+                                   parent=t)
 
 
 class TermInterpreter(object):
@@ -364,6 +363,7 @@ class TermInterpreter(object):
         self.errors = []
 
         self.root = None;
+        self.parsedTerms = []
 
     @property
     def sections(self):
@@ -371,7 +371,17 @@ class TermInterpreter(object):
 
     @property
     def synonyms(self):
-        return {k.lower(): v['synonym'] for k, v in self._terms.items() if 'synonym' in v}
+
+        syns = {}
+
+        for k, v in self._terms.items():
+            if 'synonym' in v:
+                syns[k.lower()] = v['synonym']
+
+                if not '.' in k:
+                    syns[ROOT_TERM+'.'+k.lower()] = v['synonym']
+
+        return syns
 
     @property
     def terms(self):
@@ -399,6 +409,15 @@ class TermInterpreter(object):
             'declarevalueset.value': {'termvaluename': 'value', 'childpropertytype': 'sequence'},
         })
 
+    def run(self):
+        """Run the iterator, returning all terms as a list"""
+
+        if not self.root:
+            self.parsedTerms = list(self)
+
+        return self.parsedTerms
+
+
     def as_dict(self):
         """Iterate, link terms and convert to a dict"""
 
@@ -407,6 +426,11 @@ class TermInterpreter(object):
             for _ in self: pass
 
         return self.convert_to_dict(self.root)
+
+    def substitute_synonym(self, nt):
+
+        if nt.join_lc() in self.synonyms:
+            nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc()]);
 
     @classmethod
     def convert_to_dict(cls, term):
@@ -487,7 +511,6 @@ class TermInterpreter(object):
             if nt.parent_term == ELIDED_TERM:
                 nt.parent_term = last_parent_term
 
-
             # Substitute synonyms
             if nt.join_lc() in self.synonyms:
                 nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc()]);
@@ -501,7 +524,6 @@ class TermInterpreter(object):
 
             except IndexError:
                 pass  # Probably no parameter map.
-
 
             if nt.term_is('root.section'):
                 self._param_map = [p.lower() if p else i for i, p in enumerate(nt.args)]
@@ -521,7 +543,6 @@ class TermInterpreter(object):
 
                 ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(fn)), False)
                 ti.install_declare_terms()
-
 
                 try:
                     self.import_declare_doc(ti.as_dict())
@@ -545,11 +566,20 @@ class TermInterpreter(object):
                 last_term_map[nt.record_term] = nt
 
             try:
-                parent = last_term_map[nt.parent_term]
+                if nt.can_be_parent:
+                    parent = last_term_map[nt.parent_term]
+                else:
+                    parent = last_term_map[last_parent_term]
+
+
                 parent.add_child(nt)
             except KeyError as e:
-                raise ParserError("Failed to find parent term in last term map: {} {} \nTerm: \n{}"
-                                      .format(e.__class__.__name__, e, nt))
+                import json
+                raise ParserError(("Failed to find parent term in last term map: {} {} \n"+
+                                  "Term: \n    {}\nParents:\n    {}\nSynonyms:\n{}")
+                                      .format(e.__class__.__name__, e, nt,
+                                              last_term_map.keys(),
+                                              json.dumps(self.synonyms, indent = 4)))
 
             yield nt
 
@@ -566,6 +596,9 @@ class TermInterpreter(object):
 
         if 'declareterm' in d:
             for e in d['declareterm']:
+
+                if not isinstance(e, dict):  # It could be a string in odd cases
+                    continue
 
                 self._terms[Term.normalize_term(e['term_name'])] = e
 

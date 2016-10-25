@@ -30,7 +30,7 @@ class ClientError(Exception):
             self.message = ''
 
         if message:
-            self.message += ': '+message
+            self.message += ': ' + message
 
         Exception.__init__(self, self.message)
 
@@ -42,13 +42,14 @@ class ClientError(Exception):
         rv = dict(self.payload or ())
 
         return dict(
-            result = None,
-            errors = [
+            result=None,
+            errors=[
                 dict(
                     error=self.message
                 )
             ]
         )
+
 
 @app.errorhandler(ClientError)
 def handle_invalid_usage(error):
@@ -56,13 +57,14 @@ def handle_invalid_usage(error):
     response.status_code = error.status_code
     return response
 
+
 @app.route('/')
 def home():
     return 'metatab'
 
+
 @app.route('/v1/parse', methods=['POST'])
 def parse():
-
     content_type = request.headers.get('content-type')
 
     if content_type == 'application/json':

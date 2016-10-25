@@ -1,7 +1,7 @@
 """Server application for assigning dataset numbers. Requires a redis instance
 for data storage.
 
-Run with something like: python -m ambry.server.numbers  -p 80 -H 162.243.194.227
+Run with something like: python -m metatab.numbers  -p 80 -H 162.243.194.227
 
 
 The access key is a secret key that the client will use to assign an assignment class.
@@ -194,6 +194,7 @@ class AllJSONPlugin(object):
 
 install(AllJSONPlugin())
 
+
 class Constant:
     """Organizes constants in a class."""
 
@@ -207,9 +208,13 @@ class Constant:
 
 
 class ObjectNumber(object):
-
     """Static class for holding constants and static methods related to object
-    numbers."""
+    numbers.
+
+    Note! Most of this code is stolen from ambry.identity, and is severly hacked. It's only
+    good for generating numbers of the correct form.
+
+    """
 
     # When a name is resolved to an ObjectNumber, orig can
     # be set to the input value, which can be important, for instance,
@@ -233,7 +238,6 @@ class ObjectNumber(object):
         registered=DLEN.DATASET[1],  # For registered users of a numbering authority
         unregistered=DLEN.DATASET[2],  # For unregistered users of a numebring authority
         self=DLEN.DATASET[3])  # Self registered
-
 
     # Because the dataset number can be 3, 5, 7 or 9 characters,
     # And the revision is optional, the datasets ( and thus all
@@ -262,100 +266,6 @@ class ObjectNumber(object):
     # Length of the caracters that aren't the dataset and revisions
     NDS_LENGTH = {'d': 0}
 
-    EPOCH = 1389210331  # About Jan 8, 2014
-
-    @classmethod
-    def parse(cls, on_str, force_type=None):  # @ReservedAssignment
-        """Parse a string into one of the object number classes."""
-
-        on_str_orig = on_str
-
-        if on_str is None:
-            return None
-
-        if not on_str:
-            raise NotObjectNumberError("Got null input")
-
-        if not isinstance(on_str, string_types):
-            raise NotObjectNumberError("Must be a string. Got a {} ".format(type(on_str)))
-
-        # if isinstance(on_str, unicode):
-        #     dataset = on_str.encode('ascii')
-
-        if force_type:
-            type_ = force_type
-        else:
-            type_ = on_str[0]
-
-        on_str = on_str[1:]
-
-        if type_ not in list(cls.NDS_LENGTH.keys()):
-            raise NotObjectNumberError("Unknown type character '{}' for '{}'".format(type_, on_str_orig))
-
-        ds_length = len(on_str) - cls.NDS_LENGTH[type_]
-
-        if ds_length not in cls.DATASET_LENGTHS:
-            raise NotObjectNumberError(
-                "Dataset string '{}' has an unfamiliar length: {}".format(on_str_orig, ds_length))
-
-        ds_lengths = cls.DATASET_LENGTHS[ds_length]
-
-        assignment_class = ds_lengths[2]
-
-        try:
-            dataset = int(ObjectNumber.base62_decode(on_str[0:ds_lengths[0]]))
-
-            if ds_lengths[1]:
-                i = len(on_str) - ds_lengths[1]
-                revision = int(ObjectNumber.base62_decode(on_str[i:]))
-                on_str = on_str[0:i]  # remove the revision
-            else:
-                revision = None
-
-            on_str = on_str[ds_lengths[0]:]
-
-            if type_ == cls.TYPE.DATASET:
-                return DatasetNumber(dataset, revision=revision, assignment_class=assignment_class)
-
-            elif type_ == cls.TYPE.TABLE:
-                table = int(ObjectNumber.base62_decode(on_str))
-                return TableNumber(
-                    DatasetNumber(dataset, assignment_class=assignment_class), table, revision=revision)
-
-            elif type_ == cls.TYPE.PARTITION:
-                partition = int(ObjectNumber.base62_decode(on_str))
-                return PartitionNumber(
-                    DatasetNumber(dataset, assignment_class=assignment_class), partition, revision=revision)
-
-            elif type_ == cls.TYPE.COLUMN:
-                table = int(ObjectNumber.base62_decode(on_str[0:cls.DLEN.TABLE]))
-                column = int(ObjectNumber.base62_decode(on_str[cls.DLEN.TABLE:]))
-
-                return ColumnNumber(
-                    TableNumber(DatasetNumber(dataset, assignment_class=assignment_class), table),
-                    column, revision=revision)
-
-            elif type_ == cls.TYPE.OTHER1 or type_ == cls.TYPE.CONFIG:
-                    return GeneralNumber1(on_str_orig[0],
-                                          DatasetNumber(dataset, assignment_class=assignment_class),
-                                          int(ObjectNumber.base62_decode(on_str[0:cls.DLEN.OTHER1])),
-                                          revision=revision)
-
-            elif type_ == cls.TYPE.OTHER2:
-                    return GeneralNumber2(on_str_orig[0],
-                                          DatasetNumber(dataset, assignment_class=assignment_class),
-                                          int(ObjectNumber.base62_decode(on_str[0:cls.DLEN.OTHER1])),
-                                          int(ObjectNumber.base62_decode(
-                                              on_str[cls.DLEN.OTHER1:cls.DLEN.OTHER1+cls.DLEN.OTHER2])),
-                                          revision=revision)
-
-            else:
-
-                raise NotObjectNumberError('Unknown type character: ' + type_ + ' in ' + str(on_str_orig))
-
-        except Base62DecodeError as e:
-            raise NotObjectNumberError('Unknown character:  ' + str(e))
-
     @classmethod
     def base62_encode(cls, num):
         """Encode a number in Base X.
@@ -380,53 +290,6 @@ class ObjectNumber(object):
         return ''.join(arr)
 
     @classmethod
-    def base62_decode(cls, string):
-        """Decode a Base X encoded string into the number.
-
-        Arguments:
-        - `string`: The encoded string
-        - `alphabet`: The alphabet to use for encoding
-        Stolen from: http://stackoverflow.com/a/1119769/1144479
-
-        """
-
-        alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-        base = len(alphabet)
-        strlen = len(string)
-        num = 0
-
-        idx = 0
-        for char in string:
-            power = (strlen - (idx + 1))
-            try:
-                num += alphabet.index(char) * (base ** power)
-            except ValueError:
-                raise Base62DecodeError(
-                    "Failed to decode char: '{}'".format(char))
-            idx += 1
-
-        return num
-
-    @classmethod
-    def increment(cls, v):
-        """Increment the version number of an object number of object number string"""
-        if not isinstance(v, ObjectNumber):
-            v = ObjectNumber.parse(v)
-
-        return v.rev(v.revision+1)
-
-
-    def rev(self, i):
-        """Return a clone with a different revision."""
-        on = copy(self)
-        on.revision = i
-        return on
-
-    def __eq__(self, other):
-        return str(self) == str(other)
-
-    @classmethod
     def _rev_str(cls, revision):
 
         if not revision:
@@ -440,7 +303,6 @@ class ObjectNumber(object):
 
 
 class TopNumber(ObjectNumber):
-
     """A general top level number, with a given number space.
 
     Just like a DatasetNumber, with without the 'd'
@@ -457,47 +319,8 @@ class TopNumber(ObjectNumber):
 
         self.assignment_class = assignment_class
 
-        if dataset is None:
-            digit_length = self.DLEN.DATASET_CLASSES[self.assignment_class]
-            # On 64 bit machine, max is about 10^17, 2^53
-            # That should be random enough to prevent
-            # collisions for a small number of self assigned numbers
-            max = 62 ** digit_length
-            dataset = random.randint(0, max)
-
         self.dataset = dataset
         self.revision = revision
-
-    @classmethod
-    def from_hex(cls, h, space, assignment_class='self'):
-        """Produce a TopNumber, with a length to match the given assignment
-        class, based on an input hex string.
-
-        This can be used to create TopNumbers from a hash of a string.
-
-        """
-
-        from math import log
-
-        # Use the ln(N)/ln(base) trick to find the right number of hext digits
-        # to  use
-
-        hex_digits = int(
-            round(log(62 ** TopNumber.DLEN.DATASET_CLASSES[assignment_class]) / log(16), 0))
-
-        i = int(h[:hex_digits], 16)
-
-        return TopNumber(space, i, assignment_class=assignment_class)
-
-    @classmethod
-    def from_string(cls, s, space):
-        """Produce a TopNumber by hashing a string."""
-
-        import hashlib
-
-        hs = hashlib.sha1(s).hexdigest()
-
-        return cls.from_hex(hs, space)
 
     def _ds_str(self):
 
@@ -510,43 +333,24 @@ class TopNumber(ObjectNumber):
 
 
 class DatasetNumber(ObjectNumber):
-
     """An identifier for a dataset."""
 
     def __init__(self, dataset=None, revision=None, assignment_class='self'):
         """Constructor."""
+        import random
 
         self.assignment_class = assignment_class
-
-        if dataset is None:
-            digit_length = self.DLEN.DATASET_CLASSES[self.assignment_class]
-            # On 64 bit machine, max is about 10^17, 2^53
-            # That should be random enough to prevent
-            # collisions for a small number of self assigned numbers
-            max = 62 ** digit_length
-            dataset = random.randint(0, max)
 
         self.dataset = dataset
         self.revision = revision
 
     def _ds_str(self):
-
         ds_len = self.DLEN.DATASET_CLASSES[self.assignment_class]
 
         return ObjectNumber.base62_encode(self.dataset).rjust(ds_len, '0')
 
-    @property
-    def as_dataset(self):
-        return copy(self)
-
-    def as_partition(self, partition_number=0):
-        """Return a new PartitionNumber based on this DatasetNumber."""
-        return PartitionNumber(self, partition_number)
-
     def __str__(self):
         return (ObjectNumber.TYPE.DATASET + self._ds_str() + ObjectNumber._rev_str(self.revision))
-
-
 
 
 @error(404)
@@ -624,7 +428,6 @@ def request_delay(nxt, delay, delay_factor):
 @CaptureException
 def get_next(redis, assignment_class=None, space=''):
     from time import time
-
 
     delay_factor = 2
 
@@ -839,9 +642,12 @@ if __name__ == '__main__':
     parser.add_argument('-g', '--registered-key', default=None, help="access_key value for registered access")
     parser.add_argument('-a', '--authoritative-key', default=None, help="access_key value for authoritative access")
 
-    parser.add_argument('-U', '--gen-unregistered-key', default=False, action='store_true', help="Generate an unregistered keys")
-    parser.add_argument('-G', '--gen-registered-key', default=False, action='store_true', help="Generate a registered key")
-    parser.add_argument('-A', '--gen-authoritative-key', default=False, action='store_true', help="Generate an authoritative key")
+    parser.add_argument('-U', '--gen-unregistered-key', default=False, action='store_true',
+                        help="Generate an unregistered keys")
+    parser.add_argument('-G', '--gen-registered-key', default=False, action='store_true',
+                        help="Generate a registered key")
+    parser.add_argument('-A', '--gen-authoritative-key', default=False, action='store_true',
+                        help="Generate an authoritative key")
 
     args = parser.parse_args()
 
@@ -876,4 +682,3 @@ if __name__ == '__main__':
         d['reloader'] = args.debug
 
     _run(**d)
-

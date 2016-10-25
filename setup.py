@@ -30,14 +30,12 @@ tests_require = install_requires = parse_requirements('requirements.txt', sessio
 
 classifiers = [
     'Development Status :: 4 - Beta',
-    'Environment :: Web Environment',
     'Intended Audience :: Developers',
-    'License :: OSI Approved :: BSD License',
+    'License :: OSI Approved :: MIT License',
     'Operating System :: OS Independent',
     'Programming Language :: Python',
-    'Programming Language :: Python :: 2.6',
     'Programming Language :: Python :: 2.7',
-    'Topic :: Software Development :: Debuggers',
+    'Programming Language :: Python :: 3.4',
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
