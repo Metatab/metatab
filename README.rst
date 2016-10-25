@@ -9,11 +9,13 @@ for creating, storing and transmitting metadata. For more information about meta
 
 This repository has a python module and executable. For a Javascript version, see the `metatab-js <https://github.com/CivicKnowledge/metatab-js>`_ repository.
 
-Install the package with:
+Install the package from PiPy with:
 
 .. code-block:: bash
 
     $ pip install metatab
+
+Or, install the master branch from github with:
 
 .. code-block:: bash
 
