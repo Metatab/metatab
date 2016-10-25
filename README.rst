@@ -27,6 +27,7 @@ Then test parsing using a remote file with:
 
     $ metatab -j https://raw.githubusercontent.com/CivicKnowledge/metatab-py/master/test-data/children.csv
 
+Run ``metatab -h`` to get other program options. 
 
 The ``test-data`` directory has test files that also serve as examples to parse. You can either clone the repo and parse them from the files, or from the Github page for the file, click on the ``raw`` button to get raw view of the flie, then copy the URL. 
 
