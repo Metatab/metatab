@@ -29,7 +29,7 @@ class Term(object):
 
     """
 
-    def __init__(self, term, term_args=[],row=None, col=None, file_name=None):
+    def __init__(self, term, value,row=None, col=None, file_name=None, parent = None):
         """
 
         :param term: Simple or compoint term name
@@ -47,10 +47,7 @@ class Term(object):
 
         self.parent_term, self.record_term = Term.split_term_lower(term)
 
-        self.args = [strip_if_str(x) for x in term_args]
-
-        if len(self.args) < 1:
-            self.args = [None] # Must at least have a first value.
+        self.value = value
 
         self.section = None  # Name of section the term is in.
 
@@ -66,14 +63,21 @@ class Term(object):
         self.child_property_type = 'any'
         self.valid = None
 
-        self.children = []  # WHen terms are linked, hold term's children.
+        self.parent = parent
+
+        self.children = []  # When terms are linked, hold term's children.
+
+        self.is_terminal = self.parent_term == ELIDED_TERM and not self.parent
 
     @property
-    def value(self):
-        try:
-            return self.args[0]
-        except IndexError:
-            return None
+    def fqname(self):
+        """Fully qualified term name"""
+
+        if self.parent:
+            return self.parent.fqname+"."+self.record_term
+        else:
+            return self.record_term
+
 
     @classmethod
     def normalize_term(cls, term):
@@ -138,23 +142,8 @@ class Term(object):
         else:
             return False
 
-    def yield_children(self):
-        # Yield any child terms, from the term row arguments
-
-        for col, value in enumerate(self.args, 0):
-            if str(value).strip():
-                yield Term(self.record_term.lower() + '.' + "arg" + str(col + 1), [str(value)],
-                           row=self.row,
-                           col=col + 1,  # The 1st argument starts in col 1
-                           file_name=self.file_name)
-
-    def __repr__(self):
-        return "<Term: {}{}.{} {} {}>".format(self.file_ref(), self.parent_term,
-                                               self.record_term, self.args,
-                                                 "T" if self.is_terminal else "P")
-
     def __str__(self):
-        return "{}{}.{}: {}".format(self.file_ref(), self.parent_term, self.record_term, self.args)
+        return "{}{}: {}".format(self.file_ref(), self.fqname, self.value)
 
 
 class TermGenerator(object):
@@ -174,58 +163,65 @@ class TermGenerator(object):
 
         self._path = self._row_gen.path
 
-    def __iter__(self):
-        """An interator that generates term objects"""
+    def include_path(self, t):
         from os.path import dirname, join
+
+        if not self._path:
+            raise IncludeError("Can't include because don't know current path"
+                               .format(self._root_directory), term=t)
+
+        include_ref = t.args[0].strip('/')
+
+        if include_ref.startswith('http'):
+            path = include_ref
+        else:
+            path = join(dirname(self._path), include_ref)
+
+    def __iter__(self):
+        """An iterator that generates term objects"""
+
+        last_parent = None # Parent for terms with elided parents
+        last_term_map = {} # Parents for terms that have specified parents
+
+        t = Term('Root', [], row=0, col=0, file_name=self._path)
+
+        last_term_map[ELIDED_TERM] = t
+        last_term_map[t.record_term] = t
+
+        yield t
 
         for line_n, row in enumerate(self._row_gen, 1):
 
             if not row[0].strip() or row[0].strip().startswith('#'):
                 continue
 
-            t = Term(row[0].lower(),
-                     [ e for e in (row[1:] if len(row) > 2 else []) if e],
-                     row=line_n,
-                     col=1,
-                     file_name=self._path)
+            t = Term(row[0].lower(),None,
+                     row=line_n,col=1,file_name=self._path )
+
+            if not t.is_terminal:
+                last_term_map[ELIDED_TERM] = t
+                last_term_map[t.record_term] = t
+
+            t.parent = last_term_map[t.parent_term]
+
+            yield t
+
+            for col, value in enumerate([ e for e in (row[1:] if len(row) > 1 else []) if e], 0):
+                if str(value).strip():
+                    yield Term(t.record_term.lower() + '.' + "arg" + str(col + 1), str(value),
+                               row=line_n,
+                               col=col + 1,  # The 1st argument starts in col 1
+                               file_name=self._path,
+                               parent=t)
 
             if t.term_is('include'):
-
-                if not self._path:
-                    raise IncludeError("Can't include because don't know current path"
-                                      .format(self._root_directory), term=t)
-
-                include_ref = t.args[0].strip('/')
-
-                if include_ref.startswith('http'):
-                    path = include_ref
-                else:
-                    path = join(dirname(self._path), include_ref)
-
-                t.args[0] = path
-
-                yield t
-
                 try:
-                    for t in TermGenerator(generateRows(path)):
+                    for t in TermGenerator(generateRows(self.include_path(t))):
                         yield t
 
                 except IncludeError as e:
-
                     e.term = t
                     raise
-            else:
-
-                if t.parent_term != ELIDED_TERM and not t.term_is('section'):
-                    yield Term('root.ParentTerm',
-                               [t.join()],
-                               row=line_n,
-                               col=1,
-                               file_name=self._path)
-
-                for child in t.yield_children():
-                    yield child
-
 
 
 
@@ -420,12 +416,10 @@ class TermInterpreter(object):
 
             for i, t in enumerate(self._term_gen):
 
-                if self.root is None:
-                    self.root = Term('Root', None, row=0, col=0, file_name=t.file_name)
+                if t.term_is('root'):
                     last_section = self.root
                     last_term_map[ELIDED_TERM] = self.root
                     last_term_map[self.root.record_term] = self.root
-                    yield self.root
 
                 nt = copy.copy(t)
 
@@ -473,6 +467,11 @@ class TermInterpreter(object):
                         e.term = t
                         self.errors.add(e)
                         raise
+
+                if nt.term_is('header'):
+                    default_child_property_type = nt.value
+
+                    continue
 
                 nt.child_property_type = self._terms.get(nt.join(), {}).get('childpropertytype', 'any')
 
