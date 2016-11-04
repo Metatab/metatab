@@ -3,116 +3,70 @@ import unittest
 
 import collections
 
-# From http://stackoverflow.com/a/6027615
-def flatten(d, parent_key='', sep='_'):
-    items = []
-    for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, collections.MutableMapping):
-            items.extend(flatten(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
 
-    return dict(items)
+def flatten(d, sep='.'):
+
+    def _flatten(e, parent_key='', sep='.'):
+        import collections
+
+        prefix = parent_key+sep if parent_key else ''
+
+        if isinstance(e, collections.MutableMapping):
+            return tuple( (prefix+k2, v2) for k, v in e.items() for k2,v2 in _flatten(v,  k, sep ) )
+        elif isinstance(e, collections.MutableSequence):
+            return tuple( (prefix+k2, v2) for i, v in enumerate(e) for k2,v2 in _flatten(v,  str(i), sep ) )
+        else:
+            return (parent_key, (e,)),
+
+    return tuple( (k, v[0]) for k, v in _flatten(d, '', sep) )
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
 
-
-    return abspath(join(dirname(dirname(abspath(__file__))), 'test-data',  *paths))
-
+    return abspath(join(dirname(dirname(abspath(__file__))), 'test-data', *paths))
 
 
 class MyTestCase(unittest.TestCase):
 
-    def test_web(self):
-        from os.path import dirname, join
-        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
-        fn = test_data('example1-web.csv')
+    def compare_dict(self, a, b):
+        fa = set('{}={}'.format(k, v) for k, v in flatten(a));
+        fb = set('{}={}'.format(k, v) for k, v in flatten(b));
 
-        with open(fn) as f:
-            term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
+        errors = len(fa - fb) + len(fb - fa)
 
-            term_interp = TermInterpreter(term_gen)
+        if errors:
+            print("=== ERRORS ===")
 
-            print(term_interp.as_dict().keys())
+        if len(fa - fb):
+            print("In b but not a")
+            for e in sorted(fa - fb):
+                print('    ', e)
 
-            print(term_interp.errors_as_dict())
+        if len(fb - fa):
+            print("In a but not b")
+            for e in sorted(fb - fa):
+                print('    ', e)
 
-    def test_delcare_doc(self):
-        import json
-        from os.path import dirname, join
-        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
-        fn = test_data('declare-only.csv')
+        self.assertEqual(0, errors)
 
-        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
 
-        term_interp = TermInterpreter(term_gen)
-
-        for t in term_interp:
-            print(t)
-
-        print(json.dumps(term_interp.as_dict(), indent=4))
-
-    def test_root(self):
-        import json
-        from os.path import dirname, join
-        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
-        fn = test_data('children.csv')
-
-        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
-
-        term_interp = TermInterpreter(term_gen)
-
-        for t in term_interp:
-            print(t)
-
-        print(json.dumps(term_interp.as_dict(),indent=4))
-
-    def test_children(self):
-        import json
-
-        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
-        fn = test_data('children.csv')
-
-        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
-
-        term_interp = TermInterpreter(term_gen)
-
-        for t in term_interp.as_dict()['parent']:
-            self.assertEquals({'prop1': 'prop1', 'prop2': 'prop2', '@value': 'parent'}, t)
-
-    def test_includes(self):
-        import json
-        from os.path import dirname, join
-        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
-
-        fn = test_data('include1.csv')
-
-        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
-
-        term_interp = TermInterpreter(term_gen)
-
-        d = term_interp.as_dict()
-
-        self.assertEquals(['Include File 1', 'Include File 2', 'Include File 3'], d['note'])
-        self.assertEquals(['include2.csv',
-                           'https://raw.githubusercontent.com/CivicKnowledge/structured_tables/master/test/data/include3.csv'],
-                          d['include'])
 
     def test_parse_everything(self):
         import json
         from os.path import dirname, join, exists
         from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
 
-        for fn in ['example1.csv','example2.csv','example1-web.csv',
-                   'include1.csv','include2.csv', 'include3.csv',
-                   'children.csv','children2.csv',
+        for fn in ['example1.csv', 'example2.csv', 'example1-web.csv',
+                   'include1.csv', 'include2.csv', 'include3.csv',
+                   'children.csv', 'children2.csv',
+                   'datapackage_ex1.csv', 'datapackage_ex1_web.csv',
                    'issue1.csv']:
+
+            print('Testing ', fn);
 
             path = test_data(fn)
 
-            json_path = test_data('json',fn.replace('.csv', '.json'))
+            json_path = test_data('json', fn.replace('.csv', '.json'))
 
             with open(path) as f:
                 term_gen = list(TermGenerator(CsvPathRowGenerator(path)))
@@ -122,13 +76,14 @@ class MyTestCase(unittest.TestCase):
                 d = term_interp.as_dict()
 
                 if not exists(json_path):
-                    with open(json_path,'w') as f:
-                        json.dump(d,f, indent=4)
+                    with open(json_path, 'w') as f:
+                        json.dump(d, f, indent=4)
 
                 with open(json_path) as f:
                     d2 = json.load(f)
 
-                self.assertDictEqual(flatten(d), flatten(d2));
+                self.compare_dict(d, d2)
+
 
     def test_terms(self):
         from os.path import dirname, join
@@ -145,23 +100,20 @@ class MyTestCase(unittest.TestCase):
         with open(fn) as f:
             row_data = [row for row in csv.reader(f)]
 
-        for rg_args in ( (CsvPathRowGenerator,fn),
-                    (CsvDataRowGenerator,str_data, fn),
-                    (RowGenerator,row_data, fn) ):
-
+        for rg_args in ((CsvPathRowGenerator, fn),
+                        (CsvDataRowGenerator, str_data, fn),
+                        (RowGenerator, row_data, fn)):
             with open(fn) as f:
-
                 rg = rg_args[0](*rg_args[1:])
 
                 print(rg.__class__.__name__)
 
                 terms = list(TermGenerator(rg))
 
-
                 self.assertEqual(141, len(terms))
 
                 self.assertEqual('declare', terms[0].record_term)
-                self.assertEqual('metadata.csv', terms[0].value)
+                self.assertEqual('metatab.csv', terms[0].value)
 
                 self.assertTrue(terms[48].file_name.endswith('example1.csv'))
                 self.assertEqual('root', terms[48].parent_term)
@@ -180,10 +132,10 @@ class MyTestCase(unittest.TestCase):
                 d = terms.as_dict()
 
                 self.assertListEqual(sorted(['creator', 'datafile', 'declare', 'description', 'documentation',
-                                             'format', 'homepage','identifier', 'note', 'obsoletes',
+                                             'format', 'homepage', 'identifier', 'note', 'obsoletes',
                                              'spatial', 'spatialgrain', 'table', 'time', 'title',
                                              'version', 'wrangler']),
-                                     sorted(d.keys()) )
+                                     sorted(d.keys()))
 
     def test_declarations(self):
         from os.path import dirname, join
@@ -193,12 +145,14 @@ class MyTestCase(unittest.TestCase):
 
         # Direct use of function
 
-        ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(test_data('metadata.csv'))), False)
+        ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(test_data('metatab.csv'))), False)
         ti.install_declare_terms()
 
-        fn = test_data('example1.csv') # Not acutally used. Sets base directory
+        fn = test_data('example1.csv')  # Not acutally used. Sets base directory
 
-        term_interp = TermInterpreter(TermGenerator(RowGenerator([['Declare','metadata.csv']], fn)))
+        term_interp = TermInterpreter(TermGenerator(RowGenerator([['Declare', 'metatab.csv']], fn)))
+
+        term_interp.run()
 
         d = term_interp.declare_dict
 
@@ -232,23 +186,105 @@ class MyTestCase(unittest.TestCase):
 
         sections = d['sections']
 
-        self.assertEquals({'contacts','declaredterms', 'declaredsections',  'root', 'resources', 'schema'},
+        self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schema'},
                           set(sections.keys()))
 
-    def test_issue1(self):
+    def test_children(self):
         import json
-        from os.path import dirname, join
+
         from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
-        fn = test_data('issue1.csv')
+        fn = test_data('children.csv')
 
         term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
 
         term_interp = TermInterpreter(term_gen)
 
-        for t in term_interp:
-            print(t)
+        for t in term_interp.as_dict()['parent']:
+            self.assertEquals({'prop1': 'prop1', 'prop2': 'prop2', '@value': 'parent'}, t)
 
-        print(json.dumps(term_interp.as_dict(), indent=4))
+    def test_includes(self):
+        import json
+        from os.path import dirname, join
+        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
+
+        fn = test_data('include1.csv')
+
+        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
+
+        term_interp = TermInterpreter(term_gen)
+
+        d = term_interp.as_dict()
+
+        self.assertEquals(['Include File 1', 'Include File 2', 'Include File 3'], d['note'])
+        self.assertEquals(['include2.csv',
+                           'https://raw.githubusercontent.com/CivicKnowledge/structured_tables/master/test/data/include3.csv'],
+                          d['include'])
+
+    def test_errors(self):
+
+        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator, IncludeError
+
+        def errs(fn):
+            ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(fn)))
+            with self.assertRaises(IncludeError):
+                ti.run()
+            return ti.errors_as_dict()
+
+
+        e = errs(test_data('errors/bad_include.csv'))
+
+        self.assertEquals(1, len(e))
+        self.assertTrue('bad_include.csv' in e[0]['file'])
+        self.assertEquals('root.include', e[0]['term'])
+
+        e = errs(test_data('errors/bad_declare.csv'))
+
+        self.assertEquals(1, len(e))
+        self.assertTrue('bad_declare.csv' in e[0]['file'])
+        self.assertEquals('root.declare', e[0]['term'])
+
+
+
+    def test_section_dict(self):
+
+        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator
+
+        fn = test_data('example1.csv')
+
+        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
+
+        term_interp = TermInterpreter(term_gen)
+
+        d = term_interp.as_section_dict();
+
+        keys = ( ('notes',2), ('schema',1), ('root',10), ('resources',4), ('contacts',2) )
+
+        self.assertEquals([ key for key,_ in keys], d.keys());
+
+        for key, size in keys:
+            self.assertEqual(size, len(d[key]), "'{}' key in section dict".format(key))
+
+    def test_serializer(self):
+
+        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator, Serializer
+
+        fn = test_data('example1.csv')
+
+        term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
+
+        term_interp = TermInterpreter(term_gen)
+
+        d = term_interp.as_dict()
+
+        import json
+        #print(json.dumps(d,indent=4))
+
+        s = Serializer()
+
+        for e in sorted(s.serialize(d)):
+            print(any(isinstance(ki, int) for ki in e[0]),e)
+
+
 
 if __name__ == '__main__':
     unittest.main()

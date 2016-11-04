@@ -11,14 +11,8 @@ ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
 
 
-class ParserError(Exception):
-    def __init__(self, *args, **kwargs):
-        super(ParserError, self).__init__(*args, **kwargs)
-        self.term = None
-
-
-class IncludeError(ParserError):
-    pass
+from exc import IncludeError, ParserError
+from generate import generateRows
 
 
 class Term(object):
@@ -156,120 +150,6 @@ class Term(object):
             return "{}{}.{}: {}".format(self.file_ref(), self.parent_term, self.record_term, self.value)
 
 
-class CsvPathRowGenerator(object):
-    """An object that generates rows. The current implementation mostly just a wrapper around
-    csv.reader, but it add a path property so term interperters know where the terms are coming from
-    """
-
-    def __init__(self, path):
-
-        self._path = path
-        self._f = None
-
-    @property
-    def path(self):
-        return self._path
-
-    def open(self):
-        import sys
-        if self._path.startswith('http'):
-            import six.moves.urllib as urllib
-            try:
-                if sys.version_info[0] < 3:
-                    f = urllib.request.urlopen(self._path)
-                else:
-                    f = urllib.request.urlopen(self._path)
-
-            except urllib.error.URLError:
-                raise IncludeError("Failed to find file by url: {}".format(self._path))
-
-            f.name = self._path  # to be symmetric with files.
-        else:
-            from os.path import join
-
-            try:
-                
-                if sys.version_info[0] < 3: 
-                    f = open(self._path, 'r')
-                else:
-                    f = open(self._path, 'rb') # 'b' because were using unicodecsv
-                
-            except IOError:
-                raise IncludeError("Failed to find file: {}".format(self._path))
-
-        self._f = f
-
-    def close(self):
-
-        if self._f:
-            self._f.close()
-            self._f = None
-
-    def __iter__(self):
-        import unicodecsv as  csv
-
-        self.open()
-
-        # Python 3, should use yield from
-        for row in csv.reader(self._f):
-            yield row
-
-        self.close()
-
-
-class CsvDataRowGenerator(object):
-    """Generate rows from CSV data, as a string
-    """
-
-    def __init__(self, data, path=None):
-        self._data = data
-        self._path = path or '<none>'
-
-    @property
-    def path(self):
-        return self._path
-
-    def open(self):
-        pass
-
-    def close(self):
-        pass
-
-    def __iter__(self):
-        import csv
-        from six import StringIO
-
-        f = StringIO(self._data)
-
-        # Python 3, should use yield from
-        for row in csv.reader(f):
-            yield row
-
-
-class RowGenerator(object):
-    """An object that generates rows. The current implementation mostly just a wrapper around
-    csv.reader, but it add a path property so term interperters know where the terms are coming from
-    """
-
-    def __init__(self, rows, path=None):
-        self._rows = rows
-        self._path = path or '<none>'
-
-    @property
-    def path(self):
-        return self._path
-
-    def open(self):
-        pass
-
-    def close(self):
-        pass
-
-    def __iter__(self):
-        for row in self._rows:
-            yield row
-
-
 class TermGenerator(object):
     """Generate terms from a row generator. It will produce a term for each row, and child
     terms for any arguments to the row. """
@@ -291,6 +171,7 @@ class TermGenerator(object):
         """An interator that generates term objects"""
         from os.path import dirname, join
 
+
         for line_n, row in enumerate(self._row_gen, 1):
 
             if not row[0].strip() or row[0].strip().startswith('#'):
@@ -305,11 +186,9 @@ class TermGenerator(object):
 
             if t.term_is('include'):
 
-                yield t
-
                 if not self._path:
-                    raise ParserError("Can't include because don't know current path"
-                                      .format(self._root_directory))
+                    raise IncludeError("Can't include because don't know current path"
+                                      .format(self._root_directory), term=t)
 
                 include_ref = t.value.strip('/')
 
@@ -318,8 +197,18 @@ class TermGenerator(object):
                 else:
                     path = join(dirname(self._path), include_ref)
 
-                for t in TermGenerator(CsvPathRowGenerator(path)):
-                    yield t
+                t.value = path
+
+                yield t
+
+                try:
+                    for t in TermGenerator(generateRows(path)):
+                        yield t
+                except IncludeError as e:
+
+                    e.term = t
+                    raise
+
 
                 continue  # Already yielded the include term
 
@@ -360,10 +249,10 @@ class TermInterpreter(object):
         self._sections = {}  # Declared sections and their arguments
         self._terms = {}  # Pre-defined terms, plus TermValueName and ChildPropertyType
 
-        self.errors = []
+        self.errors =  set()
 
-        self.root = None;
-        self.parsedTerms = []
+        self.root = None
+        self.parsed_terms = []
 
     @property
     def sections(self):
@@ -413,10 +302,9 @@ class TermInterpreter(object):
         """Run the iterator, returning all terms as a list"""
 
         if not self.root:
-            self.parsedTerms = list(self)
+            self.parsed_terms = list(self)
 
-        return self.parsedTerms
-
+        return self
 
     def as_dict(self):
         """Iterate, link terms and convert to a dict"""
@@ -426,6 +314,29 @@ class TermInterpreter(object):
             for _ in self: pass
 
         return self.convert_to_dict(self.root)
+
+    def as_section_dict(self):
+        """Iterate, link terms and convert to a dict. LIke as_dict,
+         but the top-level of the dict is section names, containing all of the terms
+         in that section"""
+
+        # Run the parser, if it has not been run yet.
+
+        d = {}
+
+        if not self.root:
+            for _ in self: pass
+
+        for t in self.parsed_terms:
+            if t.parent_term == ROOT_TERM:
+                section_name = (t.section.value or 'Root').lower()
+
+                if not section_name in d:
+                    d[section_name] = []
+
+                d[section_name].append(self.convert_to_dict(t))
+
+        return d
 
     def substitute_synonym(self, nt):
 
@@ -439,6 +350,9 @@ class TermInterpreter(object):
         :param term: Root term at which to start conversion
 
         """
+
+        if not term:
+            return None
 
         if term.children:
 
@@ -497,91 +411,101 @@ class TermInterpreter(object):
         last_section = None
         self.root = None
 
-        for i, t in enumerate(self._term_gen):
+        try:
 
-            if self.root is None:
-                self.root = Term('Root', None, row=0, col=0, file_name=t.file_name)
-                last_section = self.root
-                last_term_map[ELIDED_TERM] = self.root
-                last_term_map[self.root.record_term] = self.root
-                yield self.root
+            for i, t in enumerate(self._term_gen):
 
-            nt = copy.copy(t)
+                if self.root is None:
+                    self.root = Term('Root', None, row=0, col=0, file_name=t.file_name)
+                    last_section = self.root
+                    last_term_map[ELIDED_TERM] = self.root
+                    last_term_map[self.root.record_term] = self.root
+                    yield self.root
 
-            if nt.parent_term == ELIDED_TERM:
-                nt.parent_term = last_parent_term
+                nt = copy.copy(t)
 
-            # Substitute synonyms
-            if nt.join_lc() in self.synonyms:
-                nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc()]);
+                if nt.parent_term == ELIDED_TERM:
+                    nt.parent_term = last_parent_term
 
-            # Remap integer record terms to names from the parameter map
-            try:
+                # Substitute synonyms
+                if nt.join_lc() in self.synonyms:
+                    nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc()]);
 
-                nt.record_term = str(self._param_map[int(t.record_term)])
-            except ValueError:
-                pass  # the record term wasn't an integer
+                # Remap integer record terms to names from the parameter map
+                try:
 
-            except IndexError:
-                pass  # Probably no parameter map.
+                    nt.record_term = str(self._param_map[int(t.record_term)])
+                except ValueError:
+                    pass  # the record term wasn't an integer
 
-            if nt.term_is('root.section'):
-                self._param_map = [p.lower() if p else i for i, p in enumerate(nt.args)]
+                except IndexError:
+                    pass  # Probably no parameter map.
 
-                # Parentage should not persist across sections
-                last_parent_term = self.root.record_term
-                last_section = nt
-                continue
+                if nt.term_is('root.section'):
+                    self._param_map = [p.lower() if p else i for i, p in enumerate(nt.args)]
 
-            if nt.term_is('declare'):
-                from os.path import dirname, join
+                    # Parentage should not persist across sections
+                    last_parent_term = self.root.record_term
+                    last_section = nt
+                    continue
 
-                if t.value.startswith('http'):
-                    fn = nt.value.strip('/')
-                else:
-                    fn = join(dirname(nt.file_name), nt.value.strip('/'))
+                if nt.term_is('declare'):
+                    from os.path import dirname, join
 
-                ti = TermInterpreter(TermGenerator(CsvPathRowGenerator(fn)), False)
-                ti.install_declare_terms()
+                    if t.value.startswith('http'):
+                        fn = nt.value.strip('/')
+                    else:
+                        fn = join(dirname(nt.file_name), nt.value)
+
+                    nt.value = fn
+
+                    try:
+                        ti = TermInterpreter(TermGenerator(generateRows(fn)), False)
+                        ti.install_declare_terms()
+                        self.import_declare_doc(ti.as_dict())
+
+                    except IncludeError as e:
+                        e.term = t
+                        self.errors.add(e)
+                        raise
+
+                nt.child_property_type = self._terms.get(nt.join(), {}).get('childpropertytype', 'any')
+
+                nt.term_value_name = self._terms.get(nt.join(), {}).get('termvaluename', '@value')
+
+                nt.valid = nt.join_lc() in self._terms
+
+                nt.section = last_section;
+
+                if nt.can_be_parent:
+                    last_parent_term = nt.record_term
+                    # Recs created from term args don't go in the maps.
+                    # Nor do record term records with elided parent terms
+                    last_term_map[ELIDED_TERM] = nt
+                    last_term_map[nt.record_term] = nt
 
                 try:
-                    self.import_declare_doc(ti.as_dict())
-                except IncludeError as e:
-                    e.term = t
-                    self.errors.append(e)
+                    if nt.can_be_parent:
+                        parent = last_term_map[nt.parent_term]
+                    else:
+                        parent = last_term_map[last_parent_term]
 
-            nt.child_property_type = self._terms.get(nt.join(), {}).get('childpropertytype', 'any')
+                    parent.add_child(nt)
+                except KeyError as e:
+                    import json
+                    raise ParserError(("Failed to find parent term in last term map: {} {} \n"+
+                                      "Term: \n    {}\nParents:\n    {}\nSynonyms:\n{}")
+                                          .format(e.__class__.__name__, e, nt,
+                                                  last_term_map.keys(),
+                                                  json.dumps(self.synonyms, indent = 4)))
 
-            nt.term_value_name = self._terms.get(nt.join(), {}).get('termvaluename', '@value')
+                self.parsed_terms.append(nt)
 
-            nt.valid = nt.join_lc() in self._terms
+                yield nt
 
-            nt.section = last_section;
-
-            if nt.can_be_parent:
-                last_parent_term = nt.record_term
-                # Recs created from term args don't go in the maps.
-                # Nor do record term records with elided parent terms
-                last_term_map[ELIDED_TERM] = nt
-                last_term_map[nt.record_term] = nt
-
-            try:
-                if nt.can_be_parent:
-                    parent = last_term_map[nt.parent_term]
-                else:
-                    parent = last_term_map[last_parent_term]
-
-
-                parent.add_child(nt)
-            except KeyError as e:
-                import json
-                raise ParserError(("Failed to find parent term in last term map: {} {} \n"+
-                                  "Term: \n    {}\nParents:\n    {}\nSynonyms:\n{}")
-                                      .format(e.__class__.__name__, e, nt,
-                                              last_term_map.keys(),
-                                              json.dumps(self.synonyms, indent = 4)))
-
-            yield nt
+        except IncludeError as e:
+            self.errors.add(e)
+            raise
 
     def import_declare_doc(self, d):
         """Import a declare doc that has been parsed and converted to a dict"""
