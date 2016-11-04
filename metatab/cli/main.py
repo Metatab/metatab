@@ -8,8 +8,7 @@ def main():
     import argparse
     import sys
     from metatab import __meta__
-    from metatab.parser import TermInterpreter, TermGenerator, Term
-    from metatab.parser import CsvPathRowGenerator
+    from metatab import TermInterpreter, TermGenerator, Term, CsvPathRowGenerator
 
     parser = argparse.ArgumentParser(
         prog='struct_tab',

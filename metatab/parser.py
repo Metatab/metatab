@@ -374,7 +374,7 @@ class TermInterpreter(object):
                     try:
                         d[c.record_term].append(cls.convert_to_dict(c))
                     except KeyError:
-                        # The c.term property doesn't exist, so add a scalar or a msp
+                        # The c.term property doesn't exist, so add a scalar or a map
                         d[c.record_term] = cls.convert_to_dict(c)
                     except AttributeError as e:
                         # d[c.term] exists, but is a scalar, so convert it to a list
