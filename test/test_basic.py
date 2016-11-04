@@ -89,7 +89,7 @@ class MyTestCase(unittest.TestCase):
 
         from metatab import CsvPathRowGenerator, TermGenerator
 
-        for t in TermGenerator(CsvPathRowGenerator(test_data('example1.csv'))):
+        for t in TermGenerator(CsvPathRowGenerator(test_data('children.csv'))):
             print(t)
 
     def test_terms(self):

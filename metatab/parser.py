@@ -29,9 +29,7 @@ class Term(object):
 
     """
 
-    def __init__(self, term, term_args=[],
-                 row=None, col=None, file_name=None,
-                 parent=None):
+    def __init__(self, term, term_args=[],row=None, col=None, file_name=None):
         """
 
         :param term: Simple or compoint term name
@@ -54,7 +52,6 @@ class Term(object):
         if len(self.args) < 1:
             self.args = [None] # Must at least have a first value.
 
-
         self.section = None  # Name of section the term is in.
 
         self.file_name = file_name
@@ -69,13 +66,14 @@ class Term(object):
         self.child_property_type = 'any'
         self.valid = None
 
-        self.parent = parent  # If set, term was generated from term args
-
-        # There are some restrictions on what terms can be used for omitted parents,
-        # otherwise consecutive terms with elided parents will get nested.
-        self.can_be_parent = (not self.parent and self.parent_term != ELIDED_TERM)
-
         self.children = []  # WHen terms are linked, hold term's children.
+
+    @property
+    def value(self):
+        try:
+            return self.args[0]
+        except IndexError:
+            return None
 
     @classmethod
     def normalize_term(cls, term):
@@ -140,17 +138,23 @@ class Term(object):
         else:
             return False
 
+    def yield_children(self):
+        # Yield any child terms, from the term row arguments
+
+        for col, value in enumerate(self.args, 0):
+            if str(value).strip():
+                yield Term(self.record_term.lower() + '.' + "arg" + str(col + 1), [str(value)],
+                           row=self.row,
+                           col=col + 1,  # The 1st argument starts in col 1
+                           file_name=self.file_name)
+
     def __repr__(self):
         return "<Term: {}{}.{} {} {}>".format(self.file_ref(), self.parent_term,
                                                self.record_term, self.args,
-                                                 "P" if self.can_be_parent else "C")
+                                                 "T" if self.is_terminal else "P")
 
     def __str__(self):
-        if self.parent_term == ELIDED_TERM:
-            return "{}.{}: {}".format(self.file_ref(), self.record_term, self.args)
-
-        else:
-            return "{}{}.{}: {}".format(self.file_ref(), self.parent_term, self.record_term, self.args)
+        return "{}{}.{}: {}".format(self.file_ref(), self.parent_term, self.record_term, self.args)
 
 
 class TermGenerator(object):
@@ -205,25 +209,25 @@ class TermGenerator(object):
                 try:
                     for t in TermGenerator(generateRows(path)):
                         yield t
+
                 except IncludeError as e:
 
                     e.term = t
                     raise
+            else:
+
+                if t.parent_term != ELIDED_TERM and not t.term_is('section'):
+                    yield Term('root.ParentTerm',
+                               [t.join()],
+                               row=line_n,
+                               col=1,
+                               file_name=self._path)
+
+                for child in t.yield_children():
+                    yield child
 
 
-                continue  # Already yielded the include term
 
-            yield t
-
-            # Yield any child terms, from the term row arguments
-            if not t.term_is('section'):
-                for col, value in enumerate(t.args, 0):
-                    if str(value).strip():
-                        yield Term(t.record_term.lower() + '.' + "arg"+str(col+1), [str(value)],
-                                   row=line_n,
-                                   col=col + 1,  # The 1st argument starts in col 1
-                                   file_name=self._path,
-                                   parent=t)
 
 
 class TermInterpreter(object):
@@ -478,7 +482,7 @@ class TermInterpreter(object):
 
                 nt.section = last_section;
 
-                if nt.can_be_parent:
+                if not nt.is_terminal:
                     last_parent_term = nt.record_term
                     # Recs created from term args don't go in the maps.
                     # Nor do record term records with elided parent terms
@@ -486,10 +490,10 @@ class TermInterpreter(object):
                     last_term_map[nt.record_term] = nt
 
                 try:
-                    if nt.can_be_parent:
-                        parent = last_term_map[nt.parent_term]
-                    else:
+                    if nt.is_terminal:
                         parent = last_term_map[last_parent_term]
+                    else:
+                        parent = last_term_map[nt.parent_term]
 
                     parent.add_child(nt)
                 except KeyError as e:
