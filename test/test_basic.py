@@ -85,12 +85,17 @@ class MyTestCase(unittest.TestCase):
                 self.compare_dict(d, d2)
 
 
+    def test_generate_terms(self):
+
+        from metatab import CsvPathRowGenerator, TermGenerator
+
+        for t in TermGenerator(CsvPathRowGenerator(test_data('example1.csv'))):
+            print(t)
+
     def test_terms(self):
-        from os.path import dirname, join
         from metatab import TermGenerator, TermInterpreter
         from metatab import CsvPathRowGenerator, CsvDataRowGenerator, RowGenerator
         import csv
-        import json
 
         fn = test_data('example1.csv')
 

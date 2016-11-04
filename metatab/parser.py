@@ -29,7 +29,7 @@ class Term(object):
 
     """
 
-    def __init__(self, term, value, term_args=[],
+    def __init__(self, term, term_args=[],
                  row=None, col=None, file_name=None,
                  parent=None):
         """
@@ -49,8 +49,11 @@ class Term(object):
 
         self.parent_term, self.record_term = Term.split_term_lower(term)
 
-        self.value = strip_if_str(value) if value else None
         self.args = [strip_if_str(x) for x in term_args]
+
+        if len(self.args) < 1:
+            self.args = [None] # Must at least have a first value.
+
 
         self.section = None  # Name of section the term is in.
 
@@ -58,7 +61,7 @@ class Term(object):
         self.row = row
         self.col = col
 
-        # When converting to a dict, what dict to to use for the self.value value
+        # When converting to a dict, what name to to use for the self.value value
         self.term_value_name = '@value'  # May be change in term parsing
 
         # When converting to a dict, what datatype should be used for this term.
@@ -138,16 +141,16 @@ class Term(object):
             return False
 
     def __repr__(self):
-        return "<Term: {}{}.{} {} {} {}>".format(self.file_ref(), self.parent_term,
-                                               self.record_term, self.value, self.args,
+        return "<Term: {}{}.{} {} {}>".format(self.file_ref(), self.parent_term,
+                                               self.record_term, self.args,
                                                  "P" if self.can_be_parent else "C")
 
     def __str__(self):
         if self.parent_term == ELIDED_TERM:
-            return "{}.{}: {}".format(self.file_ref(), self.record_term, self.value)
+            return "{}.{}: {}".format(self.file_ref(), self.record_term, self.args)
 
         else:
-            return "{}{}.{}: {}".format(self.file_ref(), self.parent_term, self.record_term, self.value)
+            return "{}{}.{}: {}".format(self.file_ref(), self.parent_term, self.record_term, self.args)
 
 
 class TermGenerator(object):
@@ -171,15 +174,13 @@ class TermGenerator(object):
         """An interator that generates term objects"""
         from os.path import dirname, join
 
-
         for line_n, row in enumerate(self._row_gen, 1):
 
             if not row[0].strip() or row[0].strip().startswith('#'):
                 continue
 
             t = Term(row[0].lower(),
-                     row[1] if len(row) > 1 else '',
-                     row[2:] if len(row) > 2 else [],
+                     [ e for e in (row[1:] if len(row) > 2 else []) if e],
                      row=line_n,
                      col=1,
                      file_name=self._path)
@@ -190,14 +191,14 @@ class TermGenerator(object):
                     raise IncludeError("Can't include because don't know current path"
                                       .format(self._root_directory), term=t)
 
-                include_ref = t.value.strip('/')
+                include_ref = t.args[0].strip('/')
 
                 if include_ref.startswith('http'):
                     path = include_ref
                 else:
                     path = join(dirname(self._path), include_ref)
 
-                t.value = path
+                t.args[0] = path
 
                 yield t
 
@@ -218,9 +219,9 @@ class TermGenerator(object):
             if not t.term_is('section'):
                 for col, value in enumerate(t.args, 0):
                     if str(value).strip():
-                        yield Term(t.record_term.lower() + '.' + str(col), str(value), [],
+                        yield Term(t.record_term.lower() + '.' + "arg"+str(col+1), [str(value)],
                                    row=line_n,
-                                   col=col + 2,  # The 0th argument starts in col 2
+                                   col=col + 1,  # The 1st argument starts in col 1
                                    file_name=self._path,
                                    parent=t)
 
