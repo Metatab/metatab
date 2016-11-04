@@ -1,7 +1,8 @@
 ,,,
 ,,,
 ,,,
-"Section","Arguments","prop1","prop2"
+"Section","Arguments",,
+"Header","value","prop1","prop2"
 "Parent","parent","prop1","prop2"
 ,,,
 "Section","ExplicitChildren",,
