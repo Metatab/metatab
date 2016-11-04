@@ -1,6 +1,7 @@
 "#","Builtin Term Declarations. Some of these have to be encoded in the parser, ",,,,,
 "#","So they aren't really necessary, but are included here for documentation",,,,,
-"Section","DeclaredTerms","TermValueName","ChildPropertyType","Section",,
+"Section","DeclaredTerms",,,,,
+"Header","Term","TermValueName","ChildPropertyType","Section",,
 "DeclareTerm","DeclareTerm","Term",,"DeclaredTerms",,
 "DeclareTerm","Declare",,,"Root",,
 "DeclareTerm","Include",,,"Root",,
@@ -19,7 +20,8 @@
 "DeclareSection","Schema","DataType","ValueType","Description",,
 ,,,,,,
 "#","Core metatab terms",,,,,
-"Section","DeclaredTerms","TermValueName","ChildPropertyType","Section","Synonym","ValueSet"
+"Section","DeclaredTerms",,,,,
+"Header","Term","TermValueName","ChildPropertyType","Section","Synonym","ValueSet"
 "DeclareTerm","Title",,,"Root",,
 "DeclareTerm","Description",,,"Root",,
 "DeclareTerm","Time",,,"Root",,
@@ -35,7 +37,7 @@
 "DeclareTerm","Datafile.Table",,,"Resources",,
 "DeclareTerm","Datafile.Title",,,"Resources",,
 "DeclareTerm","Datafile.Url",,,"Resources",,
-"DeclareTerm","Documentation",,,"Resources",,
+"DeclareTerm","Documentation","url",,"Resources",,
 "DeclareTerm","Documentation.Description",,,"Resources",,
 "DeclareTerm","Documentation.Title",,,"Resources",,
 "DeclareTerm","Documentation.Url",,,"Resources",,

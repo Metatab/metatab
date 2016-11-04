@@ -215,7 +215,7 @@ class TermGenerator(object):
             yield t
 
             # Yield any child terms, from the term row arguments
-            if not t.term_is('section'):
+            if not t.term_is('section') and not t.term_is('header'):
                 for col, value in enumerate(t.args, 0):
                     if str(value).strip():
                         yield Term(t.record_term.lower() + '.' + str(col), str(value), [],
@@ -410,6 +410,7 @@ class TermInterpreter(object):
         last_term_map = {}
         last_section = None
         self.root = None
+        default_term_value_name = '@value'
 
         try:
 
@@ -469,9 +470,16 @@ class TermInterpreter(object):
                         self.errors.add(e)
                         raise
 
+                    default_term_value_name = '@value'
+
+                if nt.term_is('header'):
+                    self._param_map = [p.lower() if p else i for i, p in enumerate(nt.args)]
+                    default_term_value_name = nt.value.lower()
+                    continue
+
                 nt.child_property_type = self._terms.get(nt.join(), {}).get('childpropertytype', 'any')
 
-                nt.term_value_name = self._terms.get(nt.join(), {}).get('termvaluename', '@value')
+                nt.term_value_name = self._terms.get(nt.join(), {}).get('termvaluename', default_term_value_name)
 
                 nt.valid = nt.join_lc() in self._terms
 

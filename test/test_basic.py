@@ -216,7 +216,7 @@ class MyTestCase(unittest.TestCase):
         d = term_interp.as_dict()
 
         self.assertEquals(['Include File 1', 'Include File 2', 'Include File 3'], d['note'])
-        self.assertEquals(['include2.csv',
+        self.assertEquals(['/Volumes/Storage/proj/virt/metatab/metatab-py/test-data/include2.csv',
                            'https://raw.githubusercontent.com/CivicKnowledge/structured_tables/master/test/data/include3.csv'],
                           d['include'])
 
@@ -284,7 +284,18 @@ class MyTestCase(unittest.TestCase):
         for e in sorted(s.serialize(d)):
             print(any(isinstance(ki, int) for ki in e[0]),e)
 
+    def test_headers(self):
 
+        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator, Serializer
+        import json
+
+        d1 = TermInterpreter(TermGenerator(CsvPathRowGenerator(test_data('example1-headers.csv')))).as_dict()
+        d2 = TermInterpreter(TermGenerator(CsvPathRowGenerator(test_data('example1.csv')))).as_dict()
+
+        self.compare_dict(d1, d2)
+
+        #import json
+        #print(json.dumps(d1, indent=4))
 
 if __name__ == '__main__':
     unittest.main()
