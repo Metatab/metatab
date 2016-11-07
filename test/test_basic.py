@@ -2,6 +2,8 @@ from __future__ import print_function
 import unittest
 
 import collections
+import json
+from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator, Serializer
 
 
 def flatten(d, sep='.'):
@@ -83,6 +85,7 @@ class MyTestCase(unittest.TestCase):
                     d2 = json.load(f)
 
                 self.compare_dict(d, d2)
+
 
 
     def test_terms(self):
@@ -243,7 +246,27 @@ class MyTestCase(unittest.TestCase):
         self.assertTrue('bad_declare.csv' in e[0]['file'])
         self.assertEquals('root.declare', e[0]['term'])
 
+    def test_datapackage(self):
 
+        from tempfile import NamedTemporaryFile
+        import datapackage
+        from os import unlink
+
+        d = TermInterpreter(TermGenerator(CsvPathRowGenerator(test_data('datapackage_ex2.csv')))).as_dict()
+
+        f = NamedTemporaryFile(delete=False)
+        f.write(json.dumps(d, indent=4))
+        f.close()
+
+        try:
+            dp = datapackage.DataPackage(f.name)
+            dp.validate()
+        except:
+            with open(f.name) as f2:
+                print(f2.read())
+            raise
+
+        unlink(f.name)
 
     def test_section_dict(self):
 

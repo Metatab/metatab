@@ -3,3 +3,4 @@ six
 bottle
 unicodecsv
 pyyaml
+datapackage
