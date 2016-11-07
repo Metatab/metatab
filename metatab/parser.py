@@ -518,11 +518,18 @@ class TermInterpreter(object):
     def import_declare_doc(self, d):
         """Import a declare doc that has been parsed and converted to a dict"""
 
+        def is_int(value):
+            try:
+                int(value)
+                return True
+            except:
+                return False
+
         if 'declaresection' in d:
             for e in d['declaresection']:
                 if e:
                     self._sections[e['section_name'].lower()] = {
-                        'args': [v for k, v in sorted((k, v) for k, v in e.items() if isinstance(k, int))],
+                        'args': [v for k, v in sorted((k, v) for k, v in e.items() if is_int(k))],
                         'terms': []
                     }
 
@@ -536,7 +543,7 @@ class TermInterpreter(object):
 
                 if 'section' in e and e['section']:
 
-                    if e['section'] not in self._sections:
+                    if e['section'].lower() not in self._sections:
                         self._sections[e['section'].lower()] = {
                             'args': [],
                             'terms': []
@@ -552,5 +559,8 @@ class TermInterpreter(object):
                 for k, v in self._terms.items():
                     if 'valueset' in v and e.get('name', None) == v['valueset']:
                         v['valueset'] = e['value']
+
+
+
 
 

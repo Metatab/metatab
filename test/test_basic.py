@@ -192,6 +192,9 @@ class MyTestCase(unittest.TestCase):
         self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schema'},
                           set(sections.keys()))
 
+        print(sections)
+
+
     def test_children(self):
         import json
 
