@@ -1,0 +1,78 @@
+{
+    "description": "Country, regional and world GDP in current US Dollars ($). Regional means collections of countries e.g. Europe & Central Asia. Data is sourced from the World Bank and turned into a standard normalized CSV.", 
+    "license": "PDDL-1.0", 
+    "title": "Country, Regional and World GDP (Gross Domestic Product)", 
+    "image": "http://assets.okfn.org/p/opendatahandbook/img/data-wrench.png", 
+    "sources": [
+        {
+            "web": "http://data.worldbank.org/indicator/NY.GDP.MKTP.CD", 
+            "name": "World Bank and OECD"
+        }
+    ], 
+    "version": "2011", 
+    "resources": [
+        {
+            "path": "data/gdp.csv", 
+            "name": "gdp", 
+            "schema": {
+                "fields": [
+                    {
+                        "type": "string", 
+                        "name": "Country Name"
+                    }, 
+                    {
+                        "type": "string", 
+                        "name": "Contry Code", 
+                        "foreignkey": "iso-3-geo-codes/id"
+                    }, 
+                    {
+                        "type": "date", 
+                        "name": "Year", 
+                        "format": "yyyy"
+                    }, 
+                    {
+                        "type": "number", 
+                        "description": "GDP in current USD", 
+                        "name": "Value"
+                    }
+                ]
+            }
+        }, 
+        {
+            "path": "data/other_gdp.csv", 
+            "name": "another_gdp_resource", 
+            "schema": {
+                "fields": [
+                    {
+                        "type": "string", 
+                        "name": "Country Name"
+                    }, 
+                    {
+                        "type": "string", 
+                        "name": "Contry Code", 
+                        "foreignkey": "iso-3-geo-codes/id"
+                    }, 
+                    {
+                        "type": "date", 
+                        "name": "Year", 
+                        "format": "yyyy"
+                    }, 
+                    {
+                        "type": "number", 
+                        "description": "GDP in current USD", 
+                        "name": "Value"
+                    }
+                ]
+            }
+        }
+    ], 
+    "keywords": [
+        "GDP", 
+        "World", 
+        "Gross Domestic Product", 
+        "Time series"
+    ], 
+    "declare": "https://raw.githubusercontent.com/CivicKnowledge/metatab/master/config/datapackage.csv", 
+    "last-updated": "2011-09-21", 
+    "name": "gdp"
+}
