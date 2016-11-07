@@ -3,6 +3,8 @@
 
 """Convert a data structure into a sequence of metatab rows
 """
+import collections
+from six import string_types
 
 class Serializer(object):
 
@@ -36,10 +38,47 @@ class Serializer(object):
 
         self.load_declarations(d)
 
-        #for t in self.decl['terms'].items():
-        #    print t
+        top_terms = []
 
-        return self.flatten(d)
+        for k, v in d.items():
+            if isinstance(v, collections.MutableMapping):
+                top_terms.append( (k, v))
+            elif isinstance(v, collections.MutableSequence):
+                for e in v:
+                    top_terms.append((k, e))
+            else:
+                top_terms.append((k, v))
+
+        return top_terms
+
+    def semiflatten(self, d, sep='.'):
+        """Break a dict up into terms. This doens't really work, in general; it will
+        only properly deal with two nested levels. At more than two levels"""
+
+        def _flatten(e, parent_key):
+
+            if isinstance(e, collections.MutableMapping):
+                for k,v in e.items():
+                    if not isinstance(v, string_types):
+                        for i in _flatten(v, parent_key):
+                            yield (k,i)
+                        del e[k]
+                yield e
+            elif isinstance(e, collections.MutableSequence):
+                for v in e:
+                    for i in _flatten(v, parent_key):
+                        yield i
+            else:
+                yield e
+
+        for k,v in d.items():
+            for e in _flatten(v,k):
+                if isinstance(e, tuple):
+                    yield (k+'.'+e[0], e[1])
+                else:
+                    yield (k, e)
+
+
 
     def load_declarations(self, d):
 
@@ -61,18 +100,4 @@ class Serializer(object):
                 self.decl['terms'].update(dd['terms'])
                 self.decl['sections'].update(dd['sections'])
 
-    def flatten(self, d, sep=None):
-
-        def _flatten(e, parent_key):
-            import collections
-
-            if isinstance(e, collections.MutableMapping):
-                return tuple((parent_key + k2, v2) for k, v in e.items() for k2, v2 in _flatten(v, (k,)))
-            elif isinstance(e, collections.MutableSequence):
-                return tuple((parent_key + k2, v2) for i, v in enumerate(e) for k2, v2 in _flatten(v, (i,)))
-            else:
-                return (parent_key, (e,)),
-
-        return tuple((k if sep is None else sep.join(str(e) for e in k), v[0])
-                     for k, v in _flatten(d, tuple()))
 

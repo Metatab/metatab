@@ -21,6 +21,8 @@ def main():
                    help='Parse a file and print out the stream of terms, after interpretation')
     g.add_argument('-j', '--json', default=False, action='store_true',
                    help='Parse a file and print out a JSON representation')
+    g.add_argument('-p', '--package', default=False, action='store_true',
+                   help='Produce a datapackage.json file')
     g.add_argument('-y', '--yaml', default=False, action='store_true',
                    help='Parse a file and print out a YAML representation')
 
@@ -40,6 +42,12 @@ def main():
 
     if args.declare:
         term_gen = [Term('Root.Declare',args.declare,[],row=0, col=0, file_name='<commandline>')] + term_gen
+
+    if args.package:
+        term_gen = [Term('Root.Declare',
+                         'https://raw.githubusercontent.com/CivicKnowledge/metatab/master/config/datapackage.csv',
+                         [], row=0, col=0, file_name='<commandline>')
+                    ] + term_gen
 
     term_interp = TermInterpreter(term_gen)
 

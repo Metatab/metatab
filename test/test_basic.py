@@ -59,7 +59,7 @@ class MyTestCase(unittest.TestCase):
         for fn in ['example1.csv', 'example2.csv', 'example1-web.csv',
                    'include1.csv', 'include2.csv', 'include3.csv',
                    'children.csv', 'children2.csv',
-                   'datapackage_ex1.csv', 'datapackage_ex1_web.csv',
+                   'datapackage_ex1.csv', 'datapackage_ex1_web.csv', 'datapackage_ex2.csv',
                    'issue1.csv']:
 
             print('Testing ', fn);
@@ -266,9 +266,10 @@ class MyTestCase(unittest.TestCase):
 
     def test_serializer(self):
 
-        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator, Serializer
+        from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator, Serializer, Term
+        from collections import defaultdict
 
-        fn = test_data('example1.csv')
+        fn = test_data('schema.csv')
 
         term_gen = list(TermGenerator(CsvPathRowGenerator(fn)))
 
@@ -276,13 +277,32 @@ class MyTestCase(unittest.TestCase):
 
         d = term_interp.as_dict()
 
-        import json
-        #print(json.dumps(d,indent=4))
-
         s = Serializer()
+        s.load_declarations(d)
+
+        sections = defaultdict(list)
+
+        for e in s.semiflatten(d):
+            print(e)
+
+        return
 
         for e in sorted(s.serialize(d)):
-            print(any(isinstance(ki, int) for ki in e[0]),e)
+            has_int = any(isinstance(ki, int) for ki in e[0])
+            key_no_int = tuple( ki for ki in e[0] if not isinstance(ki, int))
+            print(key_no_int)
+            pr = '.'.join(key_no_int[-2:])
+            t = Term(pr, e[1], row=0, col=0, file_name=None)
+            section = s.decl['terms'].get(t.join(), {}).get('section','Root')
+
+            sections[section].append(t)
+
+        return
+
+        for k, v in sections.items():
+            print("=====", k)
+            for t in v:
+                print (t)
 
     def test_headers(self):
 

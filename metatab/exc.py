@@ -1,4 +1,9 @@
+# Copyright (c) 2016 Civic Knowledge. This file is licensed under the terms of the
+# Revised BSD License, included in this distribution as LICENSE
 
+"""
+
+"""
 
 class ParserError(Exception):
     def __init__(self, *args, **kwargs):
