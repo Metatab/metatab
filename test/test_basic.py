@@ -192,7 +192,9 @@ class MyTestCase(unittest.TestCase):
         self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schema'},
                           set(sections.keys()))
 
-        print(sections)
+        self.assertEqual(['Email'], sections['contacts']['args'])
+        self.assertEqual(['TermValueName', 'ChildPropertyType', 'Section'], sections['declaredterms']['args'])
+        self.assertEqual(['DataType', 'ValueType', 'Description'], sections['schema']['args'])
 
 
     def test_children(self):
