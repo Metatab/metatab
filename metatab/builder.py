@@ -1,11 +1,13 @@
+
+
 # Copyright (c) 2016 Civic Knowledge. This file is licensed under the terms of the
 # Revised BSD License, included in this distribution as LICENSE
 
 """Classes to build a Metatab document
 """
 
-class MetatabDoc(object):
 
+class MetatabDoc(object):
     def __init__(self, decl=None):
 
         import collections
@@ -14,7 +16,6 @@ class MetatabDoc(object):
         self.decl_sections = {}
 
         self.sections = []
-
 
         if decl:
 
@@ -47,38 +48,45 @@ class MetatabDoc(object):
 
             if s.name != 'Root':
                 yield ['']
-                yield ['Section',s.name]+s.param_names
+                yield ['Section', s.name] + s.param_names
             for row in s.rows:
                 term, value = row
 
-                term = term.replace('root.','').title()
+                term = term.replace('root.', '').title()
 
                 try:
                     yield [term] + value
                 except:
                     yield [term] + [value]
 
+    def write_csv(self, path):
+        import unicodecsv as csv
+
+        with open(path, 'w') as f:
+            w = csv.writer(f)
+            for row in self.rows:
+                w.writerow(row)
+
+
 class Section(object):
-
-    def __init__(self, name, doc, params = None):
-
+    def __init__(self, name, doc, params=None):
 
         object.__setattr__(self, 'name', name)
         object.__setattr__(self, 'doc', doc)
         object.__setattr__(self, 'terms', [])
 
         object.__setattr__(self, 'param_names',
-                           doc.decl_sections.get(name.lower(),{}).get('args',[]) if params is None else list(params)
+                           doc.decl_sections.get(name.lower(), {}).get('args', []) if params is None else list(params)
                            )
-
 
     def set_param_names(self, params):
         object.__setattr__(self, 'param_names',
-                           self.doc.decl_sections.get(self.name.lower(), {}).get('args', []) if params is None else list(params)
+                           self.doc.decl_sections.get(self.name.lower(), {}).get('args',
+                                                                                 []) if params is None else list(params)
                            )
 
     def new_term(self, term, value, **kwargs):
-        t =  TermRecord(term, value, _parent=None, _section=self, **kwargs)
+        t = TermRecord(term, value, _parent=None, _section=self, **kwargs)
         self.terms.append(t)
         return t
 
@@ -88,13 +96,13 @@ class Section(object):
 
     def args(self, term, d):
 
-        tvm = self.doc.decl_terms.get(term,{}).get('termvaluename', '@value')
+        tvm = self.doc.decl_terms.get(term, {}).get('termvaluename', '@value')
 
-        lower_d = { k.lower():v for k, v in d.items()}
+        lower_d = {k.lower(): v for k, v in d.items()}
 
         args = []
-        for n in [tvm]+self.param_names:
-            args.append(lower_d.get(n.lower(),''))
+        for n in [tvm] + self.param_names:
+            args.append(lower_d.get(n.lower(), ''))
 
             try:
                 del lower_d[n.lower()]
@@ -102,7 +110,6 @@ class Section(object):
                 pass
 
         return term, args, lower_d
-
 
     @property
     def rows(self):
@@ -116,14 +123,13 @@ class Section(object):
                     yield term, args
 
                     for k, v in remain.items():
-                        yield term.split('.')[-1]+'.'+k, v
+                        yield term.split('.')[-1] + '.' + k, v
 
                 else:
                     yield row
 
 
 class TermRecord(object):
-
     def __init__(self, _term, _value, _parent=None, _section=None, **kwargs):
         self.term = _term
         self.value = _value
@@ -133,9 +139,9 @@ class TermRecord(object):
         self.args = {}
 
         if self.parent:
-            self.qualified_term = self.parent.term.lower()+'.'+self.term.lower()
+            self.qualified_term = self.parent.term.lower() + '.' + self.term.lower()
         else:
-            self.qualified_term = 'root.'+self.term.lower()
+            self.qualified_term = 'root.' + self.term.lower()
 
         for k, v in kwargs.items():
             self.new_child(k, v)
@@ -153,7 +159,7 @@ class TermRecord(object):
     def rows(self):
         """Yield rows"""
 
-        tvm = self.section.doc.decl_terms.get(self.qualified_term,{}).get('termvaluename','@value')
+        tvm = self.section.doc.decl_terms.get(self.qualified_term, {}).get('termvaluename', '@value')
 
         # Terminal children have no arguments, just a value
         properties = {tvm: self.value}

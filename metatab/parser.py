@@ -13,6 +13,7 @@ ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
 
 from exc import IncludeError, ParserError
 from generate import generateRows
+import six
 
 
 class Term(object):
@@ -128,11 +129,19 @@ class Term(object):
         return "{}.{}".format(self.parent_term, self.record_term)
 
     def join_lc(self):
-        return "{}.{}".format(self.parent_term.lower(), self.record_term.lower())
+        return "{}.{}".format(self.parent_term_lc, self.record_term_lc)
+
+    @property
+    def record_term_lc(self):
+        return self.record_term.lower()
+
+    @property
+    def parent_term_lc(self):
+        return self.parent_term.lower()
 
     def term_is(self, v):
 
-        if self.record_term.lower() == v.lower() or self.join_lc() == v.lower():
+        if self.record_term_lc == v.lower() or self.join_lc() == v.lower():
             return True
         else:
             return False
@@ -217,8 +226,8 @@ class TermGenerator(object):
             # Yield any child terms, from the term row arguments
             if not t.term_is('section') and not t.term_is('header'):
                 for col, value in enumerate(t.args, 0):
-                    if str(value).strip():
-                        yield Term(t.record_term.lower() + '.' + str(col), str(value), [],
+                    if six.text_type(value).strip():
+                        yield Term(t.record_term_lc + '.' + six.text_type(col), six.text_type(value), [],
                                    row=line_n,
                                    col=col + 2,  # The 0th argument starts in col 2
                                    file_name=self._path,
@@ -361,28 +370,28 @@ class TermInterpreter(object):
             for c in term.children:
 
                 if c.child_property_type == 'scalar':
-                    d[c.record_term] = cls.convert_to_dict(c)
+                    d[c.record_term_lc] = cls.convert_to_dict(c)
 
                 elif c.child_property_type == 'sequence':
                     try:
-                        d[c.record_term].append(cls.convert_to_dict(c))
+                        d[c.record_term_lc].append(cls.convert_to_dict(c))
                     except (KeyError, AttributeError):
                         # The c.term property doesn't exist, so add a list
-                        d[c.record_term] = [cls.convert_to_dict(c)]
+                        d[c.record_term_lc] = [cls.convert_to_dict(c)]
 
                 else:
                     try:
-                        d[c.record_term].append(cls.convert_to_dict(c))
+                        d[c.record_term_lc].append(cls.convert_to_dict(c))
                     except KeyError:
                         # The c.term property doesn't exist, so add a scalar or a map
-                        d[c.record_term] = cls.convert_to_dict(c)
+                        d[c.record_term_lc] = cls.convert_to_dict(c)
                     except AttributeError as e:
                         # d[c.term] exists, but is a scalar, so convert it to a list
 
-                        d[c.record_term] = [d[c.record_term]] + [cls.convert_to_dict(c)]
+                        d[c.record_term_lc] = [d[c.record_term]] + [cls.convert_to_dict(c)]
 
             if term.value:
-                d[term.term_value_name] = term.value
+                d[term.term_value_name.lower()] = term.value
 
             return d
 

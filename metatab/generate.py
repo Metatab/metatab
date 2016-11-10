@@ -94,7 +94,7 @@ class CsvPathRowGenerator(object):
         try:
 
             if sys.version_info[0] < 3:
-                self._f = open(self._path, 'r')
+                self._f = open(self._path, 'rb')
             else:
                 self._f = open(self._path, 'rb')  # 'b' because were using unicodecsv
 

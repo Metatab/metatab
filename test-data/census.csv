@@ -1,0 +1,12 @@
+Section,DeclaredSections,,,,
+DeclareSection,Section,Schema,title,column_ref,indent
+,,,,,
+,,,,,
+Section,DeclaredTerms,,,,
+Header,Term,TermValueName,ChildPropertyType,Section,
+DeclareTerm,Table,Name,,Schema,
+DeclareTerm,Table.Universe,,,Root,
+DeclareTerm,Table.Segment,,,Root,
+DeclareTerm,Table.Topics,,,,
+DeclareTerm,Table.Subject,,,,
+DeclareTerm,Table.Column,Name,,,
