@@ -9,7 +9,7 @@ Also accepts a JSON list of rows.
 """
 from flask import Flask, request, jsonify
 from metatab.parser import TermGenerator, TermInterpreter
-from metatab.parser import RowGenerator, CsvDataRowGenerator
+from metatab.generate import RowGenerator, CsvDataRowGenerator
 
 app = Flask(__name__)
 

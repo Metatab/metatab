@@ -17,7 +17,7 @@ class BasicTest(unittest.TestCase):
         from os.path import join, dirname
         import csv
 
-        fn = join(dirname(__file__), 'data', 'example1-web.csv')
+        fn = join(dirname(__file__), '../test-data', 'example1-web.csv')
 
         with open(fn) as f:
             str_data = f.read();
