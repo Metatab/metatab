@@ -11,8 +11,8 @@ def main():
     from metatab import TermInterpreter, TermGenerator, Term, CsvPathRowGenerator, CsvUrlRowGenerator
 
     parser = argparse.ArgumentParser(
-        prog='struct_tab',
-        description='Simple Structured Table format parser. '.format(__meta__.__version__))
+        prog='metatab',
+        description='Simple Structured Table format parser, version {}'.format(__meta__.__version__))
 
     g = parser.add_mutually_exclusive_group(required=True)
     g.add_argument('-t', '--terms', default=False, action='store_true',
@@ -31,6 +31,9 @@ def main():
 
     parser.add_argument('-D', '--declare', help='Parse and incorporate a declaration before parsing the file.'+
                         ' (Adds the declaration to the start of the file as the first term. )')
+
+    g.add_argument('-V', '--version', default=False, action='store_true',
+                   help='Display the package version and exit')
 
     parser.add_argument('file', help='Path to a CSV file with STF data.')
 
