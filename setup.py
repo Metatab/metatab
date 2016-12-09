@@ -60,5 +60,10 @@ setup(
     author_email=ps_meta.__author__,
     url='https://github.com/CivicKnowledge/metatab.git',
     license='MIT',
-    classifiers=classifiers
+    classifiers=classifiers,
+    extras_require={
+        'server': ['flask','bottle'],
+        'test': ['datapackage'],
+
+    }
 )

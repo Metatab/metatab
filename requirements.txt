@@ -1,6 +1,3 @@
-flask
 six
-bottle
 unicodecsv
 pyyaml
-datapackage

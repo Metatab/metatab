@@ -1,4 +1,4 @@
-""" A Flask APplication for Parsing files
+""" A Flask Application for Parsing files
 
 Send a CSV file:
 
