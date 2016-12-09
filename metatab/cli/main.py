@@ -8,7 +8,7 @@ def main():
     import argparse
     import sys
     from metatab import __meta__
-    from metatab import TermInterpreter, TermGenerator, Term, CsvPathRowGenerator
+    from metatab import TermInterpreter, TermGenerator, Term, CsvPathRowGenerator, CsvUrlRowGenerator
 
     parser = argparse.ArgumentParser(
         prog='struct_tab',
@@ -36,7 +36,10 @@ def main():
 
     args = parser.parse_args(sys.argv[1:])
 
-    rg = CsvPathRowGenerator(args.file)
+    if args.file.startswith('http'):
+        rg = CsvUrlRowGenerator(args.file)
+    else:
+        rg = CsvPathRowGenerator(args.file)
 
     term_gen = list(TermGenerator(rg))
 
