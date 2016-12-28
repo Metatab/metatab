@@ -106,6 +106,7 @@ class MyTestCase(unittest.TestCase):
         for rg_args in ((CsvPathRowGenerator, fn),
                         (CsvDataRowGenerator, str_data, fn),
                         (RowGenerator, row_data, fn)):
+
             with open(fn) as f:
                 rg = rg_args[0](*rg_args[1:])
 

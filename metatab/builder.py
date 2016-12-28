@@ -15,7 +15,7 @@ class MetatabDoc(object):
         self.decl_terms = {}
         self.decl_sections = {}
 
-        self.sections = []
+        self.sections = collections.OrderedDict()
 
         if decl:
 
@@ -33,18 +33,31 @@ class MetatabDoc(object):
         from metatab import RowGenerator
         term_interp = TermInterpreter(TermGenerator(RowGenerator([['Declare', dcl]], "<none>")))
         term_interp.run()
-        return term_interp.declare_dict
+        dd = term_interp.declare_dict
+
+        self.decl_terms.update(dd['terms'])
+        self.decl_sections.update(dd['sections'])
+
+        return dd
 
     def new_section(self, name, params=None):
-        s = Section(name, self, params)
-        self.sections.append(s)
-        return s
+        """Return a new section"""
+        self.sections[name] = Section(name, self, params)
+
+        return self.sections[name]
+
+    def get_or_new_section(self, name, params=None):
+        """Create a new section or return an existing one of the same name"""
+        if name not in self.sections:
+            self.sections[name] = Section(name, self, params)
+
+        return self.sections[name]
 
     @property
     def rows(self):
         """Iterate over all of the rows"""
 
-        for s in self.sections:
+        for s_name, s in self.sections.items():
 
             if s.name != 'Root':
                 yield ['']
@@ -67,6 +80,39 @@ class MetatabDoc(object):
             for row in self.rows:
                 w.writerow(row)
 
+    def load_rows(self, row_generator):
+        from metatab import TermGenerator, TermInterpreter
+
+        term_gen = list(TermGenerator(row_generator))
+
+        term_interp = TermInterpreter(term_gen)
+
+        last_parents = {}
+
+        for t in term_interp:
+            if t.record_term == 'root':
+                continue
+
+            if t.parent:
+                parent = last_parents[t.parent_term_lc]
+                nt = parent.new_child(t.record_term, t.value)
+
+            else:
+                if t.join_lc == 'documentation.subtitle':
+                    raise Exception()
+                section_name = t.section.value if t.section.value else 'Root'
+                s = self.get_or_new_section(section_name, t.section.args)
+                nt = s.new_term(t.record_term, t.value)
+
+            last_parents[t.record_term_lc] = nt
+
+        return self
+
+    def load_csv(self, file_name):
+        """Load a Metatab CSV file into the builder to continue editing it. """
+        from metatab import CsvPathRowGenerator
+        return self.load_rows(CsvPathRowGenerator(file_name))
+
 
 class Section(object):
     def __init__(self, name, doc, params=None):
@@ -87,11 +133,15 @@ class Section(object):
 
     def new_term(self, term, value, **kwargs):
         t = TermRecord(term, value, _parent=None, _section=self, **kwargs)
+
         self.terms.append(t)
         return t
 
+    def delete_term(self, term):
+        """Remove a term from the terms. Must be the identical term, the same object"""
+        self.terms.remove(term)
+
     def __setattr__(self, key, item):
-        print 'HERE!!!'
         self.new_term(key, item)
 
     def args(self, term, d):
@@ -116,15 +166,17 @@ class Section(object):
         """Yield rows for the section"""
         for t in self.terms:
             for row in t.rows:
-                term, value = row
+                term, value = row # Value can either be a string, or a dict
 
-                if isinstance(value, dict):
+                if isinstance(value, dict): # Dict is for properties, which might be arg-children
                     term, args, remain = self.args(term, value)
                     yield term, args
 
+                    # 'remain' is all of the children that didn't have an arg-child column -- the
+                    # section didn't have a column heder for that ther.
                     for k, v in remain.items():
-                        yield term.split('.')[-1] + '.' + k, v
 
+                        yield term.split('.')[-1] + '.' + k, v
                 else:
                     yield row
 
@@ -159,16 +211,19 @@ class TermRecord(object):
     def rows(self):
         """Yield rows"""
 
+        # Translate the term value name so it can be assigned to a parameter.
         tvm = self.section.doc.decl_terms.get(self.qualified_term, {}).get('termvaluename', '@value')
 
-        # Terminal children have no arguments, just a value
+        # Terminal children have no arguments, just a value. Here we put the terminal children
+        # in a property arry, so they can be written to the parent's arg-children columns
+        # if the section has any.
         properties = {tvm: self.value}
         for c in self.children:
             if c.is_terminal:
                 properties[c.term] = c.value
-
         yield (self.qualified_term, properties)
 
+        # The non-terminal children have to get yielded normally -- they can't be arg-children
         for c in self.children:
             if not c.is_terminal:
                 for row in c.rows:

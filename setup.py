@@ -52,7 +52,8 @@ setup(
     tests_require=[x for x in reversed([str(x.req) for x in tests_require])],
     entry_points={
         'console_scripts': [
-            'metatab=metatab.cli.main:main',
+            'metatab=metatab.cli:metatab',
+            'metapack=metatab.cli:metapack',
         ],
     },
 

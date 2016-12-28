@@ -4,7 +4,7 @@
 import sys
 
 
-def main():
+def metatab():
     import argparse
     import sys
     from metatab import __meta__
@@ -27,10 +27,10 @@ def main():
                    help='Parse a file and print out a YAML representation')
 
     parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
-                 help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
+                        help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
 
-    parser.add_argument('-D', '--declare', help='Parse and incorporate a declaration before parsing the file.'+
-                        ' (Adds the declaration to the start of the file as the first term. )')
+    parser.add_argument('-D', '--declare', help='Parse and incorporate a declaration before parsing the file.' +
+                                                ' (Adds the declaration to the start of the file as the first term. )')
 
     g.add_argument('-V', '--version', default=False, action='store_true',
                    help='Display the package version and exit')
@@ -47,7 +47,7 @@ def main():
     term_gen = list(TermGenerator(rg))
 
     if args.declare:
-        term_gen = [Term('Root.Declare',args.declare,[],row=0, col=0, file_name='<commandline>')] + term_gen
+        term_gen = [Term('Root.Declare', args.declare, [], row=0, col=0, file_name='<commandline>')] + term_gen
 
     if args.package:
         term_gen = [Term('Root.Declare',
@@ -86,4 +86,39 @@ def main():
         print(yaml.safe_dump(dicts, default_flow_style=False, indent=4))
 
 
+def find_files(base_path, types):
+    from os import walk
+    from os.path import join, splitext
 
+    for root, dirs, files in walk(base_path):
+        for f in files:
+            b, ext = splitext(f)
+            if ext[1:] in types:
+                yield join(base_path, f)
+
+def metapack():
+    import argparse
+    from os import getcwd
+    import sys
+    from metatab import __meta__
+
+    parser = argparse.ArgumentParser(
+        prog='metapack',
+        description='Create metatab data packages, version {}'.format(__meta__.__version__))
+
+    parser.add_argument('-z', '--zip', default=False, action='store_true',
+                        help='Create a zip archive from a metapack file')
+
+    parser.add_argument('-e', '--excel', default=False, action='store_true',
+                        help='Create an excel archive from a metapack file')
+
+    parser.add_argument('-m', '--metatab', default=False, action='store_true',
+                        help='Create a metatab file from for tabular data files in current and subdirectories. '
+                             ' Also merges with existing metatab file, if specified')
+
+    for f in find_files(getcwd(), ['csv']):
+        print f
+
+    args = parser.parse_args(sys.argv[1:])
+
+    print args

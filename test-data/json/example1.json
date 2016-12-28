@@ -211,5 +211,5 @@
         "url": "https://www.cdph.ca.gov/programs/pages/healthycommunityindicators.aspx", 
         "table": "Healthy Communities Data and Indicators Project (HCI)"
     }, 
-    "declare": "/Volumes/Storage/proj/virt/metatab/metatab-py/test-data/metatab.csv"
+    "declare": "/Volumes/Storage/proj/virt/ambry/metatab-py/test-data/metatab.csv"
 }

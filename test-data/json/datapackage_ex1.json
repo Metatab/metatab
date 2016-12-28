@@ -2,7 +2,7 @@
     "description": "Percent of the eligible population registered to vote and the percent who voted in statewide elections.", 
     "title": "Registered Voters, By County", 
     "version": "1.3.4", 
-    "declare": "/Volumes/Storage/proj/virt/metatab/metatab-py/test-data/datapackage.csv", 
+    "declare": "/Volumes/Storage/proj/virt/ambry/metatab-py/test-data/datapackage.csv", 
     "resources": [
         {
             "name": "the-first-resource", 

@@ -69,6 +69,8 @@ class Term(object):
 
         self.parent = parent  # If set, term was generated from term args
 
+
+
         # There are some restrictions on what terms can be used for omitted parents,
         # otherwise consecutive terms with elided parents will get nested.
         self.can_be_parent = (not self.parent and self.parent_term != ELIDED_TERM)
@@ -125,9 +127,11 @@ class Term(object):
     def add_child(self, child):
         self.children.append(child)
 
+    @property
     def join(self):
         return "{}.{}".format(self.parent_term, self.record_term)
 
+    @property
     def join_lc(self):
         return "{}.{}".format(self.parent_term_lc, self.record_term_lc)
 
@@ -141,7 +145,7 @@ class Term(object):
 
     def term_is(self, v):
 
-        if self.record_term_lc == v.lower() or self.join_lc() == v.lower():
+        if self.record_term_lc == v.lower() or self.join_lc == v.lower():
             return True
         else:
             return False
@@ -179,7 +183,6 @@ class TermGenerator(object):
     def __iter__(self):
         """An interator that generates term objects"""
         from os.path import dirname, join
-
 
         for line_n, row in enumerate(self._row_gen, 1):
 
@@ -349,8 +352,8 @@ class TermInterpreter(object):
 
     def substitute_synonym(self, nt):
 
-        if nt.join_lc() in self.synonyms:
-            nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc()]);
+        if nt.join_lc in self.synonyms:
+            nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc]);
 
     @classmethod
     def convert_to_dict(cls, term):
@@ -406,7 +409,7 @@ class TermInterpreter(object):
                 'file': e.term.file_name,
                 'row': e.term.row,
                 'col': e.term.col,
-                'term': e.term.join(),
+                'term': e.term.join,
                 'error': str(e)
             })
 
@@ -436,10 +439,11 @@ class TermInterpreter(object):
 
                 if nt.parent_term == ELIDED_TERM:
                     nt.parent_term = last_parent_term
+                    nt.parent = last_term_map[last_parent_term]
 
                 # Substitute synonyms
-                if nt.join_lc() in self.synonyms:
-                    nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc()]);
+                if nt.join_lc in self.synonyms:
+                    nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc]);
 
                 # Remap integer record terms to names from the parameter map
                 try:
@@ -486,11 +490,11 @@ class TermInterpreter(object):
                     default_term_value_name = nt.value.lower()
                     continue
 
-                nt.child_property_type = self._terms.get(nt.join(), {}).get('childpropertytype', 'any')
+                nt.child_property_type = self._terms.get(nt.join, {}).get('childpropertytype', 'any')
 
-                nt.term_value_name = self._terms.get(nt.join(), {}).get('termvaluename', default_term_value_name)
+                nt.term_value_name = self._terms.get(nt.join, {}).get('termvaluename', default_term_value_name)
 
-                nt.valid = nt.join_lc() in self._terms
+                nt.valid = nt.join_lc in self._terms
 
                 nt.section = last_section;
 
