@@ -5,13 +5,17 @@
 
 """
 
-class ParserError(Exception):
+class MetatabError(Exception):
+    pass
+
+
+class ParserError(MetatabError):
     def __init__(self, *args, **kwargs):
         super(ParserError, self).__init__(*args, **kwargs)
         self.term = kwargs.get('term', None)
 
 
-class IncludeError(ParserError):
+class IncludeError(MetatabError):
     pass
 
 class GenerateError(ParserError):

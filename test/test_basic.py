@@ -4,23 +4,8 @@ import unittest
 import collections
 import json
 from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator, Serializer
+from metatab.util import flatten
 
-
-def flatten(d, sep='.'):
-
-    def _flatten(e, parent_key='', sep='.'):
-        import collections
-
-        prefix = parent_key+sep if parent_key else ''
-
-        if isinstance(e, collections.MutableMapping):
-            return tuple( (prefix+k2, v2) for k, v in e.items() for k2,v2 in _flatten(v,  k, sep ) )
-        elif isinstance(e, collections.MutableSequence):
-            return tuple( (prefix+k2, v2) for i, v in enumerate(e) for k2,v2 in _flatten(v,  str(i), sep ) )
-        else:
-            return (parent_key, (e,)),
-
-    return tuple( (k, v[0]) for k, v in _flatten(d, '', sep) )
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
@@ -139,7 +124,7 @@ class MyTestCase(unittest.TestCase):
                                              'format', 'homepage', 'identifier', 'note', 'obsoletes',
                                              'spatial', 'spatialgrain', 'table', 'time', 'title',
                                              'version', 'wrangler']),
-                                     sorted(d.keys()))
+                                     sorted(str(e) for e in d.keys()))
 
     def test_declarations(self):
         from os.path import dirname, join
@@ -225,7 +210,7 @@ class MyTestCase(unittest.TestCase):
         d = term_interp.as_dict()
 
         self.assertEquals(['Include File 1', 'Include File 2', 'Include File 3'], d['note'])
-        self.assertEquals(['/Volumes/Storage/proj/virt/metatab/metatab-py/test-data/include2.csv',
+        self.assertEquals(['/Volumes/Storage/proj/virt/ambry/metatab-py/test-data/include2.csv',
                            'https://raw.githubusercontent.com/CivicKnowledge/structured_tables/master/test/data/include3.csv'],
                           d['include'])
 
@@ -345,6 +330,28 @@ class MyTestCase(unittest.TestCase):
 
         #import json
         #print(json.dumps(d1, indent=4))
+
+    def test_find(self):
+
+        from metatab import parse_file
+
+        ti = parse_file(test_data('example1.csv'))
+
+        self.assertEquals('cdph.ca.gov-hci-registered_voters-county',ti.find_first('Root.Identifier').value)
+
+    def test_sections(self):
+
+        from metatab import parse_file, MetatabDoc
+
+        ti = parse_file(test_data('example1.csv'))
+
+        doc = MetatabDoc(terms=ti)
+
+        self.assertEqual(['root', u'resources', u'contacts', u'notes', u'schema'],doc.sections.keys())
+
+        del doc['Resources']
+
+        self.assertEqual(['root', u'contacts', u'notes', u'schema'], doc.sections.keys())
 
 if __name__ == '__main__':
     unittest.main()

@@ -23,7 +23,7 @@
 "Section ","Notes",,,
 "Note","This file is an example of a data bundle, a simple format for linking data to metadata using spreadsheets. See the specification for more details. ",,,
 "Documentation","https://docs.google.com/document/d/16tb7x73AyF8pJ6e6IBcaIJAioEZCNBGDEksKYTXfdfg/edit#",,,
-".Subtitle","Data Bundles Packaging Specification",,,
+".Title","Data Bundles Packaging Specification",,,
 ,,,,
 "Section","Schema","datatype","valuetype","description"
 "Table","registered_voters",,,"HCI Indicator 653.0: Percent of adults age 18 years and older who are registered voters"

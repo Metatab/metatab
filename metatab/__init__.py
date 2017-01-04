@@ -8,4 +8,4 @@ from .parser import *
 from .serialize import *
 from .exc import *
 from .generate import *
-from .builder import MetatabDoc
+from .excel import write_excel
