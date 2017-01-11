@@ -31,7 +31,7 @@ def make_dir_structure(base_dir):
     maybe_makedir(PACKAGE_DIR)
     maybe_makedir(OLD_DIR)
 
-def make_metatab_file(base_dir, template='metatab'):
+def make_metatab_file(template='metatab'):
 
     from os.path import join, dirname
     import metatab.templates
@@ -40,6 +40,5 @@ def make_metatab_file(base_dir, template='metatab'):
     template_path = join(dirname(metatab.templates.__file__),template+'.csv')
 
     doc = MetatabDoc().load_csv(template_path)
-
 
     return doc

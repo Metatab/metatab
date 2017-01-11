@@ -4,7 +4,38 @@
 """Classes to build a Metatab document
 """
 
+def declaration_path(name):
+    """Return the path to an included declaration"""
+    from os.path import dirname, join, exists
+    import metatab.declarations
+    from metatab.exc import IncludeError
 
+    d = dirname(metatab.declarations.__file__)
+
+    path = join(d,name)
+
+    if not exists(path):
+        path = join(d, name + '.csv')
+
+    if not exists(path):
+        raise IncludeError("No local declaration file for name '{}' ".format(name))
+
+    return path
+
+
+# From http://stackoverflow.com/a/295466
+def slugify(value):
+    """
+    Normalizes string, converts to lowercase, removes non-alpha characters,
+    and converts spaces to hyphens.
+    """
+    import re
+    import unicodedata
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
+    value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
+    value = unicode(re.sub('[-\s]+', '-', value))
+
+    return value
 
 def flatten(d, sep='.'):
     """Flatten a data structure into tuples"""

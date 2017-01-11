@@ -1,4 +1,4 @@
-"Declare","metatab.csv",,,
+"Declare","metatab-0.1",,,
 "Title","Registered Voters, By County",,,
 "Description","Percent of the eligible population registered to vote and the percent who voted in statewide elections.",,,
 "Identifier","cdph.ca.gov-hci-registered_voters-county",,,
@@ -27,30 +27,30 @@
 ,,,,
 "Section","Schema","datatype","valuetype","description"
 "Table","registered_voters",,,"HCI Indicator 653.0: Percent of adults age 18 years and older who are registered voters"
-"Column","reportyear","int","year range","Year or years that indicator was reported"
-"Column","type","str","dimension","Type of record"
-"Column","gvid","str","gvid","GVid version of the geotype and geotypeval"
-"Column","geoname","str","label for gvid","Census name of geographic area"
-"Column","geotype","str","label","Code for type of geographic area"
-"Column","geotypevalue","str","census","Census geoid code"
-"Column","county_fips","str","FIPS county code","County FIPS code"
-"Column","county_name","str","label for counrty_fips","County name"
-"Column","region_code","str","census code","Numeric code of region"
-"Column","region_name","str","label for region_code","Name of region"
-"Column","raceth","str","raceth/civick","Civic Knowledge race / ethnicity code."
-"Column","raceth_name","str","label for raceeth","Race / Ethnicity Name"
-"Column","race_eth_code","str","raceth/hci","Race / ethnicity code"
-"Column","race_eth_name","str","label for race_eth_code","Race / ethnicity name"
-"Column","numerator","int","count","Adults who are registered to vote, or who voted, depending on type of record"
-"Column","denominator","int","count","Population of Adults, 18 years or older"
-"Column","percent","float","percent of numerator over denominator","Percent of adults who are registered to vote, or who voted, depending on type of record"
-"Column","ll_95ci","float","ci95l for percent","Lower bound of 95% confidence interval"
-"Column","ul_95ci","float","ci95u for percent","Upper bound of 95% confidence interval"
-"Column","se","float","se for percent","Standard error"
-"Column","rse","float","rse for percent","Relative standard error (se/percent * 100) expressed as a percent"
-"Column","ca_decile","float","decile","Statewide decile ranking"
-"Column","ca_rr","float","ratio","Ratio of indicator to state average"
-"Column","vap","float","measure","Voter age population, from CA Department of Finance."
-"Column","ind_id","str","dimension",
-"Column","ind_definition","str","dimension",
-"Column","version","str","other",
+"Table.Column","reportyear","int","year range","Year or years that indicator was reported"
+"Table.Column","type","str","dimension","Type of record"
+"Table.Column","gvid","str","gvid","GVid version of the geotype and geotypeval"
+"Table.Column","geoname","str","label for gvid","Census name of geographic area"
+"Table.Column","geotype","str","label","Code for type of geographic area"
+"Table.Column","geotypevalue","str","census","Census geoid code"
+"Table.Column","county_fips","str","FIPS county code","County FIPS code"
+"Table.Column","county_name","str","label for counrty_fips","County name"
+"Table.Column","region_code","str","census code","Numeric code of region"
+"Table.Column","region_name","str","label for region_code","Name of region"
+"Table.Column","raceth","str","raceth/civick","Civic Knowledge race / ethnicity code."
+"Table.Column","raceth_name","str","label for raceeth","Race / Ethnicity Name"
+"Table.Column","race_eth_code","str","raceth/hci","Race / ethnicity code"
+"Table.Column","race_eth_name","str","label for race_eth_code","Race / ethnicity name"
+"Table.Column","numerator","int","count","Adults who are registered to vote, or who voted, depending on type of record"
+"Table.Column","denominator","int","count","Population of Adults, 18 years or older"
+"Table.Column","percent","float","percent of numerator over denominator","Percent of adults who are registered to vote, or who voted, depending on type of record"
+"Table.Column","ll_95ci","float","ci95l for percent","Lower bound of 95% confidence interval"
+"Table.Column","ul_95ci","float","ci95u for percent","Upper bound of 95% confidence interval"
+"Table.Column","se","float","se for percent","Standard error"
+"Table.Column","rse","float","rse for percent","Relative standard error (se/percent * 100) expressed as a percent"
+"Table.Column","ca_decile","float","decile","Statewide decile ranking"
+"Table.Column","ca_rr","float","ratio","Ratio of indicator to state average"
+"Table.Column","vap","float","measure","Voter age population, from CA Department of Finance."
+"Table.Column","ind_id","str","dimension",
+"Table.Column","ind_definition","str","dimension",
+"Table.Column","version","str","other",

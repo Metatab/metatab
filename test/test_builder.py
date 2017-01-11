@@ -2,7 +2,7 @@ import unittest
 
 import collections
 import json
-from metatab import TermGenerator, TermInterpreter, CsvPathRowGenerator, MetatabDoc
+from metatab import TermGenerator, TermParser, CsvPathRowGenerator, MetatabDoc
 from metatab.util import flatten
 
 def test_data(*paths):
@@ -38,23 +38,16 @@ class TestBuilder(unittest.TestCase):
 
         fn = test_data('example1.csv')
 
+        fn = '/Volumes/Storage/proj/virt/ambry/metatab-py/test/packages/csvs/metadata.csv'
+
         doc = MetatabDoc().load_csv(fn)
 
-        doc.write_csv('/tmp/metatab.csv')
+        terms = list(doc.terms)
 
-        ti1 = TermInterpreter(TermGenerator(CsvPathRowGenerator(test_data('example1.csv'))))
-        ti2 = TermInterpreter(TermGenerator(CsvPathRowGenerator(test_data('/tmp/metatab.csv'))))
-        ti3 = doc.term_interpreter
+        for row in doc:
+            print row
 
-        self.compare_dict(ti1.as_dict(), ti2.as_dict())
-        self.compare_dict(ti1.as_dict(), ti3.as_dict())
-        self.compare_dict(ti2.as_dict(), ti3.as_dict())
 
-        self.assertNotEquals('Foobar', doc['Root']['Identifier'].value)
-
-        doc['Root']['Identifier'] = 'Foobar'
-
-        self.assertEquals('Foobar', doc['Root']['Identifier'].value)
 
     def test_sections(self):
 

@@ -18,5 +18,8 @@ class ParserError(MetatabError):
 class IncludeError(MetatabError):
     pass
 
+class DeclarationError(ParserError):
+    pass
+
 class GenerateError(ParserError):
     pass

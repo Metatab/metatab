@@ -1,0 +1,8 @@
+"# ","Declarations for producing package.json files",,,,,
+,,,,,,
+"Section","DeclaredTerms","TermValueName","ChildPropertyType","Section","Synonym","ValueSet"
+"DeclareTerm","resources","url",,,,
+"DeclareTerm","resource",,,,"resources",
+"DeclareTerm","schema",,,,"resources.schema",
+"DeclareTerm","field","name",,,"schema.fields",
+"DeclareTerm","schema.fields","name",,,,

@@ -5,6 +5,8 @@
 """
 import collections
 from six import string_types
+from parser import TermParser
+from generate import RowGenerator
 
 class Serializer(object):
 
@@ -21,9 +23,8 @@ class Serializer(object):
         """
 
         if config:
-            from parser import TermInterpreter, TermGenerator
-            from generate import RowGenerator
-            term_interp = TermInterpreter(TermGenerator(RowGenerator([['Declare', config]], "<none>")))
+
+            term_interp = TermParser(RowGenerator([['Declare', config]], "<none>"))
 
             term_interp.run()
 
@@ -83,11 +84,10 @@ class Serializer(object):
     def load_declarations(self, d):
 
         def _load_declaration(dcl):
-            from parser import TermInterpreter, TermGenerator
-            from generate import RowGenerator
-            term_interp = TermInterpreter(TermGenerator(RowGenerator([['Declare', dcl]], "<none>")))
 
-            term_interp.run()
+            term_interp = TermParser(RowGenerator([['Declare', dcl]], "<none>"))
+
+            _ = list(term_interp)
 
             return term_interp.declare_dict
 

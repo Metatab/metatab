@@ -10,13 +10,21 @@ objects.
 ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
 
-from exc import IncludeError, ParserError
-from generate import generateRows
+import copy
+import json
+from cStringIO import StringIO
+from collections import OrderedDict, MutableSequence
+
 import six
+import unicodecsv as csv
+from exc import IncludeError, ParserError, MetatabError
+from generate import generateRows, CsvPathRowGenerator
+from os.path import dirname, join, split, exists
+from util import declaration_path
 
 # Well known declarations
 standard_declares = {
-    'metatab': 'http://assets.metatab.org/metatab.csv'
+    'metatab': 'http://assets.metatab.org/metatab-latest.csv'
 }
 
 
@@ -84,9 +92,9 @@ class Term(object):
         # This is mostly use when building, not when parsing. It should be folded
         # into the joined terms, probably.
         if self.parent:
-            self.qualified_term = self.parent.term.lower() + '.' + self.term.lower()
+            self.qualified_term = self.parent.record_term_lc + '.' + self.record_term_lc
         else:
-            self.qualified_term = 'root.' + self.term.lower()
+            self.qualified_term = 'root.' + self.record_term_lc
 
     @classmethod
     def normalize_term(cls, term):
@@ -125,8 +133,6 @@ class Term(object):
     def file_ref(self):
         """Return a string for the file, row and column of the term."""
 
-        from os.path import split
-
         if self.file_name is not None and self.row is not None:
             parts = split(self.file_name);
             return "{} {}:{} ".format(parts[-1], self.row, self.col)
@@ -136,6 +142,7 @@ class Term(object):
             return ''
 
     def add_child(self, child):
+        assert isinstance(child, Term)
         self.children.append(child)
 
     def new_child(self, term, value, **kwargs):
@@ -151,10 +158,15 @@ class Term(object):
 
     def get_child(self, term):
         for c in self.children:
-            if c.term.lower() == term.lower():
+            if c.record_term_lc == term.lower():
                 return c
-        return c
+        return None
 
+    def get_child_value(self, term):
+        try:
+            return self.get_child(term).value
+        except AttributeError:
+            return None
 
     def get_or_new_child(self, term, value=None, **kwargs):
 
@@ -258,12 +270,15 @@ class Term(object):
         tvm = self.section.doc.decl_terms.get(self.qualified_term, {}).get('termvaluename', '@value')
 
         # Terminal children have no arguments, just a value. Here we put the terminal children
-        # in a property arry, so they can be written to the parent's arg-children columns
+        # in a property array, so they can be written to the parent's arg-children columns
         # if the section has any.
+
         properties = {tvm: self.value}
+
         for c in self.children:
             if c.is_terminal:
-                properties[c.term] = c.value
+                properties[c.record_term_lc] = c.value
+
         yield (self.qualified_term, properties)
 
         # The non-terminal children have to get yielded normally -- they can't be arg-children
@@ -286,17 +301,17 @@ class Term(object):
 
 
 class SectionTerm(Term):
-
-    def __init__(self, name, term='Section', doc=None, term_args=None, row=None, col=None, file_name=None, parent=None):
+    def __init__(self, name, term='Section', doc=None, term_args=None,
+                 row=None, col=None, file_name=None, parent=None):
 
         self.doc = doc
 
         section_args = term_args if term_args else self.doc.section_args(name) if self.doc else []
 
-        self.terms = [] # Seperate from children. Sections have contained terms, but no children.
+        self.terms = []  # Seperate from children. Sections have contained terms, but no children.
 
-        super(SectionTerm, self).__init__(term,name, term_args=section_args,
-                                   parent=parent, doc=doc, row=row, col=col, file_name=file_name)
+        super(SectionTerm, self).__init__(term, name, term_args=section_args,
+                                          parent=parent, doc=doc, row=row, col=col, file_name=file_name)
 
     @classmethod
     def subclass(cls, t):
@@ -315,10 +330,11 @@ class SectionTerm(Term):
         return self.args
 
     def add_term(self, t):
-        self.terms.append(t)
+        if t not in self.terms and t.parent_term_lc == 'root':
+            self.terms.append(t)
 
     def new_term(self, term, value, **kwargs):
-        t = BuilderTerm(term, value, parent=None, section=self).new_children(**kwargs)
+        t = Term(term, value, doc=self.doc, parent=None, section=self).new_children(**kwargs)
 
         self.terms.append(t)
         return t
@@ -336,7 +352,7 @@ class SectionTerm(Term):
         t = self.get_term(term)
 
         if not t:
-            t = BuilderTerm(term, value, parent=None, section=self).new_children(**kwargs)
+            t = Term(term, value, doc=self.doc, parent=None, section=self).new_children(**kwargs)
         else:
             if value is not None:
                 t.value = value
@@ -344,9 +360,16 @@ class SectionTerm(Term):
             for k, v in kwargs.items():
                 t.get_or_new_child(k, v)
 
-    def delete_term(self, term):
+    def remove_term(self, term):
         """Remove a term from the terms. Must be the identical term, the same object"""
         self.terms.remove(term)
+
+    def clean(self):
+        """Remove all of the terms from the section, and also remove them from the document"""
+        terms = list(self)
+
+        for t in terms:
+            self.doc.remove_term(t)
 
     def __getitem__(self, item):
         return self.get_term(item)
@@ -367,9 +390,12 @@ class SectionTerm(Term):
             yield t
 
     def _args(self, term, d):
+        """Extract the chldren of a term that are arg-children fro mthose that are row-children. """
 
+        # Get the term value name, the property name that should be assigned to the term value.
         tvm = self.doc.decl_terms.get(term, {}).get('termvaluename', '@value')
 
+        # Convert the keys to lower case
         lower_d = {k.lower(): v for k, v in d.items()}
 
         args = []
@@ -403,104 +429,45 @@ class SectionTerm(Term):
                     yield row
 
     def as_dict(self):
-        self.children = self.terms
+        reset_children = False
+        if self.terms and not self.children:
+            self.children = self.terms
+            reset_children = True
+
         d = super(SectionTerm, self).as_dict()
-        self.children = []
+
+        if reset_children:
+            self.children = []
+
         return d
 
 
-class TermGenerator(object):
-    """Generate terms from a row generator. It will produce a term for each row, and child
-    terms for any arguments to the row. """
+class RootSectionTerm(SectionTerm):
+    def __init__(self, file_name=None, doc=None):
+        super(RootSectionTerm, self).__init__('Root', 'Root', doc, [], 0, 0, file_name, None)
 
-    def __init__(self, row_gen):
-        """
+    def as_dict(self):
+        d = super(RootSectionTerm, self).as_dict()
 
-        :param row_gen: an interator that generates rows
-        :return:
-        """
+        if '@value' in d:
+            del d['@value']
 
-        from os.path import dirname, basename
-
-        self._row_gen = row_gen
-
-        self._path = self._row_gen.path
-
-    @property
-    def path(self):
-        return self._path
-
-    def __iter__(self):
-        """An interator that generates term objects"""
-        from os.path import dirname, join
-
-        for line_n, row in enumerate(self._row_gen, 1):
-
-            if not row[0].strip() or row[0].strip().startswith('#'):
-                continue
-
-            t = Term(row[0].lower(),
-                     row[1] if len(row) > 1 else '',
-                     row[2:] if len(row) > 2 else [],
-                     row=line_n,
-                     col=1,
-                     file_name=self._path)
-
-            if t.term_is('include'):
-
-                if not self._path:
-                    raise IncludeError("Can't include because don't know current path"
-                                       .format(self._root_directory), term=t)
-
-                include_ref = t.value.strip('/')
-
-                if include_ref.startswith('http'):
-                    path = include_ref
-                else:
-                    path = join(dirname(self._path), include_ref)
-
-                t.value = path
-
-                yield t
-
-                try:
-                    for t in TermGenerator(generateRows(path)):
-                        yield t
-                except IncludeError as e:
-
-                    e.term = t
-                    raise
-
-                continue  # Already yielded the include term
-
-            yield t
-
-            # Yield any child terms, from the term row arguments
-            if not t.term_is('section') and not t.term_is('header'):
-                for col, value in enumerate(t.args, 0):
-                    if six.text_type(value).strip():
-                        yield Term(t.record_term_lc + '.' + six.text_type(col), six.text_type(value), [],
-                                   row=line_n,
-                                   col=col + 2,  # The 0th argument starts in col 2
-                                   file_name=self._path,
-                                   parent=t)
+        return d
 
 
-class TermInterpreter(object):
+class TermParser(object):
     """Takes a stream of terms and sets the parameter map, valid term names, etc """
 
-    def __init__(self, term_gen, doc=None, remove_special=True):
+    def __init__(self, row_gen, remove_special=True):
         """
         :param term_gen: an an iterator that generates terms
         :param remove_special: If true ( default ) remove the special terms from the stream
         :return:
         """
 
-        from collections import defaultdict, OrderedDict
-
         self._remove_special = remove_special
 
-        self._term_gen = term_gen
+        self._row_gen = row_gen
 
         self._param_map = []  # Current parameter map, the args of the last Section term
 
@@ -510,13 +477,18 @@ class TermInterpreter(object):
         self._declared_sections = {}  # Declared sections and their arguments
         self._declared_terms = {}  # Pre-defined terms, plus TermValueName and ChildPropertyType
 
-        self._doc = doc
-
         self.errors = set()
 
-        self.root = SectionTerm('Root', term='Root', doc=self._doc, row=0, col=0,
-                                file_name=self._term_gen.path if hasattr(self._term_gen, 'path') else None,
-                                parent=None)
+        self.root = RootSectionTerm(file_name=self.path)
+
+        self.install_declare_terms()
+
+    @property
+    def path(self):
+        try:
+            return self._row_gen.path
+        except AttributeError:
+            return None
 
     @property
     def declared_sections(self):
@@ -559,13 +531,12 @@ class TermInterpreter(object):
     def install_declare_terms(self):
         self._declared_terms.update({
             'root.section': {'termvaluename': 'name'},
-            'root.synonym': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
-            'root.declareterm': {'termvaluename': 'term_name', 'childpropertytype': 'sequence'},
-            'root.declaresection': {'termvaluename': 'section_name', 'childpropertytype': 'sequence'},
+            'root.synonym': {'termvaluename': 'term', 'childpropertytype': 'sequence'},
+            'root.declareterm': {'termvaluename': 'term', 'childpropertytype': 'sequence'},
+            'root.declaresection': {'termvaluename': 'section', 'childpropertytype': 'sequence'},
             'root.declarevalueset': {'termvaluename': 'name', 'childpropertytype': 'sequence'},
             'declarevalueset.value': {'termvaluename': 'value', 'childpropertytype': 'sequence'},
         })
-
 
     def substitute_synonym(self, nt):
 
@@ -586,32 +557,102 @@ class TermInterpreter(object):
 
         return errors
 
+    def generate_terms(self, row_gen):
+        """An generator that yields term objects, handling includes and argument
+        children"""
 
-    def as_section_dict(self):
-        """Iterate, link terms and convert to a dict. LIke as_dict,
-         but the top-level of the dict is section names, containing all of the terms
-         in that section"""
+        try:
+            filename = row_gen.path
+        except AttributeError:
+            filename = '<unknown>'
 
-        # Run the parser, if it has not been run yet.
+        for line_n, row in enumerate(row_gen, 1):
 
-        d = {}
+            if not row[0].strip() or row[0].strip().startswith('#'):
+                continue
 
-        if not self.root:
-            for _ in self: pass
+            t = Term(row[0].lower(),
+                     row[1] if len(row) > 1 else '',
+                     row[2:] if len(row) > 2 else [],
+                     row=line_n,
+                     col=1,
+                     file_name=filename)
 
-        for t in self._parsed_terms:
-            if t.parent_term == ROOT_TERM:
-                section_name = (t.section.value or 'Root').lower()
+            if t.term_is('include'):
 
-                if not section_name in d:
-                    d[section_name] = []
+                if not self.path:
+                    raise IncludeError("Can't include because don't know current path", term=t)
 
-                d[section_name].append(t.as_dict())
+                include_ref = t.value.strip('/')
 
-        return d
+                if include_ref.startswith('http'):
+                    path = include_ref
+                else:
+                    path = join(dirname(filename), include_ref)
+
+                t.value = path
+
+                yield t
+
+                try:
+                    for t in self.generate_terms(generateRows(path)):
+                        yield t
+                except IncludeError as e:
+
+                    e.term = t
+                    raise
+
+                continue  # Already yielded the include term
+
+            yield t
+
+            # Yield any child terms, from the term row arguments
+            if not t.term_is('section') and not t.term_is('header'):
+                for col, value in enumerate(t.args, 0):
+                    if six.text_type(value).strip():
+                        yield Term(t.record_term_lc + '.' + six.text_type(col), six.text_type(value), [],
+                                   row=line_n,
+                                   col=col + 2,  # The 0th argument starts in col 2
+                                   file_name=filename,
+                                   parent=t)
+
+    def find_declare_doc(self, d, name):
+        """Given a name, try to resolve the name to a path or URL to
+        a declaration document. It will try:
+
+         * The name as a filesystem path
+         * The name as a file name in the directory d
+         * The name + '.csv' as a name in the directory d
+         * The name as a URL
+         * The name as a key in the standard_declares dict
+         * The name as a path in this module's metatab.declarations package
+
+         """
+
+        if exists(name):
+            return name
+
+        try:
+            # Look for a local document
+            return declaration_path(name)
+        except IncludeError:
+            pass
+
+        for fn in (join(d, name), join(d, name+'.csv')):
+            if exists(fn):
+                return fn
+
+        # substitute well known names
+        fn = standard_declares.get(name, name)
+
+        if fn.startswith('http'):
+            return fn.strip('/')  # Look for the file on the web
+        elif exists(fn):
+            return fn
+        else:
+            raise IncludeError("No local declaration file for '{}' ".format(fn))
 
     def __iter__(self):
-        import copy
 
         last_parent_term = 'root'
         last_term_map = {}
@@ -623,7 +664,7 @@ class TermInterpreter(object):
 
         try:
 
-            for i, t in enumerate(self._term_gen):
+            for i, t in enumerate(self.generate_terms(self._row_gen)):
 
                 if i == 0:
                     yield self.root
@@ -660,26 +701,17 @@ class TermInterpreter(object):
                     continue
 
                 if nt.term_is('declare'):
-                    from os.path import dirname, join
 
-                    t_val = nt.value.strip()
+                    nt.value = self.find_declare_doc(dirname(nt.file_name), nt.value.strip())
 
-                    # substitute well known names
-                    t_val = standard_declares.get(t_val, t_val)
-
-                    if t_val.startswith('http'):
-                        fn = t_val.strip('/')
-                    else:
-                        fn = join(dirname(nt.file_name), t_val)
-
-                    nt.value = fn
-
-                    if hasattr(self._term_gen, 'path') and self._term_gen.path == fn:
-                        raise IncludeError("Include loop for '{}' ".format(fn))
+                    if self.path == nt.value:
+                        raise IncludeError("Include loop for '{}' ".format(nt.value))
 
                     try:
-                        ti = TermInterpreter(TermGenerator(generateRows(fn)), False)
+
+                        ti = TermParser(generateRows(nt.value), False)
                         ti.install_declare_terms()
+                        list(ti)
                         self.import_declare_doc(ti.root.as_dict())
 
                     except IncludeError as e:
@@ -718,14 +750,12 @@ class TermInterpreter(object):
 
                     parent.add_child(nt)
                 except KeyError as e:
-                    import json
+
                     raise ParserError(("Failed to find parent term in last term map: {} {} \n" +
                                        "Term: \n    {}\nParents:\n    {}\nSynonyms:\n{}")
                                       .format(e.__class__.__name__, e, nt,
                                               last_term_map.keys(),
                                               json.dumps(self.synonyms, indent=4)))
-
-
 
                 yield nt
 
@@ -734,7 +764,10 @@ class TermInterpreter(object):
             raise
 
     def import_declare_doc(self, d):
-        """Import a declare doc that has been parsed and converted to a dict"""
+        """Import a declare doc that has been parsed and converted to a dict. Converts the
+        format to make it easier to use. """
+        from .exc import DeclarationError
+        assert isinstance(d, dict)
 
         def is_int(value):
             try:
@@ -746,31 +779,38 @@ class TermInterpreter(object):
         if 'declaresection' in d:
             for e in d['declaresection']:
                 if e:
-                    self._declared_sections[e['section_name'].lower()] = {
-                        'args': [v for k, v in sorted((k, v) for k, v in e.items() if is_int(k))],
-                        'terms': []
-                    }
-
-        if 'declareterm' in d:
-            for e in d['declareterm']:
-
-                if not isinstance(e, dict):  # It could be a string in odd cases
-                    continue
-
-                self._declared_terms[Term.normalize_term(e['term_name'])] = e
-
-                if 'section' in e and e['section']:
-
-                    if e['section'].lower() not in self._declared_sections:
+                    try:
                         self._declared_sections[e['section'].lower()] = {
+                            'args': [v for k, v in sorted((k, v) for k, v in e.items() if is_int(k))],
+                            'terms': []
+                        }
+                    except AttributeError:
+                        # Hopefully, b/c the DeclareSection entry has no args ( like 'Root' ) and
+                        # is getting returned as a Scalar
+                        assert isinstance(e, six.string_types)
+                        self._declared_sections[e.lower()] = {
                             'args': [],
                             'terms': []
                         }
 
+        if 'declareterm' in d:
+            for e in d['declareterm']:
+
+                if not isinstance(e, dict):  # It could be a string in odd cases, ie, no arg children
+                    continue
+
+                self._declared_terms[Term.normalize_term(e['term'])] = e
+
+                if e.get('section'):
+
+                    if e['section'].lower() not in self._declared_sections:
+                        raise DeclarationError(("Section '{}' is referenced in a term but was not "
+                                                "previously declared with DeclareSection").format(e['section']))
+
                     st = self._declared_sections[e['section'].lower()]['terms']
 
                     if e['section'] not in st:
-                        st.append(e['term_name'])
+                        st.append(e['term'])
 
         if 'declarevalueset' in d:
             for e in d['declarevalueset']:
@@ -778,13 +818,43 @@ class TermInterpreter(object):
                     if 'valueset' in v and e.get('name', None) == v['valueset']:
                         v['valueset'] = e['value']
 
+        def inherited_children(t):
+            """Generate inherited children based on a terms InhertsFrom property"""
+            if not t.get('inheritsfrom'):
+                return
+
+            if not 'section' in t :
+                raise DeclarationError("DeclareTerm for '{}' must specify a section to use InheritsFrom"
+                                       .format(t['term']))
+
+            t_p, t_r = Term.split_term(t['term'])
+            ih_p, ih_r = Term.split_term(t['inheritsfrom'])
+
+            # The inherited terms must come from the same section
+            section_terms = self._declared_sections[t['section'].lower()]['terms']
+
+            for st_name in section_terms:
+                if st_name.lower().startswith(ih_r.lower()+'.'):
+
+                    st_p, st_r = Term.split_term(st_name)
+                    # Yield the term, but replace the parent part
+                    subtype_name =  t_r+'.'+st_r
+
+                    subtype_d = dict(self._declared_terms[st_name.lower()].items())
+                    subtype_d['inheritsfrom'] = '';
+                    subtype_d['term'] = subtype_name
+
+                    yield subtype_d
+
+        for key, t in self._declared_terms.items():
+            for ih in list(inherited_children(t)):
+                self._declared_terms[ih['term'].lower()] = ih
+
 
 class MetatabDoc(object):
+    def __init__(self, terms=None, decl=None):
 
-    def __init__(self,  decl=None, terms=None):
-        from collections import OrderedDict
-
-        import collections
+        self._term_parser = terms
 
         self.decl_terms = {}
         self.decl_sections = {}
@@ -794,7 +864,7 @@ class MetatabDoc(object):
 
         if decl is None:
             self.decls = []
-        elif not isinstance(decl, collections.MutableSequence):
+        elif not isinstance(decl, MutableSequence):
             self.decls = [decl]
         else:
             self.decls = decl
@@ -805,17 +875,14 @@ class MetatabDoc(object):
             self.root = None
             self.load_terms(terms)
         else:
-            self.root = SectionTerm('Root', term='Root', doc=self._doc, row=0, col=0,
+            self.root = SectionTerm('Root', term='Root', doc=self, row=0, col=0,
                                     file_name=None, parent=None)
-
+            self.add_section(self.root)
 
     def load_declarations(self, decls):
-        from metatab import TermInterpreter, TermGenerator
-        from metatab import RowGenerator
 
         for dcl in decls:
-
-            term_interp = TermInterpreter(TermGenerator(RowGenerator([['Declare', dcl]], "<none>")))
+            term_interp = TermParser(generateRows([['Declare', dcl]], "<none>"))
             term_interp.run()
             dd = term_interp.declare_dict
 
@@ -825,20 +892,33 @@ class MetatabDoc(object):
         return self
 
     def add_term(self, t):
+        t.doc = self
 
-        # Section terms dont show up in the document as terms
+        # Section terms don't show up in the document as terms
         if isinstance(t, SectionTerm):
             self.add_section(t)
         else:
             self.terms.append(t)
 
-        if t.section:
+        if t.section and t.parent_term_lc == 'root':
             t.section = self.add_section(t.section)
+            t.section.add_term(t)
+
+    def remove_term(self, t):
+        self.terms.remove(t)
+
+        if t.section and t.parent_term_lc == 'root':
+            t.section = self.add_section(t.section)
+            t.section.remove_term(t)
 
     def add_section(self, s):
 
-        assert isinstance(s, SectionTerm)
+        s.doc = self
 
+        assert isinstance(s, SectionTerm), str(s)
+
+        # Coalesce sections, and if a foreign term is added with a foreign section
+        # it will get re-assigned to the local section
         if s.value.lower() not in self.sections:
             self.sections[s.value.lower()] = s
 
@@ -850,99 +930,108 @@ class MetatabDoc(object):
 
     def new_section(self, name, params=None):
         """Return a new section"""
-        self.sections[name] = SectionTerm(self, name, params, parent=self.root)
+        self.sections[name.lower()] = SectionTerm(name, term_args=params, doc=self, parent=self.root)
 
-        return self.sections[name]
+        return self.sections[name.lower()]
 
     def get_or_new_section(self, name, params=None):
         """Create a new section or return an existing one of the same name"""
         if name not in self.sections:
-            self.sections[name] = SectionTerm(self, name, params, parent = self.root)
+            self.sections[name] = SectionTerm(name, term_args=params, doc=self, parent=self.root)
 
         return self.sections[name]
 
     def get_section(self, name):
-        return self.sections[name]
+        return self.sections[name.lower()]
 
     def __getitem__(self, item):
         return self.get_section(item)
 
     def __delitem__(self, item):
 
-        if item in self.sections:
-            for t in self.sections[item]:
-                self.terms.remove(t)
+        try:
+            if item in self.sections:
+                for t in self.sections[item]:
+                    self.terms.remove(t)
 
-        del self.sections[item.lower()]
+            del self.sections[item.lower()]
+        except KeyError:
+            # Ignore errors
+            pass
 
     def __contains__(self, item):
-        for s in self.sections:
-            if s.name.lower() == item.lower():
-                return True
 
-        return False
+        return item.lower() in self.sections
 
     def __iter__(self):
         for s in self.sections.values():
             yield s
 
-    def find(self, term, section=None):
+    def find(self, term, value=False, section=None):
         """Return a list of terms, possibly in a particular section. Use joined term notation"""
 
         found = []
 
-        for t in self.parsed_terms:
-            if t.join_lc == term.lower() and (section is None or section.lower() == t.section.lower()):
+        for t in self.terms:
+
+            if (t.join_lc == term.lower()
+                and (section is None or section.lower() == t.section.lower())
+                and (value == False or value == t.value)):
                 found.append(t)
 
         return found
 
-    def find_first(self, term, section=None):
-        terms = self.find(term, section)
+    def find_first(self, term, value=False, section=None):
+        terms = self.find(term, value=value, section=section)
 
         if len(terms) > 0:
             return terms[0]
         else:
             return None
 
+    def find_first_value(self, term, value=False, section=None):
+        term = self.find_first(term, value=value, section=section)
+
+        if term is None:
+            return None
+        else:
+            return term.value
+
     def load_terms(self, terms):
         """Create a builder from a sequence of terms, usually a TermInterpreter"""
 
-        from .exc import MetatabError
-
         if self.root and len(self.root.children) > 0:
             raise MetatabError("Can't run after adding terms to document.")
+
+        for t in terms:
+
+            if t.record_term_lc == 'section':
+                self.add_section(t)
+            elif t.record_term_lc == 'root':
+                t.doc = self
+                self.root = t
+            elif t.parent_term_lc == 'root':
+                self.add_term(t)
 
         try:
             dd = terms.declare_dict
 
             self.decl_terms.update(dd['terms'])
             self.decl_sections.update(dd['sections'])
-        except AttributeError:
+
+        except AttributeError as e:
             pass
-
-        for t in terms:
-            t.doc = self
-
-            if t.record_term_lc == 'root':
-                self.root = t
-            else:
-                self.add_term(t)
 
         return self
 
     def load_rows(self, row_generator):
-        from metatab import TermGenerator, TermInterpreter
 
-        term_gen = list(TermGenerator(row_generator))
-
-        term_interp = TermInterpreter(term_gen)
+        term_interp = TermParser(row_generator)
 
         return self.load_terms(term_interp)
 
     def load_csv(self, file_name):
         """Load a Metatab CSV file into the builder to continue editing it. """
-        from metatab import CsvPathRowGenerator
         return self.load_rows(CsvPathRowGenerator(file_name))
 
     def as_dict(self):
@@ -958,7 +1047,8 @@ class MetatabDoc(object):
 
             if s.name != 'Root':
                 yield ['']
-                yield ['Section', s.name] + s.param_names
+                yield ['Section', s.value] + s.param_names
+
             for row in s.rows:
                 term, value = row
 
@@ -971,8 +1061,6 @@ class MetatabDoc(object):
 
     def as_csv(self):
         """Return a CSV representation as a string"""
-        import unicodecsv as csv
-        from cStringIO import StringIO
 
         s = StringIO()
         w = csv.writer(s)
@@ -986,13 +1074,6 @@ class MetatabDoc(object):
         with open(path, 'w') as f:
             f.write(self.as_csv())
 
-        def write_excel(self, path):
-            from .excel import write_excel
-
-            return write_excel(path, )
-
 
 def parse_file(file_name):
-    from . import CsvPathRowGenerator
-
-    return TermInterpreter(TermGenerator(CsvPathRowGenerator(file_name)))
+    return TermParser(CsvPathRowGenerator(file_name))
