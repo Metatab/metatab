@@ -29,8 +29,31 @@ def generateRows(ref):
     raise GenerateError("Cant figure out how to generate rows from ref: "+str(ref))
 
 
+class RowGenerator(object):
+    """An object that generates rows. The current implementation mostly just a wrapper around
+    csv.reader, but it add a path property so term interperters know where the terms are coming from
+    """
 
-class CsvUrlRowGenerator(object):
+    def __init__(self, rows, path=None):
+        self._rows = rows
+        self._path = path or '<none>'
+
+    @property
+    def path(self):
+        return self._path
+
+    def open(self):
+        pass
+
+    def close(self):
+        pass
+
+    def __iter__(self):
+        for row in self._rows:
+            yield row
+
+
+class CsvUrlRowGenerator(RowGenerator):
     """An object that generates rows. The current implementation mostly just a wrapper around
     csv.reader, but it add a path property so term interperters know where the terms are coming from
     """
@@ -72,7 +95,7 @@ class CsvUrlRowGenerator(object):
         self.close()
 
 
-class CsvPathRowGenerator(object):
+class CsvPathRowGenerator(RowGenerator):
     """An object that generates rows. The current implementation mostly just a wrapper around
     csv.reader, but it add a path property so term interperters know where the terms are coming from
     """
@@ -119,7 +142,7 @@ class CsvPathRowGenerator(object):
         self.close()
 
 
-class CsvDataRowGenerator(object):
+class CsvDataRowGenerator(RowGenerator):
     """Generate rows from CSV data, as a string
     """
 
@@ -148,28 +171,6 @@ class CsvDataRowGenerator(object):
             yield row
 
 
-class RowGenerator(object):
-    """An object that generates rows. The current implementation mostly just a wrapper around
-    csv.reader, but it add a path property so term interperters know where the terms are coming from
-    """
-
-    def __init__(self, rows, path=None):
-        self._rows = rows
-        self._path = path or '<none>'
-
-    @property
-    def path(self):
-        return self._path
-
-    def open(self):
-        pass
-
-    def close(self):
-        pass
-
-    def __iter__(self):
-        for row in self._rows:
-            yield row
 
 
 

@@ -1,4 +1,4 @@
-"Declare","https://raw.githubusercontent.com/CivicKnowledge/metatab/master/config/datapackage.csv",,,,
+"Declare","datapackage-latest",,,,
 "title","Country, Regional and World GDP (Gross Domestic Product)",,,,
 "description","Country, regional and world GDP in current US Dollars ($). Regional means collections of countries e.g. Europe & Central Asia. Data is sourced from the World Bank and turned into a standard normalized CSV.",,,,
 "name","gdp",,,,
@@ -16,7 +16,7 @@
 ,,,,,
 "Section ","Resources","type","format","foreignkey","description"
 "resource","gdp",,,,
-".path","data/gdp.csv",,,,
+"resource.path","data/gdp.csv",,,,
 "schema",,,,,
 "field","Country Name","string",,,
 "field","Contry Code","string",,"iso-3-geo-codes/id",
@@ -24,7 +24,7 @@
 "field","Value","number",,,"GDP in current USD"
 ,,,,,
 "resource","another_gdp_resource",,,,
-".path","data/other_gdp.csv",,,,
+"resource.path","data/other_gdp.csv",,,,
 "schema",,,,,
 "field","Country Name","string",,,
 "field","Contry Code","string",,"iso-3-geo-codes/id",
