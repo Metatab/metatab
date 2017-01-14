@@ -130,8 +130,9 @@ class MyTestCase(unittest.TestCase):
 
                 d = doc.as_dict()
 
-                l1 = sorted(['creator', 'datafile', 'declare', 'declarevalueset', 'description', 'documentation',
-                             'format', 'homepage', 'identifier', 'note', 'obsoletes', 'section',
+                l1 = sorted(['creator', 'datafile', 'declare', 'declaresection', 'declareterm', 'description',
+                             'displayvalue', 'documentation',
+                             'format', 'homepage', 'identifier', 'note', 'obsoletes',
                              'spatial', 'spatialgrain', 'table', 'time', 'title',
                              'version', 'wrangler'])
 
@@ -168,7 +169,7 @@ class MyTestCase(unittest.TestCase):
 
         d = term_interp.declare_dict
 
-        self.assertEqual(sorted(['terms', 'sections']), sorted(d.keys()))
+        self.assertEqual(sorted(['terms', 'synonyms', 'sections']), sorted(d.keys()))
 
         terms = d['terms']
 
@@ -188,7 +189,7 @@ class MyTestCase(unittest.TestCase):
 
         _ = term_interp.declare_dict
 
-        self.assertEqual({'terms', 'sections'}, set(d.keys()))
+        self.assertEqual({'terms', 'synonyms', 'sections'}, set(d.keys()))
 
         terms = d['terms']
 
@@ -330,12 +331,12 @@ class MyTestCase(unittest.TestCase):
 
         doc = MetatabDoc(TermParser(test_data('example1.csv')))
 
-        self.assertEqual(['root', u'declaredvalues', u'resources', u'contacts', u'notes', u'schema'],
+        self.assertEqual(['root', u'resources', u'contacts', u'notes', u'schema'],
                          doc.sections.keys())
 
         del doc['Resources']
 
-        self.assertEqual(['root', u'declaredvalues', u'contacts', u'notes', u'schema'], doc.sections.keys())
+        self.assertEqual(['root', u'contacts', u'notes', u'schema'], doc.sections.keys())
 
         notes = list(doc['notes'])
 

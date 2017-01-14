@@ -22,7 +22,7 @@ if sys.argv[-1] == 'publish':
 with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
     readme = f.read()
 
-ps_meta = imp.load_source('_meta', 'metatab/__meta__.py')
+ps_meta = imp.load_source('_meta', 'metatab/_meta.py')
 
 packages = find_packages()
 
@@ -31,7 +31,7 @@ tests_require = install_requires = parse_requirements('requirements.txt', sessio
 classifiers = [
     'Development Status :: 4 - Beta',
     'Intended Audience :: Developers',
-    'License :: OSI Approved :: MIT License',
+    'License :: OSI Approved :: BSD License',
     'Operating System :: OS Independent',
     'Programming Language :: Python',
     'Programming Language :: Python :: 2.7',
@@ -53,17 +53,15 @@ setup(
     entry_points={
         'console_scripts': [
             'metatab=metatab.cli:metatab',
-            'metapack=metatab.cli:metapack',
         ],
     },
 
     author=ps_meta.__author__,
     author_email=ps_meta.__author__,
     url='https://github.com/CivicKnowledge/metatab.git',
-    license='MIT',
+    license='BSD',
     classifiers=classifiers,
     extras_require={
-        'server': ['flask','bottle'],
         'test': ['datapackage'],
 
     }

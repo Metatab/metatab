@@ -1,4 +1,4 @@
-"Declare","metatab",,,,,
+"Declare","metatab-latest",,,,,
 "Title",,,,,,
 "Description",,,,,,
 "Name",,,,,,
@@ -9,9 +9,12 @@
 "SpatialGrain",,,,,,
 ,,,,,,
 "Section","Resources","Name","StartLine","HeaderLines","Encoding","Description"
+"Note","/data/example.csv",,,,,
 ,,,,,,
 "Section ","Contacts","email",,,,
+"Creator","Creator Name","Creator Email",,,,
 ,,,,,,
 "Section ","Notes",,,,,
+"Note",,,,,,
 ,,,,,,
 "Section","Schema","DataType","AltName","Description",,

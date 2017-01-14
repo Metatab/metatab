@@ -1,7 +1,0 @@
-# Requirements for the numbers server
-redis
-bottle
-paste
-decorator
-semantic_version
-requests

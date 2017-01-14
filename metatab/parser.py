@@ -203,26 +203,34 @@ class Term(object):
     def parent_term_lc(self):
         return self.parent_term.lower()
 
-    @property
-    def properties(self):
-        return dict(zip([str(e).lower() for e in self.section.property_names], self.args))
 
     def term_is(self, v):
 
-        v_p, v_r = self.split_term_lower(v)
+        if isinstance(v, six.string_types):
 
-        if self.record_term_lc == v.lower() or self.join_lc == v.lower():
-            return True
-        elif v_r == '*' and v_p == self.parent_term_lc:
-            return True
-        elif v_p == '*' and v_r == self.record_term_lc:
-            return True
+            v_p, v_r = self.split_term_lower(v)
+
+            if self.record_term_lc == v.lower() or self.join_lc == v.lower():
+                return True
+            elif v_r == '*' and v_p == self.parent_term_lc:
+                return True
+            elif v_p == '*' and v_r == self.record_term_lc:
+                return True
+            else:
+                return False
+
         else:
-            return False
+
+            return any(self.term_is(e) for e in v)
 
     @property
     def is_terminal(self):
         return len(self.children) == 0
+
+    @property
+    def properties(self):
+        return dict(zip([str(e).lower() for e in self.section.property_names], self.args))
+
 
     def as_dict(self):
         return self._convert_to_dict(self)
@@ -279,7 +287,7 @@ class Term(object):
 
         # Translate the term value name so it can be assigned to a parameter.
         tvm = self.section.doc.decl_terms.get(self.qualified_term, {}).get('termvaluename', '@value')
-
+        assert tvm
         # Terminal children have no arguments, just a value. Here we put the terminal children
         # in a property array, so they can be written to the parent's arg-children columns
         # if the section has any.
@@ -288,6 +296,7 @@ class Term(object):
 
         for c in self.children:
             if c.is_terminal:
+                assert c.record_term_lc
                 properties[c.record_term_lc] = c.value
 
         yield (self.qualified_term, properties)
@@ -406,16 +415,17 @@ class SectionTerm(Term):
             yield t
 
     def _args(self, term, d):
-        """Extract the chldren of a term that are arg-children fro mthose that are row-children. """
+        """Extract the chldren of a term that are arg-children from those that are row-children. """
 
         # Get the term value name, the property name that should be assigned to the term value.
         tvm = self.doc.decl_terms.get(term, {}).get('termvaluename', '@value')
 
         # Convert the keys to lower case
+
         lower_d = {k.lower(): v for k, v in d.items()}
 
         args = []
-        for n in [tvm] + self.param_names:
+        for n in [tvm] + self.property_names:
             args.append(lower_d.get(n.lower(), ''))
 
             try:
@@ -501,6 +511,7 @@ class TermParser(object):
 
     @property
     def path(self):
+        """Return the path from the row generator, if it is avilable"""
         try:
             return self._row_gen.path
         except AttributeError:
@@ -512,8 +523,15 @@ class TermParser(object):
         return self._declared_sections
 
     @property
-    def synonyms(self):
+    def declared_terms(self):
+        """Returns a list of pre-defined terms, from the declaration doc. To get parsed terms
+        use `parsed_terms`"""
 
+        return self._declared_terms
+
+    @property
+    def synonyms(self):
+        """Return a dict of term synonyms"""
         syns = {}
 
         for k, v in self._declared_terms.items():
@@ -527,15 +545,8 @@ class TermParser(object):
         return syns
 
     @property
-    def terms(self):
-        """Returns a list of pre-defined terms, from the declaration doc. To get parsed terms
-        use `parsed_terms`"""
-
-        return self._declared_terms
-
-    @property
     def declare_dict(self):
-
+        """Return declared sections, terms and synonyms as a dict"""
         # Run the parser, if it has not been run yet.
         if not self.root:
             for _ in self: pass
@@ -543,9 +554,11 @@ class TermParser(object):
         return {
             'sections': self._declared_sections,
             'terms': self._declared_terms,
+            'synonyms': self.synonyms
         }
 
     def install_declare_terms(self):
+        """Set pre-defined terms that are requred for parsing declaration documents"""
 
         self._declared_terms.update({
             'root.section': {'termvaluename': 'name'},
@@ -569,7 +582,7 @@ class TermParser(object):
             nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc]);
 
     def errors_as_dict(self):
-
+        """Return parse errors as a dict"""
         errors = []
         for e in self.errors:
             errors.append({
@@ -621,6 +634,7 @@ class TermParser(object):
 
     @classmethod
     def find_include_doc(cls, d, name):
+        """Resolve a name or path for an include doc to a an absolute path or url"""
 
         include_ref = name.strip('/')
 
@@ -676,17 +690,17 @@ class TermParser(object):
                 if t.term_is('include') or t.term_is('declare'):
 
                     if t.term_is('include'):
-                        t.value = cls.find_include_doc(dirname(ref), t.value.strip())
+                        resolved= cls.find_include_doc(dirname(ref), t.value.strip())
                     else:
-                        t.value = cls.find_declare_doc(dirname(ref), t.value.strip())
+                        resolved = cls.find_declare_doc(dirname(ref), t.value.strip())
 
-                    if ref == t.value:
-                        raise IncludeError("Include loop for '{}' ".format(t.value))
+                    if ref == resolved:
+                        raise IncludeError("Include loop for '{}' ".format(resolved))
 
                     yield t
 
                     try:
-                        for t in cls.generate_terms(t.value, root=root):
+                        for t in cls.generate_terms(resolved, root=root):
                             yield t
 
                         if last_section:
@@ -728,6 +742,8 @@ class TermParser(object):
         try:
 
             for i, t in enumerate(self.generate_terms(self._ref)):
+
+                yield_term = True
 
                 if t.term_is('root.root') and last_section is None:
                     self.root = t
@@ -775,18 +791,11 @@ class TermParser(object):
 
                 t.section = last_section
 
-                if t.term_is('root.declaresection'):
-                    self.add_declared_section(t)
+                continue_flag, yield_term = self.manage_declare_terms(t)
+
+                if continue_flag:
                     continue
 
-                elif t.term_is('declaresection.*'):
-                    continue # All of the values are accessed as properties
-
-                elif t.term_is('root.declareterm'):
-                    self.add_declared_term(t)
-                    continue
-                elif t.term_is('declareterm.*'):
-                    continue # All of the values are accessed as properties
 
                 t.child_property_type = self._declared_terms\
                     .get(t.join, {})\
@@ -823,11 +832,36 @@ class TermParser(object):
                                               last_term_map.keys(),
                                               json.dumps(sorted(self.synonyms.items()), indent=4)))
 
-                yield t
+                if yield_term:
+                    yield t
 
         except IncludeError as e:
             self.errors.add(e)
             raise
+
+    def manage_declare_terms(self, t):
+
+        if t.term_is([
+            'declaresection.*',
+            'declareterm.*',
+            'declarevalueset.*',
+            'root.declarevalueset'
+        ]):
+            return (True, False)
+
+        if t.term_is('root.declaresection'):
+            self.add_declared_section(t)
+            yield_term = False
+        elif t.term_is('root.declareterm'):
+            self.add_declared_term(t)
+            yield_term = False
+        elif t.term_is('value.*'):
+            self.add_value_set_value(t)
+            yield_term = False
+        else:
+            yield_term = True
+
+        return (False, yield_term)
 
     def add_declared_section(self,t):
         from .exc import DeclarationError
@@ -878,7 +912,7 @@ class TermParser(object):
 
         term_name = Term.normalize_term(t.value)
 
-        td = { k:(v if v.strip() else None) for k, v in t.properties.items()}
+        td = { k:v  for k, v in t.properties.items() if v.strip()}
         td['values'] = {}
         td['term'] = t.value
 
@@ -1115,7 +1149,7 @@ class MetatabDoc(object):
 
             if s.name != 'Root':
                 yield ['']
-                yield ['Section', s.value] + s.param_names
+                yield ['Section', s.value] + s.property_names
 
             for row in s.rows:
                 term, value = row
