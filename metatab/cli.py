@@ -7,9 +7,9 @@ import json
 import sys
 from uuid import uuid4
 
-from metatab import TermParser, Term, CsvPathRowGenerator, CsvUrlRowGenerator
+from metatab import TermParser, Term, CsvPathRowGenerator, CsvUrlRowGenerator, GenericRowGenerator
 from metatab import _meta, MetatabDoc
-from os.path import exists
+from os.path import exists, abspath
 LE = 'metadata.csv'
 
 
@@ -38,6 +38,7 @@ def metatab():
                    help='Parse a file and print out the stream of terms, after interpretation')
     g.add_argument('-j', '--json', default=False, action='store_true',
                    help='Parse a file and print out a JSON representation')
+
     g.add_argument('-p', '--package', default=False, action='store_true',
                    help='Produce a datapackage.json file')
     g.add_argument('-y', '--yaml', default=False, action='store_true',
@@ -60,25 +61,15 @@ def metatab():
         new_metatab_file(args.file, args.create)
         exit(0)
 
-    if args.file.startswith('http'):
-        rg = CsvUrlRowGenerator(args.file)
-    else:
-        rg = CsvPathRowGenerator(args.file)
-
-    term_gen = list(TermGenerator(rg))
-
-
     if args.declare:
-        term_gen = [Term('Root.Declare', args.declare, [], row=0, col=0, file_name='<commandline>')] + term_gen
+        raise NotImplementedError()
 
-    if args.package:
-        term_gen = [Term('Root.Declare',
-                         'https://raw.githubusercontent.com/CivicKnowledge/metatab/master/config/datapackage.csv',
-                         [], row=0, col=0, file_name='<commandline>')
-                    ] + term_gen
+    elif args.package:
+        raise NotImplementedError
 
-    term_interp = TermParser(term_gen)
-    doc = MetatabDoc(terms=term_interp)
+    rg = GenericRowGenerator(args.file)
+
+    term_interp = TermParser(rg)
 
     if args.show_declaration:
         term_interp.install_declare_terms()
@@ -93,15 +84,15 @@ def metatab():
             print(t)
 
     elif args.terms:
-        for t in term_gen:
+        for t in term_interp:
             print(t)
 
     elif args.json:
-        print(json.dumps(doc.as_dict(), indent=4))
+        print(json.dumps(MetatabDoc(terms=term_interp).as_dict(), indent=4))
 
     elif args.yaml:
         import yaml
-        print(yaml.safe_dump(doc.as_dict(), default_flow_style=False, indent=4))
+        print(yaml.safe_dump(MetatabDoc(terms=term_interp).as_dict(), default_flow_style=False, indent=4))
 
     exit(0)
 

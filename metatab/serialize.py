@@ -5,8 +5,8 @@
 """
 import collections
 from six import string_types
-from parser import TermParser
-from generate import RowGenerator
+from .parser import TermParser
+from .generate import RowGenerator
 
 class Serializer(object):
 

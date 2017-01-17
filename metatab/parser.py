@@ -6,21 +6,22 @@ Parser for the Simple Data Package format. The parser consists of several iterab
 objects.
 
 """
-
+from __future__ import print_function
 ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
 
 import copy
 import json
-from cStringIO import StringIO
+import six
+
 from collections import OrderedDict, MutableSequence
 
-import six
+
 import unicodecsv as csv
-from exc import IncludeError, ParserError, MetatabError, DeclarationError
-from generate import generateRows, CsvPathRowGenerator, RowGenerator
+from .exc import IncludeError, ParserError, MetatabError, DeclarationError
+from .generate import generateRows, CsvPathRowGenerator, RowGenerator
 from os.path import dirname, join, split, exists
-from util import declaration_path
+from .util import declaration_path
 
 # Well known declarations
 standard_declares = {
@@ -96,6 +97,8 @@ class Term(object):
         else:
             self.qualified_term = 'root.' + self.record_term_lc
 
+        assert self.file_name is None or isinstance(self.file_name, six.string_types)
+
     @classmethod
     def normalize_term(cls, term):
         return "{}.{}".format(*cls.split_term_lower(term))
@@ -133,6 +136,8 @@ class Term(object):
 
     def file_ref(self):
         """Return a string for the file, row and column of the term."""
+
+        assert self.file_name is None or isinstance(self.file_name, six.string_types)
 
         if self.file_name is not None and self.row is not None:
             parts = split(self.file_name);
@@ -229,10 +234,16 @@ class Term(object):
 
     @property
     def properties(self):
-        return dict(zip([str(e).lower() for e in self.section.property_names], self.args))
+        """Return the value and scalar properties as a dictionary"""
+        d =  dict(zip([str(e).lower() for e in self.section.property_names], self.args))
+        d[self.term_value_name.lower()] = self.value
 
+        return d
 
     def as_dict(self):
+        """Convert the term, and it's children, to a minimal data structure form, which may
+        be a scalar for a term with a single value or a dict if it has multiple proerties. """
+
         return self._convert_to_dict(self)
 
     @classmethod
@@ -365,6 +376,7 @@ class SectionTerm(Term):
         return t
 
     def get_term(self, term):
+        term = six.text_type(term)
         for t in self.terms:
 
             if t.term.lower() == term.lower():
@@ -661,6 +673,9 @@ class TermParser(object):
         else:
             row_gen = generateRows(ref)
 
+            if not isinstance(ref, six.string_types):
+                ref = six.text_type(ref)
+
         root = RootSectionTerm(file_name=ref)
 
         last_section = root
@@ -670,7 +685,7 @@ class TermParser(object):
         try:
             for line_n, row in enumerate(row_gen, 1):
 
-                if not row[0].strip() or row[0].strip().startswith('#'):
+                if not row or not row[0] or  not row[0].strip() or row[0].strip().startswith('#'):
                     continue
 
                 if row[0].lower().strip() == 'section':
@@ -727,10 +742,9 @@ class TermParser(object):
                                        file_name=ref,
                                        parent=t)
         except IncludeError as e:
-            exc =  IncludeError(e.message+"; in '{}' ".format(ref))
+            exc = IncludeError(e.message+"; in '{}' ".format(ref))
             exc.term = e.term if hasattr(e,'term') else None
             raise exc
-
 
     def __iter__(self):
 
@@ -796,7 +810,6 @@ class TermParser(object):
                 if continue_flag:
                     continue
 
-
                 t.child_property_type = self._declared_terms\
                     .get(t.join, {})\
                     .get('childpropertytype', 'any')
@@ -823,7 +836,8 @@ class TermParser(object):
                     else:
                         parent = last_term_map[last_parent_term]
 
-                    parent.add_child(t)
+                    if yield_term:
+                        parent.add_child(t)
                 except KeyError as e:
 
                     raise ParserError(("Failed to find parent term in last term map: {} {} \n" +
@@ -845,7 +859,9 @@ class TermParser(object):
             'declaresection.*',
             'declareterm.*',
             'declarevalueset.*',
-            'root.declarevalueset'
+            'root.declarevalueset',
+            'valueset.section',
+            'childpropertytype.section'
         ]):
             return (True, False)
 
@@ -922,7 +938,7 @@ class TermParser(object):
             section_name = td.get('section', '').lower()
 
             if section_name.lower() not in self._declared_sections:
-                print self._declared_sections.keys()
+                print(self._declared_sections.keys())
                 raise DeclarationError(("Section '{}' is referenced in a term but was not "
                                         "previously declared with DeclareSection, in '{}'")
                                        .format(section_name, t.file_name))
@@ -962,6 +978,7 @@ class MetatabDoc(object):
 
         self.terms = []
         self.sections = OrderedDict()
+        self.errors = []
 
         if decl is None:
             self.decls = []
@@ -1124,6 +1141,11 @@ class MetatabDoc(object):
         except AttributeError as e:
             pass
 
+        try:
+            self.errors = terms.errors_as_dict()
+        except AttributeError:
+            self.errors = {}
+
         return self
 
     def load_rows(self, row_generator):
@@ -1164,7 +1186,9 @@ class MetatabDoc(object):
     def as_csv(self):
         """Return a CSV representation as a string"""
 
-        s = StringIO()
+        from io import BytesIO
+
+        s = BytesIO()
         w = csv.writer(s)
         for row in self.rows:
             w.writerow(row)
@@ -1173,7 +1197,7 @@ class MetatabDoc(object):
 
     def write_csv(self, path):
 
-        with open(path, 'w') as f:
+        with open(path, 'wb') as f:
             f.write(self.as_csv())
 
 

@@ -6,7 +6,7 @@ import unittest
 from metatab import IncludeError
 from metatab import RowGenerator, TermParser, CsvPathRowGenerator, parse_file
 from metatab import MetatabDoc
-from metatab.util import flatten
+from metatab.util import flatten, declaration_path
 from metatab import TermParser, CsvPathRowGenerator, Serializer, Term
 from collections import defaultdict
 
@@ -49,7 +49,6 @@ class MyTestCase(unittest.TestCase):
 
         for t in tp:
             print(t)
-
 
         import json
         print(json.dumps(tp._declared_terms, indent=4))
@@ -143,7 +142,6 @@ class MyTestCase(unittest.TestCase):
 
     def test_declarations(self):
 
-        from util import declaration_path
 
         term_interp = TermParser(test_data('example1.csv'))
         _ = list(term_interp)
@@ -225,9 +223,11 @@ class MyTestCase(unittest.TestCase):
         d = doc.as_dict()
 
         self.assertEquals(['Include File 1', 'Include File 2', 'Include File 3'], d['note'])
-        self.assertEquals(['/Volumes/Storage/proj/virt/ambry/metatab-py/test-data/include2.csv',
-                           'https://raw.githubusercontent.com/CivicKnowledge/structured_tables/master/test/data/include3.csv'],
-                          d['include'])
+
+        self.assertTrue(any('include2.csv' in e for e in d['include']))
+        self.assertTrue(any('include3.csv' in e for e in d['include']))
+
+
 
     def test_errors(self):
 
@@ -274,6 +274,16 @@ class MyTestCase(unittest.TestCase):
 
         print(f.name)
         #unlink(f.name)
+
+        fn = test_data('example1.csv')
+
+        doc = MetatabDoc(terms=TermParser(fn))
+
+        from metatab.datapackage import convert_to_datapackage
+
+
+        print(json.dumps(convert_to_datapackage(doc), indent=4))
+
 
     def test_serializer(self):
 
@@ -332,11 +342,11 @@ class MyTestCase(unittest.TestCase):
         doc = MetatabDoc(TermParser(test_data('example1.csv')))
 
         self.assertEqual(['root', u'resources', u'contacts', u'notes', u'schema'],
-                         doc.sections.keys())
+                         list(doc.sections.keys()))
 
         del doc['Resources']
 
-        self.assertEqual(['root', u'contacts', u'notes', u'schema'], doc.sections.keys())
+        self.assertEqual(['root', u'contacts', u'notes', u'schema'], list(doc.sections.keys()))
 
         notes = list(doc['notes'])
 
@@ -345,6 +355,20 @@ class MyTestCase(unittest.TestCase):
         for sname, s in doc.sections.items():
             print(sname, s.value)
 
+    def test_generic_row_generation(self):
+        from metatab import GenericRowGenerator
+
+        url = 'gs://14_nfiTtSiMSjDes6BSiLU-Gsqy8DIdUxpMaH6DswcVQ'
+
+        doc = MetatabDoc(TermParser(GenericRowGenerator(url)))
+
+        self.assertEquals('Registered Voters, By County',doc.find_first('root.title').value)
+
+        url = 'http://assets.metatab.org/examples/example-package.xls#meta'
+
+        doc = MetatabDoc(TermParser(GenericRowGenerator(url)))
+
+        self.assertEquals('17289303-73fa-437b-97da-2e1ed2cd01fd', doc.find_first('root.identifier').value)
 
 if __name__ == '__main__':
     unittest.main()

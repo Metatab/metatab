@@ -31,19 +31,3 @@ Run ``metatab -h`` to get other program options.
 
 The ``test-data`` directory has test files that also serve as examples to parse. You can either clone the repo and parse them from the files, or from the Github page for the file, click on the ``raw`` button to get raw view of the flie, then copy the URL. 
 
-
-Running a Metatab Server in Docker
-----------------------------------
-
-The ``docker`` directory contains Dockerfiles and Makefiles to operate them. The numbers ane redis containers are needed
-only for production systems and the Google Spreadsheet plugin that generate ID numbers; you can safely ignore them.
-
-To build and run the test metatab container:
-
-.. code-block:: bash
-
-    $ cd docker/metatab
-    $ make build
-    $ make start
-    $ ./test.sh
-

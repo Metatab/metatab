@@ -27,15 +27,17 @@ def declaration_path(name):
 def slugify(value):
     """
     Normalizes string, converts to lowercase, removes non-alpha characters,
-    and converts spaces to hyphens.
+    and converts spaces to hyphens.type(
     """
     import re
     import unicodedata
-    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore')
-    value = unicode(re.sub('[^\w\s-]', '', value).strip().lower())
-    value = unicode(re.sub('[-\s]+', '-', value))
-
+    from six import text_type
+    value = text_type(value)
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('utf8')
+    value = re.sub(r'[^\w\s-]', '', value).strip().lower()
+    value = re.sub(r'[-\s]+', '-', value)
     return value
+
 
 def flatten(d, sep='.'):
     """Flatten a data structure into tuples"""

@@ -9,7 +9,7 @@ from .exc import GenerateError
 from .util import slugify
 from itertools import islice
 import unicodecsv as csv
-import cStringIO as StringIO
+from io import BytesIO
 from os import makedirs
 from os.path import splitext, basename, abspath, isdir, exists, join
 
@@ -25,23 +25,21 @@ class ZipPackage(object):
 
         self.in_doc = doc
         self.cache = cache
-        self.path = None
+        self.path = path
         self.zf = None
-        self.doc = None
+        self.doc = doc
         self.resources = None
         self.schema = None
-
-        self.package_name = slugify(self._init_doc(doc))
-        self._init_zf(path)
-        self._copy_resources(doc)
 
 
     def __del__(self):
         self.close()
 
     def run(self):
-        self._init_doc(self.in_doc)
+
+        self.package_name = slugify(self._init_doc(self.doc))
         self._init_zf(self.path)
+
         self._copy_resources(self.in_doc)
         self._write_doc()
 
@@ -51,21 +49,36 @@ class ZipPackage(object):
         if self.zf:
             self.zf.close()
 
-
     def _write_doc(self):
 
-        strio = StringIO.StringIO()
-        writer = csv.writer(strio)
+        bio = BytesIO()
+        writer = csv.writer(bio)
 
         writer.writerows(self.doc.rows)
 
-        self.zf.writestr(self.package_name+'/metadata.csv', strio.getvalue())
+        self.zf.writestr(self.package_name+'/metadata.csv', bio.getvalue())
 
 
     def _copy_section(self, section_name, doc):
 
         for t in doc[section_name]:
             self.doc.add_term(t)
+
+    def _init_zf(self, path):
+
+        from zipfile import ZipFile
+
+        if not exists(path):
+            makedirs(path)
+
+        name = self.doc.find_first_value('root.name')
+
+        if isdir(path):
+            self.path = join(path, slugify(name) + '.zip')
+        else:
+            self.path = path
+
+        self.zf = ZipFile(self.path, 'w')
 
     def _init_doc(self, in_doc, callback=None, cache=None):
         from . import MetatabDoc
@@ -86,10 +99,11 @@ class ZipPackage(object):
 
         return name
 
+
     def _copy_resources(self, in_doc, callback=None, cache=None):
 
         table_schemas = {t.value: t.as_dict()['column'] for t in in_doc['schema']}
-        file_resources = [fr.as_dict() for fr in in_doc['resources']]
+        file_resources = [fr.properties for fr in in_doc['resources'] if fr.term_is('root.datafile')]
 
         if len(table_schemas) == 0:
             raise GenerateError("Cant create package without table schemas")
@@ -105,52 +119,40 @@ class ZipPackage(object):
                 continue
 
             self._add_data_file(resource['url'], resource['name'], resource.get('description'),
-                                columns, int(resource.get('startline', 1))
-                                , resource.get('encoding', 'latin1'),
+                                columns, int(resource.get('startline', 1)),
+                                resource.get('encoding', 'latin1'),
                                 cache=cache)
-
-    def _init_zf(self, path):
-
-        from zipfile import ZipFile
-
-        if not exists(path):
-            makedirs(path)
-
-        name = self.doc.find_first_value('root.name')
-
-        if isdir(path):
-            self.path = join(path, slugify(name) + '.zip')
-        else:
-            self.path = path
-
-        self.zf = ZipFile(self.path,'w')
 
 
     def _add_data_file(self, ref, name, description, columns, start_line, encoding='latin1', cache=None):
         from rowgenerators import RowGenerator
         from fs.opener import fsopendir
+        from io import BytesIO
 
-        self.resources.new_term('Datafile', name, description=description)
+        package_path = 'data/'+name+'.csv'
+
+        self.resources.new_term('Datafile', package_path, description=description)
 
         if cache is None:
             cache = fsopendir('/tmp')
 
-        strio = StringIO.StringIO()
-        writer = csv.writer(strio)
+        bio = BytesIO()
+        writer = csv.writer(bio)
 
         table = self.schema.new_term('Table', name)
 
         ref, path, name = self._extract_path_name(ref)
 
         for c in columns:
-            table.new_child('Column', c['name'], datatype=c['datatype'])
+            table.new_child('Column', c['name'], datatype=c['datatype'],
+                            altname=c.get('altname'), description=c.get('description'))
 
         gen = islice(RowGenerator(url=ref, cache=cache, encoding=encoding), start_line, None)
 
         writer.writerow([c['name'] for c in columns])
         writer.writerows(gen)
 
-        self.zf.writestr(self.package_name+'/'+name+'.csv', strio.getvalue())
+        self.zf.writestr(self.package_name+'/'+package_path, bio.getvalue())
 
 
     @staticmethod

@@ -1,3 +1,4 @@
 six
 unicodecsv
 pyyaml
+datapackage

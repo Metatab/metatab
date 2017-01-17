@@ -16,7 +16,11 @@ class ParserError(MetatabError):
 
 
 class IncludeError(MetatabError):
-    pass
+    def __init__(self, *args, **kwargs):
+        self.message = ''
+        super(IncludeError, self).__init__(*args, **kwargs)
+
+
 
 class DeclarationError(ParserError):
     pass

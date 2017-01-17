@@ -1,15 +1,12 @@
 import unittest
 
-import collections
-import json
-from metatab import TermGenerator, TermParser, CsvPathRowGenerator, MetatabDoc
+from metatab import  MetatabDoc
 from metatab.util import flatten
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
 
     return abspath(join(dirname(dirname(abspath(__file__))), 'test-data', *paths))
-
 
 class TestBuilder(unittest.TestCase):
 
@@ -45,7 +42,7 @@ class TestBuilder(unittest.TestCase):
         terms = list(doc.terms)
 
         for row in doc:
-            print row
+            print(row)
 
 
 
@@ -55,9 +52,9 @@ class TestBuilder(unittest.TestCase):
 
         s = doc.new_section("SectionOne","A B C".split())
 
-        print doc.sections
+        print(doc.sections)
 
-        print doc.as_dict()
+        print(doc.as_dict())
 
 if __name__ == '__main__':
     unittest.main()
