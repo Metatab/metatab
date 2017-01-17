@@ -48,8 +48,6 @@ setup(
     packages=packages,
     include_package_data=True,
     zip_safe=False,
-    install_requires=[x for x in reversed([str(x.req) for x in install_requires])],
-    tests_require=[x for x in reversed([str(x.req) for x in tests_require])],
     entry_points={
         'console_scripts': [
             'metatab=metatab.cli:metatab',
