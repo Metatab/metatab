@@ -47,7 +47,13 @@ setup(
     long_description=readme,
     packages=packages,
     include_package_data=True,
-    install_requires=[x for x in reversed([str(x.req) for x in install_requires])],
+    install_requires=[
+        'six',
+        'unicodecsv',
+        'pyyaml',
+        'datapackage',
+        'rowgenerators'
+    ],
     entry_points={
         'console_scripts': [
             'metatab=metatab.cli:metatab',
