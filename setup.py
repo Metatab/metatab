@@ -3,7 +3,6 @@
 
 import os
 import sys
-from setuptools.command.test import test as TestCommand
 from setuptools import find_packages
 import uuid
 import imp
@@ -25,8 +24,6 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
 ps_meta = imp.load_source('_meta', 'metatab/_meta.py')
 
 packages = find_packages()
-
-tests_require = install_requires = parse_requirements('requirements.txt', session=uuid.uuid1())
 
 classifiers = [
     'Development Status :: 4 - Beta',
@@ -54,6 +51,10 @@ setup(
         'datapackage',
         'rowgenerators'
     ],
+    dependency_links=[
+        'git+https://github.com/CivicKnowledge/rowgenerators.git#egg=rowgenerators'
+    ],
+    
     entry_points={
         'console_scripts': [
             'metatab=metatab.cli:metatab',
