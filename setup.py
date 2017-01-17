@@ -47,7 +47,7 @@ setup(
     long_description=readme,
     packages=packages,
     include_package_data=True,
-    zip_safe=False,
+    install_requires=[x for x in reversed([str(x.req) for x in install_requires])],
     entry_points={
         'console_scripts': [
             'metatab=metatab.cli:metatab',
