@@ -60,14 +60,14 @@
 "DeclareTerm","Fields.Format",,,"Schemas",,,"fields.format","Column.Format"
 "DeclareTerm","Fields.MissingValue",,,"Schemas",,,"fields.missingValue","Column.MissingValue"
 "DeclareTerm","Fields.Constraint",,,"Schemas",,,"fields.constraints","Column.Constraint"
-"DeclareTerm","Constraints.Required",,,"Schemas",,,"constraints.required","Constraint.Required"
-"DeclareTerm","Constraints.MinLength",,,"Schemas",,,"constraints.minLength","Constraint.MinLength"
-"DeclareTerm","Constraints.MaxLength",,,"Schemas",,,"constraints.maxLength","Constraint.MaxLength"
-"DeclareTerm","Constraints.Unique",,,"Schemas",,,"constraints.unique","Constraint.Unique"
-"DeclareTerm","Constraints.Pattern",,,"Schemas",,,"constraints.pattern","Constraint.Pattern"
-"DeclareTerm","Constraints.Minimum",,,"Schemas",,,"constraints.minimum","Constraint.Minimum"
-"DeclareTerm","Constraints.Maximum",,,"Schemas",,,"constraints.maximum","Constraint.Maximum"
-"DeclareTerm","Constraints.Enum",,,"Schemas",,,"constraints.enum","Constraint.Enum"
+"DeclareTerm","Constraints.Required",,,"Schemas",,,"constraints.required","Column.Required"
+"DeclareTerm","Constraints.MinLength",,,"Schemas",,,"constraints.minLength","Column.MinLength"
+"DeclareTerm","Constraints.MaxLength",,,"Schemas",,,"constraints.maxLength","Column.MaxLength"
+"DeclareTerm","Constraints.Unique",,,"Schemas",,,"constraints.unique","Column.Unique"
+"DeclareTerm","Constraints.Pattern",,,"Schemas",,,"constraints.pattern","Column.Pattern"
+"DeclareTerm","Constraints.Minimum",,,"Schemas",,,"constraints.minimum","Column.Minimum"
+"DeclareTerm","Constraints.Maximum",,,"Schemas",,,"constraints.maximum","Column.Maximum"
+"DeclareTerm","Constraints.Enum",,,"Schemas",,,"constraints.enum","Column.Enum"
 ,,,,,,,,
 "# Synonyms so users can write the singular versions of terms that appear as pularal in datapackage.json",,,,,,,,
 ,,,,,,,,

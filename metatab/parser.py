@@ -372,7 +372,7 @@ class SectionTerm(Term):
     def new_term(self, term, value, **kwargs):
         t = Term(term, value, doc=self.doc, parent=None, section=self).new_children(**kwargs)
 
-        self.terms.append(t)
+        self.doc.add_term(t)
         return t
 
     def get_term(self, term):
@@ -389,7 +389,7 @@ class SectionTerm(Term):
         t = self.get_term(term)
 
         if not t:
-            t = Term(term, value, doc=self.doc, parent=None, section=self).new_children(**kwargs)
+            t = self.new_term(term, value, **kwargs)
         else:
             if value is not None:
                 t.value = value
@@ -467,15 +467,13 @@ class SectionTerm(Term):
                     yield row
 
     def as_dict(self):
-        reset_children = False
-        if self.terms and not self.children:
-            self.children = self.terms
-            reset_children = True
+
+        old_children = self.children
+        self.children = self.terms
 
         d = super(SectionTerm, self).as_dict()
 
-        if reset_children:
-            self.children = []
+        self.children = old_children
 
         return d
 
@@ -967,7 +965,6 @@ class TermParser(object):
                     v['values'][value] = disp_value
 
 
-
 class MetatabDoc(object):
     def __init__(self, terms=None, decl=None):
 
@@ -1093,7 +1090,7 @@ class MetatabDoc(object):
         for t in self.terms:
 
             if (t.join_lc == term.lower()
-                and (section is None or section.lower() == t.section.lower())
+                and (section is None or section.lower() == t.section.name.lower())
                 and (value == False or value == t.value)):
                 found.append(t)
 
@@ -1158,10 +1155,47 @@ class MetatabDoc(object):
         """Load a Metatab CSV file into the builder to continue editing it. """
         return self.load_rows(CsvPathRowGenerator(file_name))
 
+    def cleanse(self):
+        """Clean up some terms, like ensuring that the name is a slug"""
+        from .util import slugify
+        from uuid import uuid4
+
+        identity = self.find_first('Root.Identifier', section='root')
+
+        if not identity:
+            self['Root'].new_term('Root.Identifier', six.text_type(uuid4()))
+            identity = self.find_first('Root.Identifier', section='root')
+            assert identity is not None
+
+        name = self.find_first('Root.Name', section='root')
+
+        if name:
+            name.value = slugify(name.value)
+        else:
+            self['Root']['Name'] = slugify(identity.value)
+
+        version = self.find_first('Root.Version', section='root')
+
+        if version and not version.value:
+            version.value = 1
+        elif not version:
+            self['Root']['Version'] = 1
+
+
     def as_dict(self):
         """Iterate, link terms and convert to a dict"""
 
-        return self.root.as_dict()
+        # This function is a hack, due to confusion between the root of the document, which
+        # should contain all terms, and the root section, which has only terms that are not
+        # in another section.
+
+        r = RootSectionTerm()
+
+        for s in self:
+            for t in s:
+                r.terms.append(t)
+
+        return r.as_dict()
 
     @property
     def rows(self):
@@ -1196,6 +1230,8 @@ class MetatabDoc(object):
         return s.getvalue()
 
     def write_csv(self, path):
+
+        self.cleanse()
 
         with open(path, 'wb') as f:
             f.write(self.as_csv())

@@ -20,10 +20,11 @@ class IncludeError(MetatabError):
         self.message = ''
         super(IncludeError, self).__init__(*args, **kwargs)
 
-
-
 class DeclarationError(ParserError):
     pass
 
-class GenerateError(ParserError):
+class GenerateError(MetatabError):
+    pass
+
+class ConversionError(MetatabError):
     pass

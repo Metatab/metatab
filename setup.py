@@ -51,9 +51,7 @@ setup(
         'datapackage',
         'rowgenerators'
     ],
-    dependency_links=[
-        'git+https://github.com/CivicKnowledge/rowgenerators.git#egg=rowgenerators'
-    ],
+
     
     entry_points={
         'console_scripts': [

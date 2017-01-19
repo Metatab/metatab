@@ -5,16 +5,22 @@
 A Class for writing Zip packages in Metatab package format.
 """
 
-from .exc import GenerateError
-from .util import slugify
 from itertools import islice
+
 import unicodecsv as csv
+from fs.opener import fsopendir
 from io import BytesIO
 from os import makedirs
 from os.path import splitext, basename, abspath, isdir, exists, join
+import json
+from rowgenerators import RowGenerator
+from rowgenerators.util import parse_url_to_dict
+from .exc import GenerateError
+from .util import slugify
+
 
 class ZipPackage(object):
-    def __init__(self, doc, path, cache):
+    def __init__(self,  path, cache):
         """
 
         :param doc: Input Mettab document
@@ -23,11 +29,9 @@ class ZipPackage(object):
         :return:
         """
 
-        self.in_doc = doc
         self.cache = cache
         self.path = path
         self.zf = None
-        self.doc = doc
         self.resources = None
         self.schema = None
 
@@ -35,13 +39,15 @@ class ZipPackage(object):
     def __del__(self):
         self.close()
 
-    def run(self):
+    def run(self, doc):
 
-        self.package_name = slugify(self._init_doc(self.doc))
+        self.package_name = slugify(self._init_doc(doc))
         self._init_zf(self.path)
 
-        self._copy_resources(self.in_doc)
+        self._copy_resources(doc)
         self._write_doc()
+
+        self._write_dpj(doc)
 
         return self
 
@@ -119,15 +125,12 @@ class ZipPackage(object):
                 continue
 
             self._add_data_file(resource['url'], resource['name'], resource.get('description'),
-                                columns, int(resource.get('startline', 1)),
+                                columns, int(resource.get('startline') if resource.get('startline') else 1),
                                 resource.get('encoding', 'latin1'),
                                 cache=cache)
 
 
     def _add_data_file(self, ref, name, description, columns, start_line, encoding='latin1', cache=None):
-        from rowgenerators import RowGenerator
-        from fs.opener import fsopendir
-        from io import BytesIO
 
         package_path = 'data/'+name+'.csv'
 
@@ -158,8 +161,6 @@ class ZipPackage(object):
     @staticmethod
     def _extract_path_name(ref):
 
-        from rowgenerators.util import parse_url_to_dict
-
         uparts = parse_url_to_dict(ref)
 
         if not uparts['scheme']:
@@ -171,3 +172,9 @@ class ZipPackage(object):
             name = basename(splitext(uparts['path'])[0])
 
         return ref, path, name
+
+    def _write_dpj(self, doc):
+        from .datapackage import  convert_to_datapackage
+
+        self.zf.writestr(self.package_name + '/datapackage.json', json.dumps(convert_to_datapackage(doc), indent=4))
+

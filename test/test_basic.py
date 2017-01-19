@@ -94,7 +94,7 @@ class MyTestCase(unittest.TestCase):
 
         fn = test_data('example1.csv')
 
-        with open(fn) as f:
+        with open(fn, 'rb') as f:
             str_data = f.read();
 
         with open(fn) as f:
@@ -129,11 +129,9 @@ class MyTestCase(unittest.TestCase):
 
                 d = doc.as_dict()
 
-                l1 = sorted(['creator', 'datafile', 'declare', 'declaresection', 'declareterm', 'description',
-                             'displayvalue', 'documentation',
-                             'format', 'homepage', 'identifier', 'note', 'obsoletes',
-                             'spatial', 'spatialgrain', 'table', 'time', 'title',
-                             'version', 'wrangler'])
+                l1 = sorted(['creator', 'datafile', 'declare', 'description', 'documentation', 'format', 'homepage',
+                             'identifier', 'name', 'note', 'obsoletes', 'spatial', 'spatialgrain', 'table', 'time',
+                             'title', 'version', 'wrangler'] )
 
                 l2 = sorted(str(e) for e in d.keys())
 
@@ -208,9 +206,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_children(self):
 
-        fn = test_data('children.csv')
-
-        doc = MetatabDoc(terms=TermParser(fn))
+        doc = MetatabDoc(TermParser(test_data('children.csv')))
 
         for t in doc.as_dict()['parent']:
             self.assertEquals({'prop1': 'prop1', 'prop2': 'prop2', '@value': 'parent'}, t)
@@ -249,45 +245,9 @@ class MyTestCase(unittest.TestCase):
 
         self.assertTrue('bad_declare.csv' in e[0]['error'])
 
-    def test_datapackage(self):
-        from tempfile import NamedTemporaryFile
-        import datapackage
-        from os import unlink
-
-        ti = TermParser(test_data('datapackage_ex2.csv'))
-
-        doc = MetatabDoc(terms=ti)
-
-        d = doc.as_dict()
-
-        f = open('/tmp/package.json', 'w') #NamedTemporaryFile(delete=False)
-        f.write(json.dumps(d, indent=4))
-        f.close()
-
-        try:
-            dp = datapackage.DataPackage(f.name)
-            dp.validate()
-        except:
-            with open(f.name) as f2:
-                print(f2.read())
-            raise
-
-        print(f.name)
-        #unlink(f.name)
-
-        fn = test_data('example1.csv')
-
-        doc = MetatabDoc(terms=TermParser(fn))
-
-        from metatab.datapackage import convert_to_datapackage
-
-
-        print(json.dumps(convert_to_datapackage(doc), indent=4))
 
 
     def test_serializer(self):
-
-
 
         doc = MetatabDoc(TermParser(test_data('schema.csv')))
         d = doc.as_dict()
@@ -369,6 +329,55 @@ class MyTestCase(unittest.TestCase):
         doc = MetatabDoc(TermParser(GenericRowGenerator(url)))
 
         self.assertEquals('17289303-73fa-437b-97da-2e1ed2cd01fd', doc.find_first('root.identifier').value)
+
+    def test_datapackage_declare(self):
+        from tempfile import NamedTemporaryFile
+        import datapackage
+        from os import unlink
+
+        ti = TermParser(test_data('datapackage_ex2.csv'))
+
+        doc = MetatabDoc(terms=ti)
+
+        d = doc.as_dict()
+
+        f = open('/tmp/package.json', 'w')  # NamedTemporaryFile(delete=False)
+        f.write(json.dumps(d, indent=4))
+        f.close()
+
+        try:
+            dp = datapackage.DataPackage(f.name)
+            dp.validate()
+        except:
+            with open(f.name) as f2:
+                print(f2.read())
+            raise
+
+        print(f.name)
+        # unlink(f.name)
+
+        fn = test_data('example1.csv')
+
+        doc = MetatabDoc(terms=TermParser(fn))
+
+        from metatab.datapackage import convert_to_datapackage
+
+        print(json.dumps(convert_to_datapackage(doc), indent=4))
+
+    def test_datapackage_convert(self):
+        import datapackage
+        from metatab.datapackage import convert_to_datapackage
+
+        fn = test_data('example1.csv')
+
+        doc = MetatabDoc(terms=TermParser(fn))
+
+        dp = convert_to_datapackage(doc)
+
+        print(json.dumps(dp, indent=4))
+
+        dp = datapackage.DataPackage(dp)
+        dp.validate()
 
 if __name__ == '__main__':
     unittest.main()
