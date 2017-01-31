@@ -7,9 +7,10 @@ import json
 import sys
 from uuid import uuid4
 
-from metatab import TermParser, Term, CsvPathRowGenerator, CsvUrlRowGenerator, GenericRowGenerator
+from metatab import TermParser, GenericRowGenerator
 from metatab import _meta, MetatabDoc
-from os.path import exists, abspath
+from os.path import exists
+
 LE = 'metadata.csv'
 
 
@@ -67,32 +68,25 @@ def metatab():
     elif args.package:
         raise NotImplementedError
 
-    rg = GenericRowGenerator(args.file)
-
-    term_interp = TermParser(rg)
+    doc = MetatabDoc(args.file)
 
     if args.show_declaration:
-        term_interp.install_declare_terms()
-        declare_ti = TermParser([])
-        declare_ti.import_declare_doc(term_interp.as_dict())
-        dicts = declare_ti.declare_dict
-        print(json.dumps(dicts, indent=4))
-        exit(0)
 
-    if args.interp:
-        for t in list(term_interp):
-            print(t)
+        print(json.dumps({
+            'terms': doc.decl_terms,
+            'sections': doc.decl_sections
+        }, indent=4))
 
     elif args.terms:
-        for t in term_interp:
+        for t in doc._term_parser:
             print(t)
 
     elif args.json:
-        print(json.dumps(MetatabDoc(terms=term_interp).as_dict(), indent=4))
+        print(json.dumps(doc.as_dict(), indent=4))
 
     elif args.yaml:
         import yaml
-        print(yaml.safe_dump(MetatabDoc(terms=term_interp).as_dict(), default_flow_style=False, indent=4))
+        print(yaml.safe_dump(doc.as_dict(), default_flow_style=False, indent=4))
 
     exit(0)
 

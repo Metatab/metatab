@@ -80,12 +80,11 @@ class Serializer(object):
                     yield (k, e)
 
 
-
     def load_declarations(self, d):
 
         def _load_declaration(dcl):
 
-            term_interp = TermParser(RowGenerator([['Declare', dcl]], "<none>"))
+            term_interp = Met(RowGenerator([['Declare', dcl]], "<none>"))
 
             _ = list(term_interp)
 

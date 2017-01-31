@@ -21,8 +21,8 @@ def generateRows(ref):
     elif isinstance(ref, string_types):
         if exists(ref):
             return CsvPathRowGenerator(ref)
-        elif ref.startswith('http'):
-            return CsvUrlRowGenerator(ref)
+        elif ref.startswith('http') or ref.startswith('gs') or ref.startswith('socrata') :
+            return GenericRowGenerator(ref)
         else:
             raise IncludeError("Ref isn't a path, or doesn't exist: "+str(ref))
 

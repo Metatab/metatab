@@ -19,12 +19,13 @@ def test_data(*paths):
 
 class MyTestCase(unittest.TestCase):
     def compare_dict(self, a, b):
+
         fa = set('{}={}'.format(k, v) for k, v in flatten(a));
         fb = set('{}={}'.format(k, v) for k, v in flatten(b));
 
         # The declare lines move around a lot, and rarely indicate an error
         fa = {e for e in fa if not e.startswith('declare=')}
-        fb = {e for e in fa if not e.startswith('declare=')}
+        fb = {e for e in fb if not e.startswith('declare=')}
 
         errors = len(fa - fb) + len(fb - fa)
 
@@ -45,24 +46,27 @@ class MyTestCase(unittest.TestCase):
 
     def test_new_parser(self):
 
-        tp = TermParser(test_data('short.csv'))
+        tp = MetatabDoc(test_data('short.csv'))
 
-        for t in tp:
+        for t in tp.terms:
             print(t)
 
         import json
-        print(json.dumps(tp._declared_terms, indent=4))
+        print(json.dumps(tp.decl_terms, indent=4))
 
     def test_parse_everything(self):
         import json
         from os.path import exists
-        from metatab import TermParser, CsvPathRowGenerator
 
-        for fn in ['example1.csv', 'example2.csv', 'example1-web.csv',
-                   'include1.csv', 'include2.csv', 'include3.csv',
-                   'children.csv', 'children2.csv',
-                   'datapackage_ex1.csv', 'datapackage_ex1_web.csv', 'datapackage_ex2.csv',
-                   'issue1.csv']:
+        all = ['example1.csv', 'example2.csv', 'example1-web.csv',
+               'include1.csv', 'include2.csv', 'include3.csv',
+               'children.csv', 'children2.csv',
+               'datapackage_ex1.csv', 'datapackage_ex1_web.csv', 'datapackage_ex2.csv',
+               'issue1.csv']
+
+        all = ['example1.csv']
+
+        for fn in all:
 
             print('Testing ', fn);
 
@@ -72,18 +76,19 @@ class MyTestCase(unittest.TestCase):
 
             with open(path) as f:
 
-                doc = MetatabDoc(terms=TermParser(path))
+                doc = MetatabDoc(path)
                 d = doc.as_dict()
 
                 if not exists(json_path):
                     with open(json_path, 'w') as f:
+                        print("Writing", json_path)
                         json.dump(d, f, indent=4)
 
                 with open(json_path) as f:
                     d2 = json.load(f)
 
-                import json
-                # print(json.dumps(doc._term_parser.declare_dict, indent=4))
+                #import json
+                #print(json.dumps(d, indent=4))
 
                 self.compare_dict(d, d2)
 
@@ -125,13 +130,13 @@ class MyTestCase(unittest.TestCase):
 
                 rg = rg_args[0](*rg_args[1:])
 
-                doc = MetatabDoc(TermParser(rg))
+                doc = MetatabDoc(rg)
 
                 d = doc.as_dict()
 
                 l1 = sorted(['creator', 'datafile', 'declare', 'description', 'documentation', 'format', 'homepage',
                              'identifier', 'name', 'note', 'obsoletes', 'spatial', 'spatialgrain', 'table', 'time',
-                             'title', 'version', 'wrangler'] )
+                             'title', 'version', 'wrangler']  )
 
                 l2 = sorted(str(e) for e in d.keys())
 
@@ -141,10 +146,9 @@ class MyTestCase(unittest.TestCase):
     def test_declarations(self):
 
 
-        term_interp = TermParser(test_data('example1.csv'))
-        _ = list(term_interp)
+        doc = MetatabDoc(test_data('example1.csv'))
 
-        d = {k: v for k, v in term_interp.declare_dict['terms'].items() if 'homepage' in k}
+        d = {k: v for k, v in doc.decl_terms.items() if 'homepage' in k}
 
         self.assertEqual(16, len(d))
 
@@ -159,21 +163,15 @@ class MyTestCase(unittest.TestCase):
 
         fn = test_data('example1.csv')  # Not acutally used. Sets base directory
 
-        term_interp = TermParser(RowGenerator([['Declare', 'metatab']], fn))
+        doc =  MetatabDoc(RowGenerator([['Declare', 'metatab']], fn))
 
-        list(term_interp)  # Run the iterator
-
-        d = term_interp.declare_dict
-
-        self.assertEqual(sorted(['terms', 'synonyms', 'sections']), sorted(d.keys()))
-
-        terms = d['terms']
+        terms = doc.decl_terms
 
         self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
         self.assertEquals(190, len(terms.keys()))
 
-        sections = d['sections']
+        sections = doc.decl_sections
 
         self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas'},
                           set(sections.keys()))
@@ -181,9 +179,9 @@ class MyTestCase(unittest.TestCase):
         # Use the Declare term
 
         fn = test_data('example1.csv')
-        term_interp = TermParser(CsvPathRowGenerator(fn))
+        doc = MetatabDoc(CsvPathRowGenerator(fn))
 
-        _ = term_interp.declare_dict
+        d = doc._term_parser.declare_dict
 
         self.assertEqual({'terms', 'synonyms', 'sections'}, set(d.keys()))
 
@@ -191,7 +189,7 @@ class MyTestCase(unittest.TestCase):
 
         self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
-        self.assertEquals(190, len(terms.keys()))
+        self.assertEquals(228, len(terms.keys()))
 
         sections = d['sections']
 
@@ -206,17 +204,43 @@ class MyTestCase(unittest.TestCase):
 
     def test_children(self):
 
-        doc = MetatabDoc(TermParser(test_data('children.csv')))
+        doc = MetatabDoc(test_data('children.csv'))
+
+        for t in doc.terms:
+            print(t)
+
+        import json
+        print(json.dumps(doc.as_dict(), indent=4))
 
         for t in doc.as_dict()['parent']:
             self.assertEquals({'prop1': 'prop1', 'prop2': 'prop2', '@value': 'parent'}, t)
 
+    def test_term_addition(self):
+
+        doc = MetatabDoc(test_data('example1.csv'))
+
+        for sec in doc:
+            print (sec)
+
+        return
+
+        for t in doc.terms:
+            print(t)
+
+        import json
+        print(json.dumps(doc.as_dict(), indent=4))
+
+
+
     def test_includes(self):
 
-        fn = test_data('include1.csv')
-
-        doc = MetatabDoc(TermParser(fn))
+        doc = MetatabDoc(test_data('include1.csv'))
         d = doc.as_dict()
+
+        for t in doc['root'].terms:
+            print(t)
+
+        print(d)
 
         self.assertEquals(['Include File 1', 'Include File 2', 'Include File 3'], d['note'])
 
@@ -228,10 +252,13 @@ class MyTestCase(unittest.TestCase):
     def test_errors(self):
 
         def errs(fn):
-            ti = TermParser(CsvPathRowGenerator(fn))
+
             with self.assertRaises(IncludeError):
-                _ = list(ti)
-            return ti.errors_as_dict()
+                doc = MetatabDoc()
+                tp = TermParser(CsvPathRowGenerator(fn), doc=doc)
+                _ = list(tp)
+
+            return tp.errors_as_dict()
 
         e = errs(test_data('errors/bad_include.csv'))
 
@@ -249,7 +276,9 @@ class MyTestCase(unittest.TestCase):
 
     def test_serializer(self):
 
-        doc = MetatabDoc(TermParser(test_data('schema.csv')))
+        return
+
+        doc = MetatabDoc(test_data('schema.csv'))
         d = doc.as_dict()
 
         s = Serializer()
@@ -283,14 +312,14 @@ class MyTestCase(unittest.TestCase):
 
         from metatab import TermParser, CsvPathRowGenerator
 
-        d1 = TermParser(CsvPathRowGenerator(test_data('example1-headers.csv'))).root.as_dict()
-        d2 = TermParser(CsvPathRowGenerator(test_data('example1.csv'))).root.as_dict()
+        d1 = MetatabDoc(test_data('example1-headers.csv')).root.as_dict()
+        d2 = MetatabDoc(test_data('example1.csv')).root.as_dict()
 
         self.compare_dict(d1, d2)
 
     def test_find(self):
 
-        doc = MetatabDoc(TermParser(test_data('example1.csv')))
+        doc = MetatabDoc(test_data('example1.csv'))
 
         self.assertEquals('cdph.ca.gov-hci-registered_voters-county', doc.find_first('Root.Identifier').value)
 
@@ -298,8 +327,7 @@ class MyTestCase(unittest.TestCase):
 
         from metatab import parse_file, MetatabDoc
 
-
-        doc = MetatabDoc(TermParser(test_data('example1.csv')))
+        doc = MetatabDoc(test_data('example1.csv'))
 
         self.assertEqual(['root', u'resources', u'contacts', u'notes', u'schema'],
                          list(doc.sections.keys()))
@@ -320,13 +348,13 @@ class MyTestCase(unittest.TestCase):
 
         url = 'gs://14_nfiTtSiMSjDes6BSiLU-Gsqy8DIdUxpMaH6DswcVQ'
 
-        doc = MetatabDoc(TermParser(GenericRowGenerator(url)))
+        doc = MetatabDoc(url)
 
         self.assertEquals('Registered Voters, By County',doc.find_first('root.title').value)
 
         url = 'http://assets.metatab.org/examples/example-package.xls#meta'
 
-        doc = MetatabDoc(TermParser(GenericRowGenerator(url)))
+        doc = MetatabDoc(url)
 
         self.assertEquals('17289303-73fa-437b-97da-2e1ed2cd01fd', doc.find_first('root.identifier').value)
 
@@ -335,9 +363,7 @@ class MyTestCase(unittest.TestCase):
         import datapackage
         from os import unlink
 
-        ti = TermParser(test_data('datapackage_ex2.csv'))
-
-        doc = MetatabDoc(terms=ti)
+        doc = MetatabDoc(test_data('datapackage_ex2.csv'))
 
         d = doc.as_dict()
 
@@ -356,9 +382,7 @@ class MyTestCase(unittest.TestCase):
         print(f.name)
         # unlink(f.name)
 
-        fn = test_data('example1.csv')
-
-        doc = MetatabDoc(terms=TermParser(fn))
+        doc = MetatabDoc(test_data('example1.csv'))
 
         from metatab.datapackage import convert_to_datapackage
 
@@ -368,9 +392,7 @@ class MyTestCase(unittest.TestCase):
         import datapackage
         from metatab.datapackage import convert_to_datapackage
 
-        fn = test_data('example1.csv')
-
-        doc = MetatabDoc(terms=TermParser(fn))
+        doc = MetatabDoc(test_data('example1.csv'))
 
         dp = convert_to_datapackage(doc)
 
@@ -378,6 +400,47 @@ class MyTestCase(unittest.TestCase):
 
         dp = datapackage.DataPackage(dp)
         dp.validate()
+
+    def test_change_term(self):
+
+        p = Term('prent', 'value')
+
+        t = Term('Parent.Child', 'value', parent=p)
+
+        print( t.term, t.qualified_term, t.join)
+
+        self.assertEquals('Parent.Child', t.term)
+        self.assertEquals('prent.child', t.qualified_term)
+        self.assertEquals('parent.child', t.join)
+
+        t.term = 'Parent2.Child2'
+
+        print(t.term, t.qualified_term, t.join)
+
+        self.assertEquals('Parent2.Child2', t.term)
+        self.assertEquals('prent.child2', t.qualified_term)
+        self.assertEquals('parent2.child2', t.join)
+
+        t.parent = None
+        t.term = 'Parent3'
+
+        print(t.term, t.qualified_term, t.join)
+
+        self.assertEquals('Parent3', t.term)
+        self.assertEquals('root.parent3', t.qualified_term)
+        self.assertEquals('root.parent3', t.join)
+
+    def test_move_term(self):
+
+        d = MetatabDoc(test_data('example1.csv'))
+
+        import json
+
+        print(json.dumps(d.decl_terms, indent=4))
+
+
+
+
 
 if __name__ == '__main__':
     unittest.main()

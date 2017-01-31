@@ -1,4 +1,4 @@
-"Declare","metatab-0.1",,,,
+"Declare","metatab-latest",,,,
 "Title","Registered Voters, By County",,,,
 "Name","cdph.ca.gov-hci-registered_voters-county",,,,
 "Description","Percent of the eligible population registered to vote and the percent who voted in statewide elections.",,,,
@@ -10,7 +10,8 @@
 "Time","2002-2014",,,,
 "SpatialGrain","County <05000US>",,,,
 ,,,,,
-"Section","Resources","name","table","Grain","Title"
+"Section","Resources",,,,
+"Header","url","name","schema","Grain","Title"
 "Datafile","http://example.com/example1.csv","example1","registered_voters","County","The First Example Data File"
 "Datafile","http://example.com/example2.csv","example2","registered_voters","Tract","The Second Example Data File"
 "Homepage","https://www.cdph.ca.gov/programs/pages/healthycommunityindicators.aspx",,"Healthy Communities Data and Indicators Project (HCI)",,

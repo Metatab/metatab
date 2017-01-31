@@ -7,6 +7,7 @@ objects.
 
 """
 from __future__ import print_function
+
 ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
 
@@ -16,12 +17,12 @@ import six
 
 from collections import OrderedDict, MutableSequence
 
-
 import unicodecsv as csv
-from .exc import IncludeError, ParserError, MetatabError, DeclarationError
+from .exc import IncludeError, ParserError, MetatabError, DeclarationError, GenerateError
 from .generate import generateRows, CsvPathRowGenerator, RowGenerator
 from os.path import dirname, join, split, exists
 from .util import declaration_path
+from rowgenerators import SourceError
 
 # Well known declarations
 standard_declares = {
@@ -44,7 +45,7 @@ class Term(object):
     """
 
     def __init__(self, term, value, term_args=[],
-                 row=None, col=None, file_name=None,
+                 row=None, col=None, file_name=None, file_type=None,
                  parent=None, doc=None, section=None):
         """
 
@@ -61,16 +62,19 @@ class Term(object):
             except AttributeError:
                 return v
 
-        self.term = term
-        self.parent_term, self.record_term = Term.split_term_lower(self.term)
+        self.parent = parent  # If set, term was generated from term args
+
+        self.term = term  # A lot going on in this setter!
 
         self.value = strip_if_str(value) if value else None
         self.args = [strip_if_str(x) for x in term_args]
 
-        self.section = section  # Name of section the term is in.
+        self._section = None
+        self.section = section
         self.doc = doc
 
         self.file_name = file_name
+        self.file_type = file_type
         self.row = row
         self.col = col
 
@@ -82,22 +86,24 @@ class Term(object):
         self.child_property_type = 'any'
         self.valid = None
 
-        self.parent = parent  # If set, term was generated from term args
-
-        # There are some restrictions on what terms can be used for omitted parents,
-        # otherwise consecutive terms with elided parents will get nested.
-        self.can_be_parent = (not self.parent and self.parent_term != ELIDED_TERM)
-
         self.children = []  # When terms are linked, hold term's children.
 
-        # This is mostly use when building, not when parsing. It should be folded
-        # into the joined terms, probably.
-        if self.parent:
-            self.qualified_term = self.parent.record_term_lc + '.' + self.record_term_lc
-        else:
-            self.qualified_term = 'root.' + self.record_term_lc
-
         assert self.file_name is None or isinstance(self.file_name, six.string_types)
+
+    @property
+    def section(self):
+        return self._section
+
+    @section.setter
+    def section(self, v):
+
+        # Don't allow sections to be cleared from terms that have has the section set
+        # assert not ( v is None and self._section is not None), self
+
+        self._section = v
+
+        if v:
+            self._doc = v.doc
 
     @classmethod
     def normalize_term(cls, term):
@@ -150,11 +156,16 @@ class Term(object):
     def add_child(self, child):
         assert isinstance(child, Term)
         self.children.append(child)
+        child.parent = self
 
     def new_child(self, term, value, **kwargs):
         c = Term(term, value, parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
         self.children.append(c)
         return c
+
+    def remove_child(self, child):
+        assert isinstance(child, Term)
+        self.children.remove(child)
 
     def new_children(self, **kwargs):
         for k, v in kwargs.items():
@@ -162,21 +173,31 @@ class Term(object):
 
         return self
 
-    def get_child(self, term):
+    def set_ownership(self):
+
+        assert self.section is not None
+
+        for t in self.children:
+            t.parent = self
+            t.section = self.section
+            t.doc = self.doc
+            t.set_ownership()
+
+    def find_first(self, term):
         for c in self.children:
             if c.record_term_lc == term.lower():
                 return c
         return None
 
-    def get_child_value(self, term):
+    def find_value(self, term):
         try:
-            return self.get_child(term).value
+            return self.find_first(term).value
         except AttributeError:
             return None
 
     def get_or_new_child(self, term, value=None, **kwargs):
 
-        c = self.get_child(term)
+        c = self.find_first(term)
 
         if c is None:
             c = Term(term, value, parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
@@ -186,11 +207,36 @@ class Term(object):
             for k, v in kwargs.items():
                 c.get_or_new_child(k, v)
 
+        return c
+
     def __getitem__(self, item):
-        return self.get_child(item)
+
+        if item.lower() == self.term_value_name.lower():
+            return self
+        else:
+            c = self.find_first(item)
+            if c is None:
+                raise KeyError
+            return c
 
     def __setitem__(self, item, value):
-        return self.get_or_new_child(item, value)
+
+        if item.lower() == self.term_value_name.lower() or item.lower() == 'value':
+            self.value = value
+            return self
+        else:
+            return self.get_or_new_child(item, value)
+
+    @property
+    def term(self):
+        return self._term
+
+    @term.setter
+    def term(self, v):
+        self._term = v
+
+        self.parent_term, self.record_term = Term.split_term_lower(self._term)
+
 
     @property
     def join(self):
@@ -208,14 +254,26 @@ class Term(object):
     def parent_term_lc(self):
         return self.parent_term.lower()
 
+    @property
+    def qualified_term(self):
+
+        assert self.parent is not None or self.parent_term_lc == 'root'
+
+        if self.parent:
+            return self.parent.record_term_lc + '.' + self.record_term_lc
+        else:
+            return 'root.' + self.record_term_lc
 
     def term_is(self, v):
 
         if isinstance(v, six.string_types):
 
+            if '.' not in v:
+                v = 'root.' + v
+
             v_p, v_r = self.split_term_lower(v)
 
-            if self.record_term_lc == v.lower() or self.join_lc == v.lower():
+            if self.join_lc == v.lower():
                 return True
             elif v_r == '*' and v_p == self.parent_term_lc:
                 return True
@@ -230,12 +288,25 @@ class Term(object):
 
     @property
     def is_terminal(self):
+        """Return true if this term has no children"""
         return len(self.children) == 0
+
+    @property
+    def is_arg_child(self):
+        """Return true if this term was created as a child of another term, from the parent
+        term's arguments"""
+        return self.col > 1
+
+    @property
+    def has_elided_parent(self):
+        """Return true if this term had an elided parent; the term stats with '.' """
+
+        return self.parent_term == ELIDED_TERM
 
     @property
     def properties(self):
         """Return the value and scalar properties as a dictionary"""
-        d =  dict(zip([str(e).lower() for e in self.section.property_names], self.args))
+        d = dict(zip([str(e).lower() for e in self.section.property_names], self.args))
         d[self.term_value_name.lower()] = self.value
 
         return d
@@ -319,21 +390,27 @@ class Term(object):
                     yield row
 
     def __repr__(self):
-        return "<Term: {}{}.{} {} {} {}>".format(self.file_ref(), self.parent_term,
-                                                 self.record_term, self.value, self.args,
-                                                 "P" if self.can_be_parent else "C")
+        return "<Term: {}{}.{} {} {}>".format(self.file_ref(), self.parent_term,
+                                                 self.record_term, self.value, self.args)
 
     def __str__(self):
+
+        sec_name = 'None' if not self.section else self.section.name
+
         if self.parent_term == ELIDED_TERM:
-            return "{}.{}: {}".format(self.file_ref(), self.record_term, self.value)
+            return "{}.{}: val={} sec={}".format(
+                self.file_ref(), self.record_term, self.value, sec_name)
 
         else:
-            return "{}{}.{}: {}".format(self.file_ref(), self.parent_term, self.record_term, self.value)
+            return "{}{}.{}: val={} sec={} ".format(
+                self.file_ref(), self.parent_term, self.record_term, self.value, sec_name)
 
 
 class SectionTerm(Term):
     def __init__(self, name, term='Section', doc=None, term_args=None,
-                 row=None, col=None, file_name=None, parent=None):
+                 row=None, col=None, file_name=None, file_type=None, parent=None):
+
+        assert doc is not None
 
         self.doc = doc
 
@@ -342,9 +419,10 @@ class SectionTerm(Term):
         self.terms = []  # Seperate from children. Sections have contained terms, but no children.
 
         super(SectionTerm, self).__init__(term, name, term_args=section_args,
-                                          parent=parent, doc=doc, row=row, col=col, file_name=file_name)
+                                          parent=parent, doc=doc, row=row, col=col,
+                                          file_name=file_name, file_type=file_type)
 
-        self.header_args = [] # Set for each header encoundered
+        self.header_args = []  # Set for each header encoundered
 
     @classmethod
     def subclass(cls, t):
@@ -366,8 +444,24 @@ class SectionTerm(Term):
             return self.args
 
     def add_term(self, t):
-        if t not in self.terms and t.parent_term_lc == 'root':
-            self.terms.append(t)
+
+        if t not in self.terms:
+            if t.parent_term_lc == 'root':
+                self.terms.append(t)
+                t.section = self
+
+                self.doc.add_term(t, add_section=False)
+
+                t.set_ownership()
+
+            else:
+                raise GenerateError("Can only add or move root-level terms. Term '{}' parent is '{}' "
+                                    .format(t, t.parent_term_lc))
+
+        assert t.section or t.join_lc == 'root.root', t
+
+    def move_term(self, t):
+        return self.add_term(t)
 
     def new_term(self, term, value, **kwargs):
         t = Term(term, value, doc=self.doc, parent=None, section=self).new_children(**kwargs)
@@ -376,6 +470,7 @@ class SectionTerm(Term):
         return t
 
     def get_term(self, term):
+
         term = six.text_type(term)
         for t in self.terms:
 
@@ -399,6 +494,7 @@ class SectionTerm(Term):
 
     def remove_term(self, term):
         """Remove a term from the terms. Must be the identical term, the same object"""
+
         self.terms.remove(term)
 
     def clean(self):
@@ -407,6 +503,10 @@ class SectionTerm(Term):
 
         for t in terms:
             self.doc.remove_term(t)
+
+    def sort_by_term(self, order=None):
+
+        self.terms = sorted(self.terms, key=lambda e: e.join_lc)
 
     def __getitem__(self, item):
         return self.get_term(item)
@@ -494,7 +594,7 @@ class RootSectionTerm(SectionTerm):
 class TermParser(object):
     """Takes a stream of terms and sets the parameter map, valid term names, etc """
 
-    def __init__(self, ref, remove_special=True):
+    def __init__(self, ref, doc, remove_special=True):
         """
         :param term_gen: an an iterator that generates terms
         :param remove_special: If true ( default ) remove the special terms from the stream
@@ -504,6 +604,8 @@ class TermParser(object):
         self._remove_special = remove_special
 
         self._ref = ref
+
+        self._doc = doc
 
         self._param_map = []  # Current parameter map, the args of the last Section term
 
@@ -515,7 +617,7 @@ class TermParser(object):
 
         self.errors = set()
 
-        self.root = RootSectionTerm(file_name=self.path)
+        self.root = RootSectionTerm(file_name=self.path, doc=self._doc)
 
         self.install_declare_terms()
 
@@ -546,7 +648,7 @@ class TermParser(object):
 
         for k, v in self._declared_terms.items():
             k = k.strip()
-            if  v.get('synonym'):
+            if v.get('synonym'):
                 syns[k.lower()] = v['synonym']
 
                 if not '.' in k:
@@ -582,7 +684,7 @@ class TermParser(object):
         self._declared_sections.update({
             'root': {'args': [], 'terms': []},
             'declaredterms': {'args': [], 'terms': []},
-            'declaredsections':  {'args': [], 'terms': []},
+            'declaredsections': {'args': [], 'terms': []},
 
         })
 
@@ -661,9 +763,13 @@ class TermParser(object):
         return path
 
     @classmethod
-    def generate_terms(cls, ref, root=None):
+    def generate_terms(cls, ref, root, doc=None, file_type=None):
         """An generator that yields term objects, handling includes and argument
-        children"""
+        children.
+
+        """
+
+        # This method is seperate from __iter__ so it can recurse for Include and Declare
 
         if isinstance(ref, RowGenerator):
             row_gen = ref
@@ -674,7 +780,6 @@ class TermParser(object):
             if not isinstance(ref, six.string_types):
                 ref = six.text_type(ref)
 
-        root = RootSectionTerm(file_name=ref)
 
         last_section = root
 
@@ -683,7 +788,7 @@ class TermParser(object):
         try:
             for line_n, row in enumerate(row_gen, 1):
 
-                if not row or not row[0] or  not row[0].strip() or row[0].strip().startswith('#'):
+                if not row or not row[0] or not row[0].strip() or row[0].strip().startswith('#'):
                     continue
 
                 if row[0].lower().strip() == 'section':
@@ -691,19 +796,19 @@ class TermParser(object):
                                     term_args=row[2:] if len(row) > 2 else [],
                                     row=line_n,
                                     col=1,
-                                    file_name=ref)
+                                    file_name=ref, file_type=file_type, doc=doc)
                 else:
                     t = Term(row[0].lower(),
                              row[1] if len(row) > 1 else '',
                              row[2:] if len(row) > 2 else [],
                              row=line_n,
                              col=1,
-                             file_name=ref)
+                             file_name=ref, file_type=file_type, doc=doc)
 
                 if t.term_is('include') or t.term_is('declare'):
 
                     if t.term_is('include'):
-                        resolved= cls.find_include_doc(dirname(ref), t.value.strip())
+                        resolved = cls.find_include_doc(dirname(ref), t.value.strip())
                     else:
                         resolved = cls.find_declare_doc(dirname(ref), t.value.strip())
 
@@ -713,17 +818,21 @@ class TermParser(object):
                     yield t
 
                     try:
-                        for t in cls.generate_terms(resolved, root=root):
+                        for t in cls.generate_terms(resolved, root, doc, file_type=t.record_term_lc):
                             yield t
 
                         if last_section:
-                            yield last_section # Re-assert the last section
+                            yield last_section  # Re-assert the last section
 
                     except IncludeError as e:
                         e.term = t
                         raise
+                    except SourceError as e:
+                        e = IncludeError("Failed to Include; {}".format(e))
+                        e.term = t
+                        raise e
 
-                    continue  # Already yielded the include term, and includes can't have children
+                    continue  # Already yielded the include/declare term, and includes can't have children
 
                 elif t.term_is('section'):
                     last_section = t
@@ -738,10 +847,12 @@ class TermParser(object):
                                        row=line_n,
                                        col=col + 2,  # The 0th argument starts in col 2
                                        file_name=ref,
+                                       file_type=file_type,
                                        parent=t)
         except IncludeError as e:
-            exc = IncludeError(e.message+"; in '{}' ".format(ref))
-            exc.term = e.term if hasattr(e,'term') else None
+            from six import text_type
+            exc = IncludeError(text_type(e) + "; in '{}' ".format(ref))
+            exc.term = e.term if hasattr(e, 'term') else None
             raise exc
 
     def __iter__(self):
@@ -751,25 +862,23 @@ class TermParser(object):
         default_term_value_name = '@value'
         last_section = None
 
+        root = RootSectionTerm(file_name='<root>', doc=self._doc)
+
+        self.root = root
+        last_section = self.root
+        last_term_map[ELIDED_TERM] = self.root
+        last_term_map[self.root.record_term] = self.root
+
+        yield self.root
+
         try:
 
-            for i, t in enumerate(self.generate_terms(self._ref)):
+            for i, t in enumerate(self.generate_terms(self._ref, root, self._doc)):
 
-                yield_term = True
-
-                if t.term_is('root.root') and last_section is None:
-                    self.root = t
-                    last_section = self.root
-                    last_term_map[ELIDED_TERM] = self.root
-                    last_term_map[self.root.record_term] = self.root
 
                 # Substitute synonyms
                 if t.join_lc in self.synonyms:
                     t.parent_term, t.record_term = Term.split_term_lower(self.synonyms[t.join_lc]);
-
-                if t.parent_term == ELIDED_TERM:
-                    t.parent_term = last_parent_term
-                    t.parent = last_term_map[last_parent_term]
 
                 # Remap integer record terms to names from the parameter map
                 try:
@@ -780,108 +889,95 @@ class TermParser(object):
                 except IndexError:
                     pass  # Probably no parameter map.
 
-                if t.term_is('root.section') or t.term_is('root.header'):
+                t.section = last_section
 
-                    self._param_map = [p.lower() if p else i for i, p in enumerate(t.args)]
+                def munge_param_map(t):
+                    return [p.lower() if p else i for i, p in enumerate(t.args)]
 
-                    if t.term_is('root.header'):
-                        default_term_value_name = t.value.lower()
-                        last_section.header_args = t.args
-                    else:
-                        # Parentage should not persist across sections
-                        last_parent_term = self.root.record_term
-                        last_section.header_args = []
-                        last_section = t
-
-                        default_term_value_name = '@value'
+                if t.term_is('root.header'):
+                    self._param_map = munge_param_map(t)
+                    default_term_value_name = t.value.lower()
+                    last_section.header_args = t.args
                     continue
+
+                elif t.term_is('root.section'):
+                    self._param_map = munge_param_map(t)
+                    # Parentage should not persist across sections
+                    last_parent_term = self.root.record_term
+                    last_section.header_args = []
+                    last_section = t
+                    default_term_value_name = '@value'
+                    t.section = None
 
                 elif t.term_is('root.root'):
                     last_section = t
-                    yield t
-                    continue
+                    t.section = None
 
-                t.section = last_section
+                else:
 
-                continue_flag, yield_term = self.manage_declare_terms(t)
+                    # Case for normal, value-bearing terms
 
-                if continue_flag:
-                    continue
+                    t.child_property_type = self._declared_terms \
+                        .get(t.join, {}) \
+                        .get('childpropertytype', 'any')
 
-                t.child_property_type = self._declared_terms\
-                    .get(t.join, {})\
-                    .get('childpropertytype', 'any')
+                    t.term_value_name = self._declared_terms \
+                        .get(t.join, {}) \
+                        .get('termvaluename', default_term_value_name)
 
-                t.term_value_name = self._declared_terms\
-                    .get(t.join, {})\
-                    .get('termvaluename', default_term_value_name)
+                    t.valid = t.join_lc in self._declared_terms  # advisory.
 
-                t.valid = t.join_lc in self._declared_terms
+                    # Only terms with the term name in the first column can be parents of
+                    # other terms. This rule excludes argument terms and terms with an elided parent
 
-                last_section.add_term(t)
+                    if t.has_elided_parent:
+                        # Elided parent terms refer to the last term that can be a parent
+                        t.parent_term = last_parent_term # After this t.has_elided_parent will be False
 
-                if t.can_be_parent:
-                    last_parent_term = t.record_term
-                    # Recs created from term args don't go in the maps.
-                    # Nor do record term records with elided parent terms
-                    last_term_map[ELIDED_TERM] = t
-                    last_term_map[t.record_term] = t
+                        last_term_map[last_parent_term].add_child(t)
 
-                try:
+                    elif t.is_arg_child:
+                        last_term_map[last_parent_term].add_child(t)
 
-                    if t.can_be_parent:
-                        parent = last_term_map[t.parent_term]
                     else:
-                        parent = last_term_map[last_parent_term]
 
-                    if yield_term:
-                        parent.add_child(t)
-                except KeyError as e:
+                        last_parent_term = t.record_term
 
-                    raise ParserError(("Failed to find parent term in last term map: {} {} \n" +
-                                       "Term: \n    {}\nParents:\n    {}\nSynonyms:\n{}")
-                                      .format(e.__class__.__name__, e, t,
-                                              last_term_map.keys(),
-                                              json.dumps(sorted(self.synonyms.items()), indent=4)))
+                        last_term_map[ELIDED_TERM] = t
+                        last_term_map[t.record_term] = t
 
-                if yield_term:
+                        last_term_map[t.parent_term].add_child(t)
+
+                    if t.parent_term_lc == 'root':
+                        last_section.add_term(t)
+
+                if t.file_type == 'declare':
+                    self.manage_declare_terms(t)
+                    # Declare terms aren't part of document, so they aren't yieled
+                else:
                     yield t
 
         except IncludeError as e:
             self.errors.add(e)
             raise
 
-    def manage_declare_terms(self, t):
 
-        if t.term_is([
-            'declaresection.*',
-            'declareterm.*',
-            'declarevalueset.*',
-            'root.declarevalueset',
-            'valueset.section',
-            'childpropertytype.section'
-        ]):
-            return (True, False)
+    def manage_declare_terms(self, t):
 
         if t.term_is('root.declaresection'):
             self.add_declared_section(t)
-            yield_term = False
+
         elif t.term_is('root.declareterm'):
             self.add_declared_term(t)
-            yield_term = False
+
         elif t.term_is('value.*'):
             self.add_value_set_value(t)
-            yield_term = False
-        else:
-            yield_term = True
 
-        return (False, yield_term)
-
-    def add_declared_section(self,t):
+    def add_declared_section(self, t):
         from .exc import DeclarationError
 
         self._declared_sections[t.value.lower()] = {
-            'args': [ e.strip() for e in t.args if e.strip()], # FIXME Very suspicious
+            'args': [e.strip() for e in t.args if e.strip()],  # FIXME Very suspicious
             'terms': []
         }
 
@@ -905,7 +1001,6 @@ class TermParser(object):
         # The inherited terms must come from the same section
         section_terms = self._declared_sections[t['section'].lower()]['terms']
 
-
         # For each of the terms in the section, look for terms that are children
         # of the term that the input term inherits from. Then yield each of those terms
         # after chang the term name to be a child of the input term.
@@ -926,9 +1021,10 @@ class TermParser(object):
 
         term_name = Term.normalize_term(t.value)
 
-        td = { k:v  for k, v in t.properties.items() if v.strip()}
+        td = {k: v for k, v in t.properties.items() if v.strip()}
         td['values'] = {}
         td['term'] = t.value
+
 
         self._declared_terms[term_name] = td
 
@@ -966,9 +1062,7 @@ class TermParser(object):
 
 
 class MetatabDoc(object):
-    def __init__(self, terms=None, decl=None):
-
-        self._term_parser = terms
+    def __init__(self, ref=None, decl=None):
 
         self.decl_terms = {}
         self.decl_sections = {}
@@ -986,28 +1080,36 @@ class MetatabDoc(object):
 
         self.load_declarations(self.decls)
 
-        if terms:
+        if ref:
+            self._ref = ref
             self.root = None
-            self.load_terms(terms)
+            self._term_parser = TermParser(self._ref, doc=self)
+            self.load_terms(self._term_parser)
         else:
+            self._ref = None
+            self._term_parser = None
             self.root = SectionTerm('Root', term='Root', doc=self, row=0, col=0,
                                     file_name=None, parent=None)
             self.add_section(self.root)
 
     def load_declarations(self, decls):
 
-        for dcl in decls:
-            term_interp = TermParser(generateRows([['Declare', dcl]], "<none>"))
-            term_interp.run()
-            dd = term_interp.declare_dict
+        term_interp = TermParser(generateRows([['Declare', dcl] for dcl in decls]), doc=self)
+        list(term_interp)
+        dd = term_interp.declare_dict
 
-            self.decl_terms.update(dd['terms'])
-            self.decl_sections.update(dd['sections'])
+        self.decl_terms.update(dd['terms'])
+        self.decl_sections.update(dd['sections'])
 
         return self
 
-    def add_term(self, t):
+    def add_term(self, t, add_section=True):
         t.doc = self
+
+        if t in self.terms:
+            return
+
+        assert t.section or t.join_lc == 'root.root', t
 
         # Section terms don't show up in the document as terms
         if isinstance(t, SectionTerm):
@@ -1015,19 +1117,24 @@ class MetatabDoc(object):
         else:
             self.terms.append(t)
 
-        if t.section and t.parent_term_lc == 'root':
+        if add_section and t.section and t.parent_term_lc == 'root':
             t.section = self.add_section(t.section)
             t.section.add_term(t)
 
+        assert t.section or t.join_lc == 'root.root', t
+
     def remove_term(self, t):
+        """Only removes top-level terms. CHild terms can be removed at the parent. """
         self.terms.remove(t)
 
         if t.section and t.parent_term_lc == 'root':
             t.section = self.add_section(t.section)
             t.section.remove_term(t)
 
-    def add_section(self, s):
+        if t.parent:
+            t.parent.remove_child(t)
 
+    def add_section(self, s):
         s.doc = self
 
         assert isinstance(s, SectionTerm), str(s)
@@ -1052,12 +1159,15 @@ class MetatabDoc(object):
     def get_or_new_section(self, name, params=None):
         """Create a new section or return an existing one of the same name"""
         if name not in self.sections:
-            self.sections[name] = SectionTerm(name, term_args=params, doc=self, parent=self.root)
+            self.sections[name.lower()] = SectionTerm(name, term_args=params, doc=self, parent=self.root)
 
-        return self.sections[name]
+        return self.sections[name.lower()]
 
     def get_section(self, name):
-        return self.sections[name.lower()]
+        try:
+            return self.sections[name.lower()]
+        except KeyError:
+            raise KeyError("No section for '{}'; sections are: '{}' ".format(name.lower(), self.sections.keys()))
 
     def __getitem__(self, item):
         return self.get_section(item)
@@ -1079,22 +1189,36 @@ class MetatabDoc(object):
         return item.lower() in self.sections
 
     def __iter__(self):
+        """Iterate over sections"""
         for s in self.sections.values():
             yield s
 
     def find(self, term, value=False, section=None):
         """Return a list of terms, possibly in a particular section. Use joined term notation"""
+        import itertools
 
-        found = []
+        if isinstance(term, (list, tuple)):
+            return list(itertools.chain(*[self.find(e) for e in term]))
 
-        for t in self.terms:
+        else:
+            found = []
 
-            if (t.join_lc == term.lower()
-                and (section is None or section.lower() == t.section.name.lower())
-                and (value == False or value == t.value)):
-                found.append(t)
+            if not '.' in term:
+                term = 'root.' + term
 
-        return found
+            for t in self.terms:
+
+                if t.join_lc == 'root.root':
+                    continue
+
+                assert t.section or t.join_lc == 'root.root', t
+
+                if (t.join_lc == term.lower()
+                    and (section is None or section.lower() == t.section.name.lower())
+                    and (value is False or value == t.value)):
+                    found.append(t)
+
+            return found
 
     def find_first(self, term, value=False, section=None):
         terms = self.find(term, value=value, section=section)
@@ -1121,13 +1245,19 @@ class MetatabDoc(object):
         for t in terms:
 
             t.doc = self
+
             if t.term_is('root.root'):
                 self.root = t
                 self.add_section(t)
+
             elif t.term_is('root.section'):
                 self.add_section(t)
             elif t.parent_term_lc == 'root':
                 self.add_term(t)
+            else:
+                # These terms aren't added to the doc because they are attached to a
+                # parent term that is added to the doc.
+                assert t.parent is not None
 
         try:
             dd = terms.declare_dict
@@ -1169,8 +1299,10 @@ class MetatabDoc(object):
 
         name = self.find_first('Root.Name', section='root')
 
-        if name:
+        if name and name.value:
             name.value = slugify(name.value)
+        elif name:
+            name.value = slugify(identity.value)
         else:
             self['Root']['Name'] = slugify(identity.value)
 
@@ -1181,7 +1313,6 @@ class MetatabDoc(object):
         elif not version:
             self['Root']['Version'] = 1
 
-
     def as_dict(self):
         """Iterate, link terms and convert to a dict"""
 
@@ -1189,10 +1320,10 @@ class MetatabDoc(object):
         # should contain all terms, and the root section, which has only terms that are not
         # in another section.
 
-        r = RootSectionTerm()
+        r = RootSectionTerm(doc=self)
 
-        for s in self:
-            for t in s:
+        for s in self:  # Iterate over sections
+            for t in s:  # Iterate over the terms in each section.
                 r.terms.append(t)
 
         return r.as_dict()
@@ -1203,10 +1334,12 @@ class MetatabDoc(object):
 
         for s_name, s in self.sections.items():
 
+            # Yield the section header
             if s.name != 'Root':
-                yield ['']
+                yield ['']  # Unecessary, but makes for nice formatting. Should actually be done just before write
                 yield ['Section', s.value] + s.property_names
 
+            # Yield all of the rows for terms in the section
             for row in s.rows:
                 term, value = row
 

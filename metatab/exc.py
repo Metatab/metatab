@@ -9,6 +9,7 @@ class MetatabError(Exception):
     pass
 
 
+
 class ParserError(MetatabError):
     def __init__(self, *args, **kwargs):
         super(ParserError, self).__init__(*args, **kwargs)
