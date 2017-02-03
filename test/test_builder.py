@@ -1,6 +1,6 @@
 import unittest
 
-from metatab import  MetatabDoc
+from metatab.doc import MetatabDoc
 from metatab.util import flatten
 
 def test_data(*paths):

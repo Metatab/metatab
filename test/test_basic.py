@@ -5,7 +5,7 @@ import unittest
 
 from metatab import IncludeError
 from metatab import RowGenerator, TermParser, CsvPathRowGenerator, parse_file
-from metatab import MetatabDoc
+from metatab.doc import MetatabDoc
 from metatab.util import flatten, declaration_path
 from metatab import TermParser, CsvPathRowGenerator, Serializer, Term
 from collections import defaultdict
@@ -261,6 +261,8 @@ class MyTestCase(unittest.TestCase):
             return tp.errors_as_dict()
 
         e = errs(test_data('errors/bad_include.csv'))
+
+        print(e)
 
         self.assertEquals(1, len(e))
         self.assertTrue('bad_include.csv' in e[0]['file'])

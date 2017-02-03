@@ -1,0 +1,3 @@
+in_url,download_file,download_format,download_url,encoding,file_segment,is_archive,proto,target_file,target_format,url
+http://example.com/simple-example-altnames.csv,simple-example-altnames.csv,csv,http://example.com/simple-example-altnames.csv,,,False,http,simple-example-altnames.csv,csv,http://example.com/simple-example-altnames.csv
+http://example.com/test_data.zip,test_data.zip,zip,http://example.com/test_data.zip,,,True,http,test_data.zip,zip,http://example.com/test_data.zip

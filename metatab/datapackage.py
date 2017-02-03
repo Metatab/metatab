@@ -35,7 +35,6 @@ def convert_to_datapackage(doc):
         try:
             columns = table_schemas[r['name']] if r.get('name','<none>') in table_schemas else table_schemas[r['table']]
         except KeyError as e:
-            print(r)
             continue
 
         def mkdict(c):

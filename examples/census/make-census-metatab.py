@@ -5,7 +5,7 @@
 #
 
 from ambry import get_library
-from metatab import MetatabDoc
+from metatab.doc import MetatabDoc
 from collections import defaultdict
 
 l = get_library()

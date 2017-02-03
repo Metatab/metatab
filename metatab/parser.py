@@ -11,14 +11,9 @@ from __future__ import print_function
 ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
 
-import copy
-import json
 import six
 
-from collections import OrderedDict, MutableSequence
-
-import unicodecsv as csv
-from .exc import IncludeError, ParserError, MetatabError, DeclarationError, GenerateError
+from .exc import IncludeError, DeclarationError, GenerateError
 from .generate import generateRows, CsvPathRowGenerator, RowGenerator
 from os.path import dirname, join, split, exists
 from .util import declaration_path
@@ -780,10 +775,7 @@ class TermParser(object):
             if not isinstance(ref, six.string_types):
                 ref = six.text_type(ref)
 
-
         last_section = root
-
-        yield root
 
         try:
             for line_n, row in enumerate(row_gen, 1):
@@ -827,7 +819,8 @@ class TermParser(object):
                     except IncludeError as e:
                         e.term = t
                         raise
-                    except SourceError as e:
+
+                    except (FileNotFoundError,SourceError) as e:
                         e = IncludeError("Failed to Include; {}".format(e))
                         e.term = t
                         raise e
@@ -874,7 +867,6 @@ class TermParser(object):
         try:
 
             for i, t in enumerate(self.generate_terms(self._ref, root, self._doc)):
-
 
                 # Substitute synonyms
                 if t.join_lc in self.synonyms:
@@ -974,7 +966,6 @@ class TermParser(object):
             self.add_value_set_value(t)
 
     def add_declared_section(self, t):
-        from .exc import DeclarationError
 
         self._declared_sections[t.value.lower()] = {
             'args': [e.strip() for e in t.args if e.strip()],  # FIXME Very suspicious
@@ -1032,7 +1023,7 @@ class TermParser(object):
             section_name = td.get('section', '').lower()
 
             if section_name.lower() not in self._declared_sections:
-                print(self._declared_sections.keys())
+
                 raise DeclarationError(("Section '{}' is referenced in a term but was not "
                                         "previously declared with DeclareSection, in '{}'")
                                        .format(section_name, t.file_name))
@@ -1059,315 +1050,6 @@ class TermParser(object):
             if 'valuesetname' in v and vs_name == v['valuesetname'].lower():
                 if value not in v['values']:
                     v['values'][value] = disp_value
-
-
-class MetatabDoc(object):
-    def __init__(self, ref=None, decl=None):
-
-        self.decl_terms = {}
-        self.decl_sections = {}
-
-        self.terms = []
-        self.sections = OrderedDict()
-        self.errors = []
-
-        if decl is None:
-            self.decls = []
-        elif not isinstance(decl, MutableSequence):
-            self.decls = [decl]
-        else:
-            self.decls = decl
-
-        self.load_declarations(self.decls)
-
-        if ref:
-            self._ref = ref
-            self.root = None
-            self._term_parser = TermParser(self._ref, doc=self)
-            self.load_terms(self._term_parser)
-        else:
-            self._ref = None
-            self._term_parser = None
-            self.root = SectionTerm('Root', term='Root', doc=self, row=0, col=0,
-                                    file_name=None, parent=None)
-            self.add_section(self.root)
-
-    def load_declarations(self, decls):
-
-        term_interp = TermParser(generateRows([['Declare', dcl] for dcl in decls]), doc=self)
-        list(term_interp)
-        dd = term_interp.declare_dict
-
-        self.decl_terms.update(dd['terms'])
-        self.decl_sections.update(dd['sections'])
-
-        return self
-
-    def add_term(self, t, add_section=True):
-        t.doc = self
-
-        if t in self.terms:
-            return
-
-        assert t.section or t.join_lc == 'root.root', t
-
-        # Section terms don't show up in the document as terms
-        if isinstance(t, SectionTerm):
-            self.add_section(t)
-        else:
-            self.terms.append(t)
-
-        if add_section and t.section and t.parent_term_lc == 'root':
-            t.section = self.add_section(t.section)
-            t.section.add_term(t)
-
-        assert t.section or t.join_lc == 'root.root', t
-
-    def remove_term(self, t):
-        """Only removes top-level terms. CHild terms can be removed at the parent. """
-        self.terms.remove(t)
-
-        if t.section and t.parent_term_lc == 'root':
-            t.section = self.add_section(t.section)
-            t.section.remove_term(t)
-
-        if t.parent:
-            t.parent.remove_child(t)
-
-    def add_section(self, s):
-        s.doc = self
-
-        assert isinstance(s, SectionTerm), str(s)
-
-        # Coalesce sections, and if a foreign term is added with a foreign section
-        # it will get re-assigned to the local section
-        if s.value.lower() not in self.sections:
-            self.sections[s.value.lower()] = s
-
-        return self.sections[s.value.lower()]
-
-    def section_args(self, section_name):
-        """Return section arguments for the named section, if it is defined"""
-        return self.decl_sections.get(section_name.lower(), {}).get('args', [])
-
-    def new_section(self, name, params=None):
-        """Return a new section"""
-        self.sections[name.lower()] = SectionTerm(name, term_args=params, doc=self, parent=self.root)
-
-        return self.sections[name.lower()]
-
-    def get_or_new_section(self, name, params=None):
-        """Create a new section or return an existing one of the same name"""
-        if name not in self.sections:
-            self.sections[name.lower()] = SectionTerm(name, term_args=params, doc=self, parent=self.root)
-
-        return self.sections[name.lower()]
-
-    def get_section(self, name):
-        try:
-            return self.sections[name.lower()]
-        except KeyError:
-            raise KeyError("No section for '{}'; sections are: '{}' ".format(name.lower(), self.sections.keys()))
-
-    def __getitem__(self, item):
-        return self.get_section(item)
-
-    def __delitem__(self, item):
-
-        try:
-            if item in self.sections:
-                for t in self.sections[item]:
-                    self.terms.remove(t)
-
-            del self.sections[item.lower()]
-        except KeyError:
-            # Ignore errors
-            pass
-
-    def __contains__(self, item):
-
-        return item.lower() in self.sections
-
-    def __iter__(self):
-        """Iterate over sections"""
-        for s in self.sections.values():
-            yield s
-
-    def find(self, term, value=False, section=None):
-        """Return a list of terms, possibly in a particular section. Use joined term notation"""
-        import itertools
-
-        if isinstance(term, (list, tuple)):
-            return list(itertools.chain(*[self.find(e) for e in term]))
-
-        else:
-            found = []
-
-            if not '.' in term:
-                term = 'root.' + term
-
-            for t in self.terms:
-
-                if t.join_lc == 'root.root':
-                    continue
-
-                assert t.section or t.join_lc == 'root.root', t
-
-                if (t.join_lc == term.lower()
-                    and (section is None or section.lower() == t.section.name.lower())
-                    and (value is False or value == t.value)):
-                    found.append(t)
-
-            return found
-
-    def find_first(self, term, value=False, section=None):
-        terms = self.find(term, value=value, section=section)
-
-        if len(terms) > 0:
-            return terms[0]
-        else:
-            return None
-
-    def find_first_value(self, term, value=False, section=None):
-        term = self.find_first(term, value=value, section=section)
-
-        if term is None:
-            return None
-        else:
-            return term.value
-
-    def load_terms(self, terms):
-        """Create a builder from a sequence of terms, usually a TermInterpreter"""
-
-        if self.root and len(self.root.children) > 0:
-            raise MetatabError("Can't run after adding terms to document.")
-
-        for t in terms:
-
-            t.doc = self
-
-            if t.term_is('root.root'):
-                self.root = t
-                self.add_section(t)
-
-            elif t.term_is('root.section'):
-                self.add_section(t)
-            elif t.parent_term_lc == 'root':
-                self.add_term(t)
-            else:
-                # These terms aren't added to the doc because they are attached to a
-                # parent term that is added to the doc.
-                assert t.parent is not None
-
-        try:
-            dd = terms.declare_dict
-
-            self.decl_terms.update(dd['terms'])
-            self.decl_sections.update(dd['sections'])
-
-        except AttributeError as e:
-            pass
-
-        try:
-            self.errors = terms.errors_as_dict()
-        except AttributeError:
-            self.errors = {}
-
-        return self
-
-    def load_rows(self, row_generator):
-
-        term_interp = TermParser(row_generator)
-
-        return self.load_terms(term_interp)
-
-    def load_csv(self, file_name):
-        """Load a Metatab CSV file into the builder to continue editing it. """
-        return self.load_rows(CsvPathRowGenerator(file_name))
-
-    def cleanse(self):
-        """Clean up some terms, like ensuring that the name is a slug"""
-        from .util import slugify
-        from uuid import uuid4
-
-        identity = self.find_first('Root.Identifier', section='root')
-
-        if not identity:
-            self['Root'].new_term('Root.Identifier', six.text_type(uuid4()))
-            identity = self.find_first('Root.Identifier', section='root')
-            assert identity is not None
-
-        name = self.find_first('Root.Name', section='root')
-
-        if name and name.value:
-            name.value = slugify(name.value)
-        elif name:
-            name.value = slugify(identity.value)
-        else:
-            self['Root']['Name'] = slugify(identity.value)
-
-        version = self.find_first('Root.Version', section='root')
-
-        if version and not version.value:
-            version.value = 1
-        elif not version:
-            self['Root']['Version'] = 1
-
-    def as_dict(self):
-        """Iterate, link terms and convert to a dict"""
-
-        # This function is a hack, due to confusion between the root of the document, which
-        # should contain all terms, and the root section, which has only terms that are not
-        # in another section.
-
-        r = RootSectionTerm(doc=self)
-
-        for s in self:  # Iterate over sections
-            for t in s:  # Iterate over the terms in each section.
-                r.terms.append(t)
-
-        return r.as_dict()
-
-    @property
-    def rows(self):
-        """Iterate over all of the rows"""
-
-        for s_name, s in self.sections.items():
-
-            # Yield the section header
-            if s.name != 'Root':
-                yield ['']  # Unecessary, but makes for nice formatting. Should actually be done just before write
-                yield ['Section', s.value] + s.property_names
-
-            # Yield all of the rows for terms in the section
-            for row in s.rows:
-                term, value = row
-
-                term = term.replace('root.', '').title()
-
-                try:
-                    yield [term] + value
-                except:
-                    yield [term] + [value]
-
-    def as_csv(self):
-        """Return a CSV representation as a string"""
-
-        from io import BytesIO
-
-        s = BytesIO()
-        w = csv.writer(s)
-        for row in self.rows:
-            w.writerow(row)
-
-        return s.getvalue()
-
-    def write_csv(self, path):
-
-        self.cleanse()
-
-        with open(path, 'wb') as f:
-            f.write(self.as_csv())
 
 
 def parse_file(file_name):

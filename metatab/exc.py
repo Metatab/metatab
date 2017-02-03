@@ -9,6 +9,11 @@ class MetatabError(Exception):
     pass
 
 
+class MetapackError(MetatabError):
+    pass
+
+class PackageError(MetapackError):
+    pass
 
 class ParserError(MetatabError):
     def __init__(self, *args, **kwargs):

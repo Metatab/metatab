@@ -10,7 +10,6 @@ from .exc import IncludeError, GenerateError
 
 def generateRows(ref):
 
-    from os.path import exists
     from inspect import isgenerator
     from six import string_types
 
@@ -19,12 +18,7 @@ def generateRows(ref):
     elif isgenerator(ref):
         return RowGenerator(ref)
     elif isinstance(ref, string_types):
-        if exists(ref):
-            return CsvPathRowGenerator(ref)
-        elif ref.startswith('http') or ref.startswith('gs') or ref.startswith('socrata') :
-            return GenericRowGenerator(ref)
-        else:
-            raise IncludeError("Ref isn't a path, or doesn't exist: "+str(ref))
+       return GenericRowGenerator(ref)
 
     raise GenerateError("Cant figure out how to generate rows from ref: "+str(ref))
 
@@ -52,7 +46,7 @@ class RowGenerator(object):
         for row in self._rows:
             yield row
 
-
+# FIXME: Can probably remove this class in favor of GenericRowGenerator
 class CsvUrlRowGenerator(RowGenerator):
     """An object that generates rows. The current implementation mostly just a wrapper around
     csv.reader, but it add a path property so term interperters know where the terms are coming from
@@ -94,7 +88,7 @@ class CsvUrlRowGenerator(RowGenerator):
 
         self.close()
 
-
+# FIXME: Can probably remove this class in favor of GenericRowGenerator
 class CsvPathRowGenerator(RowGenerator):
     """An object that generates rows. The current implementation mostly just a wrapper around
     csv.reader, but it add a path property so term interperters know where the terms are coming from
@@ -141,7 +135,7 @@ class CsvPathRowGenerator(RowGenerator):
 
         self.close()
 
-
+# FIXME: Can probably remove this class in favor of GenericRowGenerator
 class CsvDataRowGenerator(RowGenerator):
     """Generate rows from CSV data, as a string
     """

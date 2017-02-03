@@ -56,6 +56,7 @@ setup(
     entry_points={
         'console_scripts': [
             'metatab=metatab.cli:metatab',
+            'metapack=metatab.cli:metapack',
         ],
     },
 

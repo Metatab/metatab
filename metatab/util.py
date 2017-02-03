@@ -3,6 +3,7 @@
 
 """Classes to build a Metatab document
 """
+from os.path import join
 
 def declaration_path(name):
     """Return the path to an included declaration"""
@@ -54,3 +55,107 @@ def flatten(d, sep='.'):
             return (parent_key, (e,)),
 
     return tuple( (k, v[0]) for k, v in _flatten(d, '', sep) )
+
+# From http://stackoverflow.com/a/2597440
+class Bunch(object):
+  def __init__(self, adict):
+    self.__dict__.update(adict)
+
+MP_DIR = '_metapack'
+DOWNLOAD_DIR = join(MP_DIR,'download')
+PACKAGE_DIR = join(MP_DIR,'package')
+OLD_DIR = join(MP_DIR,'old')
+
+def make_dir_structure(base_dir):
+    """Make the build directory structure. """
+
+    def maybe_makedir(*args):
+
+        p = join(base_dir, *args)
+
+        if exists(p) and not isdir(p):
+            raise IOError("File '{}' exists but is not a directory ".format(p))
+
+        if not exists(p):
+            makedirs(p)
+
+    maybe_makedir(DOWNLOAD_DIR)
+    maybe_makedir(PACKAGE_DIR)
+    maybe_makedir(OLD_DIR)
+
+def make_metatab_file(template='metatab'):
+
+    from os.path import join, dirname
+    import metatab.templates
+    from metatab.doc import MetatabDoc
+
+    template_path = join(dirname(metatab.templates.__file__),template+'.csv')
+
+    doc = MetatabDoc().load_csv(template_path)
+
+    return doc
+
+def scrape_urls_from_web_page(page_url):
+    from bs4 import BeautifulSoup
+    from six.moves.urllib.parse import urlparse, urlsplit, urlunsplit
+    from six.moves.urllib.request import urlopen
+    import os
+
+    parts = list(urlsplit(page_url))
+
+    parts[2] = ''
+    root_url = urlunsplit(parts)
+
+    html_page = urlopen(page_url)
+    soup = BeautifulSoup(html_page, "lxml")
+
+    d = dict(external_documentation={}, sources={}, links={})
+
+    for link in soup.findAll('a'):
+
+        if not link:
+            continue
+
+        if link.string:
+            text = link.string
+        else:
+            text = None
+
+        url = link.get('href')
+
+        if not url:
+            continue
+
+        if 'javascript' in url:
+            continue
+
+        if url.startswith('http'):
+            pass
+        elif url.startswith('/'):
+            url = os.path.join(root_url, url)
+        else:
+            url = os.path.join(page_url, url)
+
+        base = os.path.basename(url)
+
+        if '#' in base:
+            continue
+
+        try:
+            fn, ext = base.split('.', 1)
+        except ValueError:
+            fn = base
+            ext = ''
+
+        # xlsm is a bug that adds 'm' to the end of the url. No idea.
+        if ext.lower() in ('zip', 'csv', 'xls', 'xlsx', 'xlsm', 'txt'):
+            d['sources'][fn] = dict(url=url, description=text)
+
+        elif ext.lower() in ('pdf', 'html'):
+            d['external_documentation'][fn] = dict(url=url, description=text)
+
+        else:
+            d['links'][text] = dict(url=url, description=text)
+
+    return d
+
