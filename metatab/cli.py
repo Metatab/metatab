@@ -9,8 +9,7 @@ from itertools import islice
 from uuid import uuid4
 
 import six
-from metapack._meta import __version__
-from metapack.util import make_metatab_file
+from metatab.util import make_metatab_file
 from metatab import _meta
 from metatab.doc import MetatabDoc
 from os import getcwd
@@ -43,10 +42,14 @@ def metatab():
         prog='metatab',
         description='Simple Structured Table format parser, version {}'.format(_meta.__version__))
 
+    parser.add_argument('-C', '--clean-cache', default=False, action='store_true',
+                        help="Clean the download cache")
+
     g = parser.add_mutually_exclusive_group(required=True)
 
     g.add_argument('-c', '--create',  action='store', nargs='?', default=False,
                    help="Create a new metatab file, from named template. With no argument, uses the 'metatab' template ")
+
     g.add_argument('-t', '--terms', default=False, action='store_true',
                    help='Parse a file and print out the stream of terms, before interpretation')
     g.add_argument('-i', '--interp', default=False, action='store_true',
@@ -56,9 +59,6 @@ def metatab():
                    help='Parse a file and print out a JSON representation')
     g.add_argument('-y', '--yaml', default=False, action='store_true',
                    help='Parse a file and print out a YAML representation')
-
-    g.add_argument('-p', '--package', default=False, action='store_true',
-                   help='Produce a datapackage.json file')
 
     g.add_argument('-r', '--resources', default=False, action='store_true',
                    help='Print the term name, resource name and url for all resources')
@@ -79,6 +79,11 @@ def metatab():
 
     args = parser.parse_args(sys.argv[1:])
 
+    cache = get_cache('metapack')
+
+    if args.clean_cache:
+        clean_cache('metapack')
+
     if args.create:
         new_metatab_file(args.file, args.create)
         exit(0)
@@ -89,21 +94,27 @@ def metatab():
     elif args.package:
         raise NotImplementedError
 
-    doc = MetatabDoc(args.file)
 
     if args.show_declaration:
+
+        doc = MetatabDoc()
+        doc.load_declarations([args.file])
 
         print(json.dumps({
             'terms': doc.decl_terms,
             'sections': doc.decl_sections
         }, indent=4))
+        exit(0)
+    else:
+        doc = MetatabDoc(args.file, cache=cache)
 
-    elif args.terms:
+    if args.terms:
         for t in doc._term_parser:
             print(t)
 
     elif args.json:
         print(json.dumps(doc.as_dict(), indent=4))
+
 
     elif args.yaml:
         import yaml
@@ -156,6 +167,8 @@ def dump_resource(doc, name):
 
     r = list(doc.resources(name=name))[0]
 
+    prt("Dumping resource at "+r._resolved_url())
+
     w = csv.writer(sys.stdout.buffer)
 
     for row in r:
@@ -167,7 +180,10 @@ def metapack():
 
     parser = argparse.ArgumentParser(
         prog='metapack',
-        description='Create metatab data packages, version {}'.format(__version__))
+        description='Create metatab data packages, version {}'.format(_meta.__version__))
+
+    parser.add_argument('-C', '--clean-cache', default=False, action='store_true',
+                   help="Clean the download cache")
 
     parser.add_argument('-i', '--init', action='store', nargs='?', default=False,
                         help='Set the cache directory for downloads and building packages')
@@ -177,6 +193,9 @@ def metapack():
 
     parser.add_argument('-S', '--scrape',
                         help='Scrape a web page for links to data files, documentation and web pages. ')
+
+    parser.add_argument('-E', '--enumerate',
+                        help='Enumerate the resources referenced from a URL')
 
     parser.add_argument('-r', '--resources', default=False, action='store_true',
                         help='Rebuild the resources, intuiting rows and encodings from the URLs')
@@ -196,7 +215,6 @@ def metapack():
     parser.add_argument('-s3', '--s3', action='store',
                         help='Create a s3 archive from a metatab file')
 
-
     parser.add_argument('-R', '--resource-format', action='store_true', default=False,
                         help="Re-write the metatab file in 'Resource' format ")
 
@@ -206,9 +224,12 @@ def metapack():
 
     d = getcwd()
 
+    if args.clean_cache:
+        clean_cache('metapack')
+
     cache = get_cache('metapack')
 
-    prt('Cache dir: {}'.format(str(cache)))
+    prt('Cache dir: {}'.format(str(cache.getsyspath('/'))))
 
     mt_file = args.metatabfile if args.metatabfile else join(d, METATAB_FILE)
 
@@ -217,6 +238,9 @@ def metapack():
 
     if args.scrape:
         scrape_page(mt_file, args.scrape)
+
+    if args.enumerate:
+        enumerate_contents( args.enumerate, cache=cache)
 
     if args.resources:
         process_resources(mt_file, cache=cache)
@@ -243,7 +267,6 @@ def metapack():
         rewrite_resource_format(mt_file)
 
     clean_cache("metapack")
-
 
 
 def new_metatab_file(mt_file, template):
@@ -294,9 +317,9 @@ def classify_url(url):
 
     ss = SourceSpec(url=url)
 
-    if ss.format in ('xls', 'xlsx', 'tsv', 'csv'):
+    if ss.target_format in ('xls', 'xlsx', 'tsv', 'csv'):
         term_name = 'DataFile'
-    elif ss.format in ('pdf', 'doc', 'docx', 'html'):
+    elif ss.target_format in ('pdf', 'doc', 'docx', 'html'):
         term_name = 'Documentation'
     else:
         term_name = 'Resource'
@@ -359,13 +382,21 @@ def scrape_page(mt_file, url):
 
     doc.write_csv(mt_file)
 
+def enumerate_contents(url, cache):
+
+    from metatab.util import enumerate_contents
+
+    specs = list(enumerate_contents(url, cache, callback=prt))
+
+    for s in specs:
+        print (classify_url(s.url), s.target_format, s.url, s.target_segment)
 
 def add_resource(mt_file, ref, cache):
     """Add a resources entry, downloading the intuiting the file, replacing entries with
     the same reference"""
-    from rowgenerators import enumerate_contents
+    from metatab.util import enumerate_contents
 
-    doc = MetatabDoc().load_csv(mt_file)
+    doc = MetatabDoc(mt_file)
 
     if isdir(ref):
         for f in find_files(ref, ['csv']):
@@ -379,7 +410,7 @@ def add_resource(mt_file, ref, cache):
                 add_single_resource(doc, f, cache=cache)
     else:
 
-        for c in enumerate_contents(ref, cache):
+        for c in enumerate_contents(ref, cache=cache, callback=prt):
             add_single_resource(doc, c.rebuild_url(), cache=cache)
 
     doc.write_csv(mt_file)
@@ -416,7 +447,7 @@ def extract_path_name(ref):
     else:
         path = ref
 
-        v = ss.file if ss.file else uparts['path']
+        v = ss.target_file if ss.target_file else uparts['path']
 
         name = basename(splitext(v)[0])
 
@@ -518,7 +549,7 @@ def process_schemas(mt_file, cache):
 
 
 def write_excel_package(mt_file, d, cache):
-    from metapack.package import ExcelPackage
+    from metatab.package import ExcelPackage
 
     p = ExcelPackage(mt_file, callback=prt, cache=cache)
 
@@ -526,7 +557,7 @@ def write_excel_package(mt_file, d, cache):
 
 
 def write_zip_package(mt_file, d, cache):
-    from metapack.package import ZipPackage
+    from metatab.package import ZipPackage
 
     p = ZipPackage(mt_file, callback=prt, cache=cache)
 
@@ -534,7 +565,7 @@ def write_zip_package(mt_file, d, cache):
 
 
 def write_dir_package(mt_file, d, cache):
-    from metapack.package import FileSystemPackage
+    from metatab.package import FileSystemPackage
 
     p = FileSystemPackage(mt_file, callback=prt, cache=cache)
 
@@ -542,7 +573,7 @@ def write_dir_package(mt_file, d, cache):
 
 def write_s3_package(mt_file, url, cache):
 
-    from metapack.package import S3Package
+    from metatab.package import S3Package
 
     p = S3Package(mt_file, callback=prt, cache=cache)
 

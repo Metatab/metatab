@@ -20,7 +20,7 @@ def resolve_package_metadata_url(ref):
 
     du = Url(ref)
 
-    if du.download_format == 'zip':
+    if du.resource_format == 'zip':
         package_url = ref
         metadata_url = reparse_url(ref, fragment='metadata.csv')
     elif du.target_format == 'xlsx' or du.target_format == 'xls':
@@ -66,8 +66,10 @@ class Resource(Term):
 
         self.__initialised = True
 
-    @property
-    def resolved_url(self):
+        assert self.url, term.properties
+
+
+    def _resolved_url(self):
         """Return a URL that propery combines the base_url and a possibly relative
         resource url"""
 
@@ -76,7 +78,9 @@ class Resource(Term):
 
         u = Url(self.base_url)
 
-        return u.component_url(self.url)
+        nu = u.component_url(self.url)
+        assert nu
+        return nu
 
     def __contains__(self, item):
 
@@ -96,6 +100,9 @@ class Resource(Term):
         except KeyError:
             if item.lower() in self._common_properties:
                 return None
+            elif item == 'resolved_url':
+                # Looks like properties don't work properly with this method
+                return self._resolved_url()
             else:
                 raise AttributeError(item)
 
@@ -140,7 +147,9 @@ class Resource(Term):
 
 
 class MetatabDoc(object):
-    def __init__(self, ref=None, decl=None, package_url=None):
+    def __init__(self, ref=None, decl=None, package_url=None, cache=None):
+
+        self._cache = cache
 
         self.decl_terms = {}
         self.decl_sections = {}
@@ -173,7 +182,7 @@ class MetatabDoc(object):
 
     def load_declarations(self, decls):
 
-        term_interp = TermParser(generateRows([['Declare', dcl] for dcl in decls]), doc=self)
+        term_interp = TermParser(generateRows([['Declare', dcl] for dcl in decls], cache=self._cache), doc=self)
         list(term_interp)
         dd = term_interp.declare_dict
 
@@ -320,7 +329,8 @@ class MetatabDoc(object):
         """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
 
         for t in ( self.terms if term is None else self.find(term) ):
-            if 'url' in t.properties and (name is None or t.properties.get('name') == name):
+
+            if 'url' in t.properties and t.properties.get('url') and (name is None or t.properties.get('name') == name):
                 yield Resource(t, self.package_url if self.package_url else self._ref)
 
 

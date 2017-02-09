@@ -8,7 +8,7 @@ Generate rows from a variety of paths, references or other input
 from .exc import IncludeError, GenerateError
 
 
-def generateRows(ref):
+def generateRows(ref, cache=None):
 
     from inspect import isgenerator
     from six import string_types
@@ -18,7 +18,7 @@ def generateRows(ref):
     elif isgenerator(ref):
         return RowGenerator(ref)
     elif isinstance(ref, string_types):
-       return GenericRowGenerator(ref)
+       return GenericRowGenerator(ref, cache=cache)
 
     raise GenerateError("Cant figure out how to generate rows from ref: "+str(ref))
 

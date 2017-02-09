@@ -11,6 +11,8 @@ from __future__ import print_function
 ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
 
+METATAB_ASSETS_URL = 'http://assets.metatab.org/'
+
 import six
 
 from .exc import IncludeError, DeclarationError, GenerateError
@@ -18,11 +20,6 @@ from .generate import generateRows, CsvPathRowGenerator, RowGenerator
 from os.path import dirname, join, split, exists
 from .util import declaration_path
 from rowgenerators import SourceError
-
-# Well known declarations
-standard_declares = {
-    'metatab': 'http://assets.metatab.org/metatab-latest.csv'
-}
 
 
 class Term(object):
@@ -729,15 +726,25 @@ class TermParser(object):
             if exists(fn):
                 return fn
 
-        # substitute well known names
-        fn = standard_declares.get(name, name)
-
-        if fn.startswith('http'):
-            return fn.strip('/')  # Look for the file on the web
-        elif exists(fn):
-            return fn
+        if name.startswith('http'):
+            return name.strip('/')  # Look for the file on the web
+        elif exists(name):
+            return name
         else:
-            raise IncludeError("No local declaration file for '{}'".format(fn))
+            import requests
+            from requests.exceptions import InvalidSchema
+            url = METATAB_ASSETS_URL + name + '.csv'
+            try:
+                # See if it exists online in the official repo
+                r = requests.head(url, allow_redirects=False)
+                if r.status_code == requests.codes.ok:
+                    return url
+
+            except InvalidSchema:
+                pass  # It's probably FTP
+
+
+        raise IncludeError("No local declaration file for '{}'".format(name))
 
     @classmethod
     def find_include_doc(cls, d, name):
@@ -770,7 +777,7 @@ class TermParser(object):
             row_gen = ref
             ref = row_gen.path
         else:
-            row_gen = generateRows(ref)
+            row_gen = generateRows(ref, cache=doc._cache)
 
             if not isinstance(ref, six.string_types):
                 ref = six.text_type(ref)
@@ -1016,14 +1023,13 @@ class TermParser(object):
         td['values'] = {}
         td['term'] = t.value
 
-
         self._declared_terms[term_name] = td
 
         def add_term_to_section(td):
+
             section_name = td.get('section', '').lower()
 
             if section_name.lower() not in self._declared_sections:
-
                 raise DeclarationError(("Section '{}' is referenced in a term but was not "
                                         "previously declared with DeclareSection, in '{}'")
                                        .format(section_name, t.file_name))
@@ -1031,7 +1037,8 @@ class TermParser(object):
             st = self._declared_sections[td['section'].lower()]['terms']
 
             if td['term'] not in st:  # Should be a set, but I frequently print JSON for debugging
-                st.append(term_name)
+
+                st.append(td['term'])
 
         if td.get('section'):
             add_term_to_section(td)

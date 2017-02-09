@@ -25,7 +25,11 @@ def convert_to_datapackage(doc):
         else:
             raise ConversionError("Datapackage.json requires a Name or Identity term")
 
-    table_schemas = {t.value: t.as_dict()['column'] for t in doc['schema']}
+    try:
+        table_schemas = {t.value: t.as_dict()['column'] for t in doc['schema']}
+    except KeyError as e:
+        raise ConversionError("Failed to get schemas: "+str(e))
+
     file_resources = [fr.properties for fr in doc['resources'] if fr.term_is('root.datafile')]
 
     dp['resources'] = []

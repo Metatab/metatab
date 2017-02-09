@@ -9,14 +9,15 @@ import six
 import unicodecsv as csv
 from collections import namedtuple
 from io import BytesIO
-from metatab import TermParser
-from metatab.doc import MetatabDoc
+from metatab import TermParser, MetatabDoc
 from os import makedirs, remove
 from os.path import isdir, join, dirname, exists
 from rowgenerators import RowGenerator, decompose_url
 from six import string_types, text_type
 from .exc import PackageError
-from .util import Bunch, get_cache
+from .util import Bunch
+from rowgenerators.util import get_cache
+
 
 METATAB_FILE = 'metadata.csv'
 
@@ -58,7 +59,7 @@ class Package(object):
     def load_doc(self, ref):
 
         if isinstance(ref, string_types):
-            self._doc = MetatabDoc(ref)
+            self._doc = MetatabDoc(ref, cache=self._cache)
         else:
             self._doc = ref
 
@@ -426,6 +427,8 @@ class FileSystemPackage(Package):
         self._doc.write_csv(join(self.package_dir, 'metatab.csv'))
 
     def _write_dpj(self):
+
+
         from metatab.datapackage import convert_to_datapackage
 
         with open(join(self.package_dir, 'datapackage.json'), 'w') as f:
@@ -502,11 +505,11 @@ class ExcelPackage(Package):
 
         self.sections.resources.sort_by_term()
 
+        self.load_declares()
+
         self.doc.cleanse()
 
         self._load_resources()
-
-        self.load_declares()
 
         for row in self.doc.rows:
             meta_ws.append(row)
@@ -549,9 +552,9 @@ class ZipPackage(Package):
 
         self.sections.resources.sort_by_term()
 
-        self.doc.cleanse()
-
         self.load_declares()
+
+        self.doc.cleanse()
 
         self._init_zf(path)
 
@@ -597,13 +600,19 @@ class ZipPackage(Package):
 
     def _write_dpj(self):
         from metatab.datapackage import convert_to_datapackage
+        from metatab import ConversionError
 
-        self.zf.writestr(self.package_name + '/datapackage.json',
-                         json.dumps(convert_to_datapackage(self._doc), indent=4))
+        try:
+            dpj = convert_to_datapackage(self._doc)
+        except ConversionError as e:
+            self.warn(("Error while writing datapackage.json. Skipping: "+str(e)))
+            return
+
+        self.zf.writestr(self.package_name + '/datapackage.json',json.dumps(dpj, indent=4))
 
     def _load_resource(self, r, gen):
 
-        self.prt("Loading data for '{}' ".format(r.name))
+        self.prt("Loading data for '{}'  from '{}'".format(r.name, r.resolved_url))
 
         bio = BytesIO()
         writer = csv.writer(bio)
