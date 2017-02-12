@@ -4,19 +4,19 @@
 """Class for writing Metapack packages"""
 
 import json
-
-import six
-import unicodecsv as csv
 from collections import namedtuple
 from io import BytesIO
-from metatab import TermParser, MetatabDoc
 from os import makedirs, remove
 from os.path import isdir, join, dirname, exists
-from rowgenerators import RowGenerator, decompose_url
+
+import unicodecsv as csv
 from six import string_types, text_type
+
+from metatab import TermParser, MetatabDoc
+from rowgenerators import Url
+from rowgenerators.util import get_cache
 from .exc import PackageError
 from .util import Bunch
-from rowgenerators.util import get_cache
 
 
 METATAB_FILE = 'metadata.csv'
@@ -29,17 +29,17 @@ class Package(object):
 
         if cls == Package:
 
-            b = Bunch(decompose_url(ref))
+            b = Bunch(Url(ref).dict)
 
-            if b.file_format in ('xls', 'xlsx'):
+            if b.target_format in ('xls', 'xlsx'):
                 return super(Package, cls).__new__(ExcelPackage)
-            elif b.file_format == 'zip':
+            elif b.target_format == 'zip':
                 return super(Package, cls).__new__(ZipPackage)
             elif b.proto == 'gs':
                 return super(Package, cls).__new__(GooglePackage)
             elif b.proto == 's3':
                 return super(Package, cls).__new__(S3Package)
-            elif b.file_format == 'csv':
+            elif b.target_format == 'csv':
                 return super(Package, cls).__new__(CsvPackage)
             else:
                 raise PackageError("Can't determine package type for ref '{}' ".format(ref))
@@ -658,7 +658,6 @@ class S3Package(Package):
         return self
 
     def _init_s3(self, url):
-        from rowgenerators import Url
         from rowgenerators import parse_url_to_dict
         import boto3
 

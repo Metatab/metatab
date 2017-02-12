@@ -9,7 +9,11 @@ for creating, storing and transmitting metadata. For more information about meta
 
 This repository has a python module and executable. For a Javascript version, see the `metatab-js <https://github.com/CivicKnowledge/metatab-js>`_ repository.
 
+Install
+-------
+
 Install the package from PiPy with:
+
 
 .. code-block:: bash
 
@@ -29,5 +33,10 @@ Then test parsing using a remote file with:
 
 Run ``metatab -h`` to get other program options. 
 
-The ``test-data`` directory has test files that also serve as examples to parse. You can either clone the repo and parse them from the files, or from the Github page for the file, click on the ``raw`` button to get raw view of the flie, then copy the URL. 
+The ``test-data`` directory has test files that also serve as examples to parse. You can either clone the repo and parse them from the files, or from the Github page for the file, click on the ``raw`` button to get raw view of the flie, then copy the URL.
 
+
+Metatab and Metapack
+--------------------
+
+The metatab python distribution includes two programs, ``metatab`` for manipulating single Metatab files  and ``metapack`` for creating data packages.

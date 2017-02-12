@@ -19,6 +19,9 @@ from tableintuit import TypeIntuiter, SelectiveRowGenerator
 
 METATAB_FILE = 'metadata.csv'
 
+DATA_FORMATS = ('xls', 'xlsx', 'tsv', 'csv')
+DOC_FORMATS = ('pdf', 'doc', 'docx', 'html')
+
 # Change the row cache name
 from rowgenerators.util import get_cache, clean_cache
 
@@ -66,6 +69,12 @@ def metatab():
     g.add_argument('-R', '--resource',
                    help='Dump CSV for one named resource')
 
+    g.add_argument('-H', '--head',
+                        help="Dump the first 20 lines of a resoruce ")
+
+    g.add_argument('-S', '--schema',
+                   help='Dump the schema for one named resource')
+
     parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
                         help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
 
@@ -75,7 +84,7 @@ def metatab():
     g.add_argument('-V', '--version', default=False, action='store_true',
                    help='Display the package version and exit')
 
-    parser.add_argument('file', help='Path to a Metatab file')
+    parser.add_argument('file', nargs='?', default='metadata.csv', help='Path to a Metatab file')
 
     args = parser.parse_args(sys.argv[1:])
 
@@ -84,16 +93,12 @@ def metatab():
     if args.clean_cache:
         clean_cache('metapack')
 
-    if args.create:
+    if args.create is not False:
         new_metatab_file(args.file, args.create)
         exit(0)
 
     if args.declare:
         raise NotImplementedError()
-
-    elif args.package:
-        raise NotImplementedError
-
 
     if args.show_declaration:
 
@@ -125,6 +130,12 @@ def metatab():
 
     elif args.resource:
         dump_resource(doc, args.resource)
+
+    elif args.head:
+        dump_resource(doc, args.head, 20)
+
+    elif args.schema:
+        dump_schema(doc, args.schema)
 
     exit(0)
 
@@ -161,18 +172,55 @@ def dump_resources(doc):
     for r in doc.resources():
         print(r.name, r.resolved_url)
 
-def dump_resource(doc, name):
+
+def dump_resource(doc, name, lines=None):
     import unicodecsv as csv
     import sys
+    from itertools import islice
 
-    r = list(doc.resources(name=name))[0]
+    r = doc.first_resource(name=name)
 
-    prt("Dumping resource at "+r._resolved_url())
+    if lines:
+        gen = islice(r, lines)
+    else:
+        gen = r
 
-    w = csv.writer(sys.stdout.buffer)
+    prt("Dumping resource at "+r.resolved_url)
 
-    for row in r:
+    w = csv.writer(sys.stdout if six.PY2 else sys.stdout.buffer)
+
+    for row in gen:
         w.writerow(row)
+
+def get_table(doc, name):
+    t = doc.find_first('Root.Table', value=name)
+
+    if not t:
+
+        table_names = ["'" + t.value + "'" for t in doc.find('Root.Table')]
+
+        if not table_names:
+            table_names = ["<No Tables>"]
+
+        err("Did not find schema for table name '{}' Tables are: {}"
+            .format(name, " ".join(table_names)))
+
+    return t
+
+def dump_schema(doc, name):
+
+    from tabulate import tabulate
+
+    t = get_table(doc, name)
+
+    rows = []
+    header = 'name altname datatype description'.split()
+    for c in t.children:
+        cp = c.properties
+        rows.append([cp.get(h) for h in header])
+
+    prt(tabulate(rows, header))
+
 
 
 def metapack():
@@ -182,8 +230,11 @@ def metapack():
         prog='metapack',
         description='Create metatab data packages, version {}'.format(_meta.__version__))
 
-    parser.add_argument('-C', '--clean-cache', default=False, action='store_true',
+    parser.add_argument( '--clean-cache', default=False, action='store_true',
                    help="Clean the download cache")
+
+    parser.add_argument('-C','--clean', default=False, action='store_true',
+                        help="FOr some operations, like updating schemas, clear the section of existing terms first")
 
     parser.add_argument('-i', '--init', action='store', nargs='?', default=False,
                         help='Set the cache directory for downloads and building packages')
@@ -218,6 +269,8 @@ def metapack():
     parser.add_argument('-R', '--resource-format', action='store_true', default=False,
                         help="Re-write the metatab file in 'Resource' format ")
 
+
+
     parser.add_argument('metatabfile', nargs='?')
 
     args = parser.parse_args(sys.argv[1:])
@@ -246,7 +299,7 @@ def metapack():
         process_resources(mt_file, cache=cache)
 
     if args.schemas:
-        process_schemas(mt_file, cache=cache)
+        process_schemas(mt_file, cache=cache, clean=args.clean)
 
     if args.add:
         add_resource(mt_file, args.add, cache=cache)
@@ -263,8 +316,7 @@ def metapack():
     if args.s3:
         write_s3_package(mt_file, args.s3, cache=cache)
 
-    if args.resource_format:
-        rewrite_resource_format(mt_file)
+
 
     clean_cache("metapack")
 
@@ -283,6 +335,7 @@ def new_metatab_file(mt_file, template):
 def find_files(base_path, types):
     from os import walk
     from os.path import join, splitext
+    from rowgenerators import Url
 
     for root, dirs, files in walk(base_path):
         if '_metapack' in root:
@@ -292,8 +345,9 @@ def find_files(base_path, types):
             if f.startswith('_'):
                 continue
 
-            b, ext = splitext(f)
-            if ext[1:] in types:
+            u = Url(f)
+
+            if u.target_format in types:
                 yield join(root, f)
 
 
@@ -312,14 +366,15 @@ def init_metatab(mt_file, alt_mt_file):
         prt("Doing nothing; file '{}' already exists".format(mt_file))
 
 
+
 def classify_url(url):
     from rowgenerators import SourceSpec
 
     ss = SourceSpec(url=url)
 
-    if ss.target_format in ('xls', 'xlsx', 'tsv', 'csv'):
+    if ss.target_format in DATA_FORMATS:
         term_name = 'DataFile'
-    elif ss.target_format in ('pdf', 'doc', 'docx', 'html'):
+    elif ss.target_format in DOC_FORMATS:
         term_name = 'Documentation'
     else:
         term_name = 'Resource'
@@ -367,7 +422,7 @@ def add_single_resource(doc, ref, cache):
 def scrape_page(mt_file, url):
     from .util import scrape_urls_from_web_page
 
-    doc = MetatabDoc().load_csv(mt_file)
+    doc = MetatabDoc(mt_file)
 
     doc['resources'].new_term('DownloadPage', url)
 
@@ -395,11 +450,15 @@ def add_resource(mt_file, ref, cache):
     """Add a resources entry, downloading the intuiting the file, replacing entries with
     the same reference"""
     from metatab.util import enumerate_contents
+    from rowgenerators import Url
 
-    doc = MetatabDoc(mt_file)
+    if isinstance(mt_file, MetatabDoc):
+        doc = mt_file
+    else:
+        doc = MetatabDoc(mt_file)
 
     if isdir(ref):
-        for f in find_files(ref, ['csv']):
+        for f in find_files(ref, DATA_FORMATS):
 
             if f.endswith(METATAB_FILE):
                 continue
@@ -460,7 +519,7 @@ def alt_col_name(name):
 
 
 def process_resources(mt_file, cache):
-    doc = MetatabDoc().load_csv(mt_file)
+    doc = MetatabDoc(mt_file)
 
     try:
         doc['Schema'].clean()
@@ -490,14 +549,17 @@ type_map = {
 }
 
 
-def process_schemas(mt_file, cache):
+def process_schemas(mt_file, cache, clean=False):
     from rowgenerators import SourceError
     from requests.exceptions import ConnectionError
 
-    doc = MetatabDoc().load_csv(mt_file)
+    doc = MetatabDoc(mt_file)
 
     try:
-        doc['Schema'].clean()
+        if clean:
+            doc['Schema'].clean()
+        else:
+            doc['Schema']
     except KeyError:
         doc.new_section('Schema', ['DataType', 'Altname', 'Description'])
 
@@ -507,6 +569,12 @@ def process_schemas(mt_file, cache):
             continue
 
         e = {k: v for k, v in t.properties.items() if v}
+
+        schema_term = doc.find_first(term='Table',value=e['name'], section='Schema')
+
+        if schema_term:
+            prt("Found table for '{}'; skipping".format(e['name']))
+            continue
 
         path, name = extract_path_name(t.value)
 
@@ -582,7 +650,7 @@ def write_s3_package(mt_file, url, cache):
 
 
 def rewrite_resource_format(mt_file):
-    doc = MetatabDoc().load_csv(mt_file)
+    doc = MetatabDoc(mt_file)
 
     if 'schema' in doc:
         table_schemas = {t.value: t.as_dict() for t in doc['schema']}

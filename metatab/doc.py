@@ -8,9 +8,12 @@ import six
 import unicodecsv as csv
 from collections import OrderedDict, MutableSequence
 from metatab import TermParser, SectionTerm, Term, generateRows, MetatabError, CsvPathRowGenerator, RootSectionTerm
-from rowgenerators import RowGenerator
+from rowgenerators import RowGenerator, SelectiveRowGenerator
 from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
-from os.path import join
+from os.path import join, dirname, isfile
+from itertools import islice
+from rowpipe import RowProcessor
+from rowgenerators import Url
 
 def resolve_package_metadata_url(ref):
     """Re-write a url to a resource to include the likely refernce to the
@@ -52,10 +55,9 @@ class Resource(Term):
 
     _common_properties = 'url name description schema'.split()
 
-
     def __init__(self, term, base_url, package=None):
 
-        super().__init__(term.term, term.value, term.args,
+        super(Resource, self).__init__(term.term, term.value, term.args,
                  term.row, term.col,
                  term.file_name, term.file_type,
                  term.parent, term.doc, term.section)
@@ -68,17 +70,15 @@ class Resource(Term):
 
         assert self.url, term.properties
 
-
     def _resolved_url(self):
         """Return a URL that propery combines the base_url and a possibly relative
         resource url"""
 
-        from os.path import join, dirname
         from rowgenerators import Url
 
-        u = Url(self.base_url)
-
+        u = Url(self.doc.ref)
         nu = u.component_url(self.url)
+
         assert nu
         return nu
 
@@ -126,9 +126,58 @@ class Resource(Term):
         except AttributeError:
             return default
 
-    @property
+    def _name_for_col_term(self, c, i):
+        return c.properties.get('altname', c.properties.get('name', "col{}".format(i)))
+
     def headers(self):
         """Return the headers for the resource"""
+
+        doc = self.doc
+
+        t = doc.find_first('Root.Table', value=self.properties.get('name'))
+
+        if t:
+            return [ self._name_for_col_term(c, i)
+                     for i,c in enumerate(t.children) if c.term_is("Table.Column")]
+        else:
+            return None
+
+    def row_processor_table(self):
+        """Create a row processor from the schema, to convert the text velus from the
+        CSV into real types"""
+        from rowpipe.table import Table
+        from rowpipe.processor import RowProcessor
+
+        type_map = {
+            None: None,
+            'string':'str',
+            'text': 'str',
+            'number': 'float',
+            'integer': 'int'
+        }
+
+        def map_type(v):
+            return type_map.get(v,v)
+
+        doc = self.doc
+
+        table_term = doc.find_first('Root.Table', value=self.properties.get('name'))
+
+        if table_term:
+
+            t = Table(self.properties.get('name'))
+
+            for i, c in enumerate(table_term.children):
+                t.add_column(self._name_for_col_term(c, i),
+                             datatype=map_type(c.properties.get('datatype')),
+                             valuetype=map_type(c.properties.get('valuetype')),
+                             transform=c.properties.get('transform')
+                             )
+
+            return t
+
+        else:
+            return None
 
     def __iter__(self):
         """Iterate over the resource's rows"""
@@ -139,11 +188,60 @@ class Resource(Term):
 
         rg = RowGenerator(**d)
 
+        headers = self.headers()
+
+        if headers:
+            # There are several args for SelectiveRowGenerator, but only
+            # start is really important.
+            start = d.get('start', 1)
+
+            rg = islice(rg,start, None)
+
+            yield headers
+
+        rp_table = self.row_processor_table()
+
+        if rp_table:
+            rg = RowProcessor(rg, rp_table, source_headers=headers,env={})
+
         if six.PY3:
-            yield from rg
+            # Would like to do this, but Python2 can't handle the syntax
+            #yield from rg
+            for row in rg:
+                yield row
         else:
             for row in rg:
                 yield row
+
+    def dataframe(self):
+        """Return a pandas datafrome from the resource"""
+
+        from .pands import MetatabDataFrame
+
+        d = self.properties
+
+        d['url'] = self.resolved_url
+
+        rg = RowGenerator(**d)
+
+        headers = self.headers()
+
+        if headers:
+            # There are several args for SelectiveRowGenerator, but only
+            # start is really important.
+            start = d.get('start', 1)
+
+            rg = islice(rg, start, None)
+
+        else:
+            headers = next(rg)
+
+        rp_table = self.row_processor_table()
+
+        if rp_table:
+            rg = RowProcessor(rg, rp_table, source_headers=headers, env={})
+
+        return MetatabDataFrame(list(rg), columns=headers, metatab_resource=self)
 
 
 class MetatabDoc(object):
@@ -179,6 +277,10 @@ class MetatabDoc(object):
             self.root = SectionTerm('Root', term='Root', doc=self, row=0, col=0,
                                     file_name=None, parent=None)
             self.add_section(self.root)
+
+    @property
+    def ref(self):
+        return self._ref
 
     def load_declarations(self, decls):
 
@@ -324,14 +426,23 @@ class MetatabDoc(object):
         else:
             return term.value
 
-
-    def resources(self, term=None, name=None):
+    def resources(self, name=None, term=None):
         """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
 
         for t in ( self.terms if term is None else self.find(term) ):
 
             if 'url' in t.properties and t.properties.get('url') and (name is None or t.properties.get('name') == name):
                 yield Resource(t, self.package_url if self.package_url else self._ref)
+
+    def first_resource(self, name=None, term=None):
+
+        resources = list(self.resources(name=name, term=term))
+
+        if not resources:
+            return None
+
+        else:
+            return resources[0]
 
 
     def load_terms(self, terms):

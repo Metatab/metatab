@@ -771,6 +771,12 @@ class TermParser(object):
 
         """
 
+        #Python2 doesn't have FileNotFoundError
+        try:
+            FileNotFoundError
+        except NameError:
+            FileNotFoundError = IOError
+
         # This method is seperate from __iter__ so it can recurse for Include and Declare
 
         if isinstance(ref, RowGenerator):
@@ -827,7 +833,7 @@ class TermParser(object):
                         e.term = t
                         raise
 
-                    except (FileNotFoundError,SourceError) as e:
+                    except (FileNotFoundError, SourceError) as e:
                         e = IncludeError("Failed to Include; {}".format(e))
                         e.term = t
                         raise e

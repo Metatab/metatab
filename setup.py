@@ -49,7 +49,8 @@ setup(
         'unicodecsv',
         'pyyaml',
         'datapackage',
-        'rowgenerators'
+        'rowgenerators',
+        'rowpipe'
     ],
 
     
