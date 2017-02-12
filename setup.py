@@ -1,13 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import imp
 import os
 import sys
-from setuptools import find_packages
-import uuid
-import imp
+import shutil
+import glob
+from distutils.command import build as build_module
+from os.path import dirname, abspath, join, isdir
 
-from pip.req import parse_requirements
+from setuptools import find_packages
 
 try:
     from setuptools import setup
@@ -36,6 +38,22 @@ classifiers = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
+class build(build_module.build):
+    def run(self):
+        dcl = imp.load_source('dcl', 'metatab/declarations/__init__.py')
+        dest_dir = abspath(dirname(dcl.__file__))
+
+        src_dir = join(dirname(dirname(abspath(__file__))),'metatab','declarations')
+
+        if not isdir(src_dir):
+            raise IOError("Can't build without metatab package as same level as this module\n "
+                          "https://github.com/CivicKnowledge/metatab.git")
+
+        for fn in glob.glob(join(src_dir,'*.csv')):
+            print("Copying {} to {}".format(fn, dest_dir))
+            shutil.copy(fn, dest_dir)
+
+        return build_module.build.run(self)
 
 setup(
     name='metatab',
@@ -63,11 +81,16 @@ setup(
 
     author=ps_meta.__author__,
     author_email=ps_meta.__author__,
-    url='https://github.com/CivicKnowledge/metatab.git',
+    url='https://github.com/CivicKnowledge/metatab-py.git',
     license='BSD',
     classifiers=classifiers,
     extras_require={
         'test': ['datapackage'],
 
-    }
+    },
+
+    cmdclass={
+        'build': build,
+    },
+
 )
