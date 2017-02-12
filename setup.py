@@ -6,7 +6,7 @@ import os
 import sys
 import shutil
 import glob
-from distutils.command import build as build_module
+from distutils.command import sdist as sdist_module
 from os.path import dirname, abspath, join, isdir
 
 from setuptools import find_packages
@@ -38,7 +38,7 @@ classifiers = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
-class build(build_module.build):
+class sdist(sdist_module.sdist):
     def run(self):
         dcl = imp.load_source('dcl', 'metatab/declarations/__init__.py')
         dest_dir = abspath(dirname(dcl.__file__))
@@ -46,14 +46,14 @@ class build(build_module.build):
         src_dir = join(dirname(dirname(abspath(__file__))),'metatab','declarations')
 
         if not isdir(src_dir):
-            raise IOError("Can't build without metatab package as same level as this module\n "
+            raise IOError("Can't build without metatab package at same level as this module\n "
                           "https://github.com/CivicKnowledge/metatab.git")
 
         for fn in glob.glob(join(src_dir,'*.csv')):
             print("Copying {} to {}".format(fn, dest_dir))
             shutil.copy(fn, dest_dir)
 
-        return build_module.build.run(self)
+        return sdist_module.sdist.run(self)
 
 setup(
     name='metatab',
@@ -90,7 +90,7 @@ setup(
     },
 
     cmdclass={
-        'build': build,
+        'sdist': sdist,
     },
 
 )
