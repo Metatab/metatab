@@ -1,5 +1,5 @@
 include requirements.txt
 include README.rst
 include LICENSE
-recursive-include metatab/templates *.csv
-recursive-include metatab/declarations *.csv
+#recursive-include metatab/templates *.csv
+#recursive-include metatab/declarations *.csv
