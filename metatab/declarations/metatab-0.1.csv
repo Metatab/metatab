@@ -64,7 +64,7 @@
 "DeclareTerm","Root.Origin","Name","Root.Contact","Contacts",,,,
 "DeclareTerm","Root.Maintainer","Name","Root.Contact","Contacts",,,,
 "DeclareTerm","Root.Contributor","Name","Root.Contact","Contacts",,,,
-"DeclareTerm","Root.Analyzt","Name","Root.Contact","Contacts",,,,
+"DeclareTerm","Root.Analyst","Name","Root.Contact","Contacts",,,,
 "#Resources",,,,,,,,
 "DeclareTerm","Root.Resource",,,"Resources",,,,
 "DeclareTerm","Resource.Url",,,"Resources",,,,

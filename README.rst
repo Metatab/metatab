@@ -40,3 +40,18 @@ Metatab and Metapack
 --------------------
 
 The metatab python distribution includes two programs, ``metatab`` for manipulating single Metatab files  and ``metapack`` for creating data packages.
+
+
+Creating a new package
+++++++++++++++++++++++
+
+
+Create a directory, usually with the name you'll give the package and create a new metatab file within it.
+
+.. code-block:: bash
+
+    $ mkdir example
+    $ cd example
+    $ metatab -c
+
+

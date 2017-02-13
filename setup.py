@@ -25,8 +25,6 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
 
 ps_meta = imp.load_source('_meta', 'metatab/_meta.py')
 
-packages = find_packages()
-
 classifiers = [
     'Development Status :: 4 - Beta',
     'Intended Audience :: Developers',
@@ -60,8 +58,9 @@ setup(
     version=ps_meta.__version__,
     description='Data format for storing structured data in spreadsheet tables',
     long_description=readme,
-    packages=packages,
+    packages=find_packages(),
     include_package_data=True,
+    zip_safe=False,
     install_requires=[
         'six',
         'unicodecsv',
