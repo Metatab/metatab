@@ -29,11 +29,12 @@ class MetatabSeries(Series):
 
 class MetatabDataFrame(DataFrame):
 
-    _metadata = [ 'metatab_resource']
+    _metadata = [ 'metatab_resource', 'metatab_errors']
 
     def __init__(self, data=None, index=None, columns=None, dtype=None, copy=False, metatab_resource=None):
 
         self.metatab_resource = metatab_resource
+        self.metatab_errors = {}
 
         super(MetatabDataFrame, self).__init__(data, index, columns, dtype, copy)
 

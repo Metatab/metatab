@@ -186,6 +186,8 @@ class Resource(Term):
 
         d['url'] = self.resolved_url
 
+        d['target_format'] = d.get('format')
+
         rg = RowGenerator(**d)
 
         headers = self.headers()
@@ -212,6 +214,7 @@ class Resource(Term):
         else:
             for row in rg:
                 yield row
+
 
     def dataframe(self):
         """Return a pandas datafrome from the resource"""
@@ -241,7 +244,12 @@ class Resource(Term):
         if rp_table:
             rg = RowProcessor(rg, rp_table, source_headers=headers, env={})
 
-        return MetatabDataFrame(list(rg), columns=headers, metatab_resource=self)
+
+        df =  MetatabDataFrame(list(rg), columns=headers, metatab_resource=self)
+
+        df.metatab_errors = rg.errors
+
+        return df
 
 
 class MetatabDoc(object):
@@ -388,7 +396,7 @@ class MetatabDoc(object):
         import itertools
 
         if isinstance(term, (list, tuple)):
-            return list(itertools.chain(*[self.find(e) for e in term]))
+            return list(itertools.chain(*[self.find(e, value=value, section=section) for e in term]))
 
         else:
             found = []
@@ -429,7 +437,7 @@ class MetatabDoc(object):
     def resources(self, name=None, term=None):
         """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
 
-        for t in ( self.terms if term is None else self.find(term) ):
+        for t in ( self['Resources'].terms if term is None else self.find(term, section='resources') ):
 
             if 'url' in t.properties and t.properties.get('url') and (name is None or t.properties.get('name') == name):
                 yield Resource(t, self.package_url if self.package_url else self._ref)

@@ -513,8 +513,10 @@ def extract_path_name(ref):
     return path, name
 
 
-def alt_col_name(name):
+def alt_col_name(name, i):
     import re
+    if not name:
+        return 'col{}'.format(i)
     return re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
 
 
@@ -583,9 +585,9 @@ def process_schemas(mt_file, cache, clean=False):
         rg = RowGenerator(url=path,
                           name=e.get('name'),
                           encoding=e.get('encoding', 'utf8'),
-                          format=e.get('format'),
-                          file=e.get('file'),
-                          segment=e.get('segment'),
+                          target_format=e.get('format'),
+                          target_file=e.get('file'),
+                          target_segment=e.get('segment'),
                           cache=cache)
 
         si = SelectiveRowGenerator(islice(rg, 5000),
@@ -605,8 +607,8 @@ def process_schemas(mt_file, cache, clean=False):
 
         prt("Adding table '{}' ".format(e['name']))
 
-        for c in ti.to_rows():
-            raw_alt_name = alt_col_name(c['header'])
+        for i, c in enumerate(ti.to_rows()):
+            raw_alt_name = alt_col_name(c['header'],i)
             alt_name = raw_alt_name if raw_alt_name != c['header'] else ''
 
             table.new_child('Column', c['header'],
