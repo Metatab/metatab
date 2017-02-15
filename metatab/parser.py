@@ -176,6 +176,7 @@ class Term(object):
             t.set_ownership()
 
     def find_first(self, term):
+
         for c in self.children:
             if c.record_term_lc == term.lower():
                 return c
@@ -205,7 +206,9 @@ class Term(object):
 
         if item.lower() == self.term_value_name.lower():
             return self
+
         else:
+
             c = self.find_first(item)
             if c is None:
                 raise KeyError
@@ -298,6 +301,7 @@ class Term(object):
     @property
     def properties(self):
         """Return the value and scalar properties as a dictionary"""
+
         d = dict(zip([str(e).lower() for e in self.section.property_names], self.args))
         d[self.term_value_name.lower()] = self.value
 
@@ -903,13 +907,14 @@ class TermParser(object):
                     self._param_map = munge_param_map(t)
                     default_term_value_name = t.value.lower()
                     last_section.header_args = t.args
+
                     continue
 
                 elif t.term_is('root.section'):
                     self._param_map = munge_param_map(t)
                     # Parentage should not persist across sections
                     last_parent_term = self.root.record_term
-                    last_section.header_args = []
+
                     last_section = t
                     default_term_value_name = '@value'
                     t.section = None
@@ -932,6 +937,7 @@ class TermParser(object):
 
                     t.valid = t.join_lc in self._declared_terms  # advisory.
 
+
                     # Only terms with the term name in the first column can be parents of
                     # other terms. This rule excludes argument terms and terms with an elided parent
 
@@ -945,9 +951,7 @@ class TermParser(object):
                         last_term_map[last_parent_term].add_child(t)
 
                     else:
-
                         last_parent_term = t.record_term
-
                         last_term_map[ELIDED_TERM] = t
                         last_term_map[t.record_term] = t
 

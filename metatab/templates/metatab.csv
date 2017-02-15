@@ -9,7 +9,7 @@
 "SpatialGrain",,,,,,
 ,,,,,,
 "Section","Resources","Name","StartLine","HeaderLines","Encoding","Description"
-"Datafile","/data/example.csv",,,,,
+"Datafile","http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Frenter_cost.csv","renter_cost",5,"3,4","ascii",
 ,,,,,,
 "Section ","Documentation","Title","Description",,,
 "HomePage","# URL to webpage for the data program",,,,,

@@ -353,9 +353,13 @@ class Package(object):
 
             self.prt("Reading resource {} from {} ".format(r.name, r.resolved_url))
 
+            assert r.properties.get('encoding') == r.get('encoding')
+
             rg = RowGenerator(url=r.resolved_url, cache=self._cache, encoding=r.get('encoding'))
 
-            gen = islice(rg, r.get('startline'), None)
+            start_line = int(r.get('startline')) if r.get('startline') is not None  else 1
+
+            gen = islice(rg, start_line, None)
 
             r.encoding = None
             r.startlines = None
@@ -686,7 +690,7 @@ class S3Package(Package):
         self.write_to_s3('metadata.csv', bio.getvalue())
 
     def _write_dpj(self):
-        from metatab.datapackage import convert_to_datapackage
+
 
         self.write_to_s3('datapackage.json', json.dumps(convert_to_datapackage(self._doc), indent=4))
 

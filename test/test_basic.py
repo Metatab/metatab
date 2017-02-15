@@ -440,10 +440,21 @@ class MyTestCase(unittest.TestCase):
 
         print(json.dumps(d.decl_terms, indent=4))
 
+    def test_edit_resource(self):
+
+        d = MetatabDoc(test_data('example1.csv'))
+
+        for r in d.resources():
+
+            r.url = r.name
+            print(r.url, r.properties)
+
+        for t in d.find('Root.Datafile'):
+            print(t.properties)
+
 
     def test_enumerate(self):
         from metatab.util import  enumerate_contents
-
 
 
         u = "http://star.cde.ca.gov/star2012/ResearchFileList.aspx?rf=True&ps=True"

@@ -62,9 +62,12 @@ class Resource(Term):
                  term.file_name, term.file_type,
                  term.parent, term.doc, term.section)
 
-        self.__dict__.update(term.properties)
+        self._orig_term = term
         self.base_url = base_url
         self.package = package
+
+        self.term_value_name = term.term_value_name
+        self.children = term.children
 
         self.__initialised = True
 
@@ -95,7 +98,6 @@ class Resource(Term):
         """
         try:
             # Normal child
-
             return self.__getitem__(item).value
         except KeyError:
             if item.lower() in self._common_properties:
@@ -111,12 +113,19 @@ class Resource(Term):
 
         if '_Resource__initialised' not in self.__dict__:
             # Not initialized yet; set attributes normally.
+            assert item != 'url'
             return object.__setattr__(self, item, value)
 
-        elif item in self.__dict__:
+        elif item in self.__dict__ and not (item.lower() == self.term_value_name.lower() or item.lower() == 'value'):
+            assert item != 'url'
             object.__setattr__(self, item, value)
 
+        elif item.lower() == self.term_value_name.lower() or item.lower() == 'value':
+            object.__setattr__(self, 'value', value)
+            self._orig_term.value = value
+
         else:
+
             self.__setitem__(item, value)
 
     def get(self, attr, default=None):
@@ -126,8 +135,19 @@ class Resource(Term):
         except AttributeError:
             return default
 
+    def new_child(self, term, value, **kwargs):
+        raise NotImplementedError("DOn't create children from resources. ")
+
+
     def _name_for_col_term(self, c, i):
-        return c.properties.get('altname', c.properties.get('name', "col{}".format(i)))
+
+        altname = c.properties.get('altname')
+        name = c.properties.get('name')
+        default = "col{}".format(i)
+
+        for n in [altname, name, default]:
+            if n:
+                return n
 
     def headers(self):
         """Return the headers for the resource"""
@@ -192,6 +212,8 @@ class Resource(Term):
 
         headers = self.headers()
 
+        assert all( bool(h) for h in headers), headers # Don't allow missing headers
+
         if headers:
             # There are several args for SelectiveRowGenerator, but only
             # start is really important.
@@ -202,6 +224,7 @@ class Resource(Term):
             yield headers
 
         rp_table = self.row_processor_table()
+
 
         if rp_table:
             rg = RowProcessor(rg, rp_table, source_headers=headers,env={})
@@ -214,7 +237,6 @@ class Resource(Term):
         else:
             for row in rg:
                 yield row
-
 
     def dataframe(self):
         """Return a pandas datafrome from the resource"""
@@ -391,9 +413,26 @@ class MetatabDoc(object):
         for s in self.sections.values():
             yield s
 
-    def find(self, term, value=False, section=None):
-        """Return a list of terms, possibly in a particular section. Use joined term notation"""
+    def find(self, term, value=False, section=None, **kwargs):
+        """Return a list of terms, possibly in a particular section. Use joined term notation
+
+        kwargs is used to set term properties, all of which match returned terms.
+        """
         import itertools
+
+        if kwargs:
+            terms = self.find(term, value, section)
+
+            found_terms = []
+
+            for t in terms:
+                tp = t.properties
+
+                if all( tp.get(k) == v for k, v in kwargs.items()):
+
+                    found_terms.append(t)
+
+            return found_terms
 
         if isinstance(term, (list, tuple)):
             return list(itertools.chain(*[self.find(e, value=value, section=section) for e in term]))
@@ -434,6 +473,7 @@ class MetatabDoc(object):
         else:
             return term.value
 
+
     def resources(self, name=None, term=None):
         """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
 
@@ -441,6 +481,7 @@ class MetatabDoc(object):
 
             if 'url' in t.properties and t.properties.get('url') and (name is None or t.properties.get('name') == name):
                 yield Resource(t, self.package_url if self.package_url else self._ref)
+
 
     def first_resource(self, name=None, term=None):
 

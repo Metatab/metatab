@@ -7,14 +7,15 @@ import json
 import sys
 from itertools import islice
 from uuid import uuid4
+import re
 
 import six
 from metatab.util import make_metatab_file
 from metatab import _meta
 from metatab.doc import MetatabDoc
 from os import getcwd
-from os.path import exists, join, isdir
-from rowgenerators import RowGenerator
+from os.path import exists, join, isdir, abspath, dirname
+from rowgenerators import RowGenerator, Url
 from tableintuit import TypeIntuiter, SelectiveRowGenerator
 
 METATAB_FILE = 'metadata.csv'
@@ -27,11 +28,14 @@ from rowgenerators.util import get_cache, clean_cache
 
 LE = 'metadata.csv'
 
+
 def prt(*args):
     print(*args)
 
+
 def warn(*args):
     print('WARN:', *args)
+
 
 def err(*args):
     import sys
@@ -50,7 +54,7 @@ def metatab():
 
     g = parser.add_mutually_exclusive_group(required=True)
 
-    g.add_argument('-c', '--create',  action='store', nargs='?', default=False,
+    g.add_argument('-c', '--create', action='store', nargs='?', default=False,
                    help="Create a new metatab file, from named template. With no argument, uses the 'metatab' template ")
 
     g.add_argument('-t', '--terms', default=False, action='store_true',
@@ -63,14 +67,12 @@ def metatab():
     g.add_argument('-y', '--yaml', default=False, action='store_true',
                    help='Parse a file and print out a YAML representation')
 
-    g.add_argument('-r', '--resources', default=False, action='store_true',
-                   help='Print the term name, resource name and url for all resources')
 
-    g.add_argument('-R', '--resource',
-                   help='Dump CSV for one named resource')
+    g.add_argument('-R', '--resource', default=False, action='store_true',
+                   help='If the URL has no fragment, dump the resources listed in the metatab file. With a fragment, dump a resource as a CSV')
 
-    g.add_argument('-H', '--head',
-                        help="Dump the first 20 lines of a resoruce ")
+    g.add_argument('-H', '--head', default=False, action='store_true',
+                   help="Dump the first 20 lines of a resoruce ")
 
     g.add_argument('-S', '--schema',
                    help='Dump the schema for one named resource')
@@ -97,8 +99,25 @@ def metatab():
         new_metatab_file(args.file, args.create)
         exit(0)
 
-    if args.declare:
-        raise NotImplementedError()
+    if args.resource or args.head:
+
+        limit = 20 if args.head else None
+
+        u = Url(args.file)
+
+        resource = u.parts.fragment
+
+        doc = MetatabDoc(u.rebuild_url(False,False), cache=cache)
+
+        if resource:
+            dump_resource(doc, resource, limit)
+        else:
+            dump_resources(doc)
+
+        exit(0)
+
+
+
 
     if args.show_declaration:
 
@@ -111,6 +130,7 @@ def metatab():
         }, indent=4))
         exit(0)
     else:
+
         doc = MetatabDoc(args.file, cache=cache)
 
     if args.terms:
@@ -125,14 +145,6 @@ def metatab():
         import yaml
         print(yaml.safe_dump(doc.as_dict(), default_flow_style=False, indent=4))
 
-    elif args.resources:
-        dump_resources(doc)
-
-    elif args.resource:
-        dump_resource(doc, args.resource)
-
-    elif args.head:
-        dump_resource(doc, args.head, 20)
 
     elif args.schema:
         dump_schema(doc, args.schema)
@@ -141,7 +153,6 @@ def metatab():
 
 
 def new_metatab_file(mt_file, template):
-
     template = template if template else 'metatab'
 
     if not exists(mt_file):
@@ -150,6 +161,7 @@ def new_metatab_file(mt_file, template):
         doc['Root']['Identifier'] = str(uuid4())
 
         doc.write_csv(mt_file)
+
 
 def find_files(base_path, types):
     from os import walk
@@ -167,8 +179,8 @@ def find_files(base_path, types):
             if ext[1:] in types:
                 yield join(root, f)
 
-def dump_resources(doc):
 
+def dump_resources(doc):
     for r in doc.resources():
         print(r.name, r.resolved_url)
 
@@ -185,12 +197,11 @@ def dump_resource(doc, name, lines=None):
     else:
         gen = r
 
-    prt("Dumping resource at "+r.resolved_url)
-
     w = csv.writer(sys.stdout if six.PY2 else sys.stdout.buffer)
 
     for row in gen:
         w.writerow(row)
+
 
 def get_table(doc, name):
     t = doc.find_first('Root.Table', value=name)
@@ -207,8 +218,8 @@ def get_table(doc, name):
 
     return t
 
-def dump_schema(doc, name):
 
+def dump_schema(doc, name):
     from tabulate import tabulate
 
     t = get_table(doc, name)
@@ -222,7 +233,6 @@ def dump_schema(doc, name):
     prt(tabulate(rows, header))
 
 
-
 def metapack():
     import argparse
 
@@ -230,10 +240,10 @@ def metapack():
         prog='metapack',
         description='Create metatab data packages, version {}'.format(_meta.__version__))
 
-    parser.add_argument( '--clean-cache', default=False, action='store_true',
-                   help="Clean the download cache")
+    parser.add_argument('--clean-cache', default=False, action='store_true',
+                        help="Clean the download cache")
 
-    parser.add_argument('-C','--clean', default=False, action='store_true',
+    parser.add_argument('-C', '--clean', default=False, action='store_true',
                         help="FOr some operations, like updating schemas, clear the section of existing terms first")
 
     parser.add_argument('-i', '--init', action='store', nargs='?', default=False,
@@ -266,10 +276,8 @@ def metapack():
     parser.add_argument('-s3', '--s3', action='store',
                         help='Create a s3 archive from a metatab file')
 
-    parser.add_argument('-R', '--resource-format', action='store_true', default=False,
-                        help="Re-write the metatab file in 'Resource' format ")
-
-
+    parser.add_argument('-D', '--datapackage', action='store_true', default=False,
+                        help="Write a datapackage.json file adjacent to the metatab file")
 
     parser.add_argument('metatabfile', nargs='?')
 
@@ -293,7 +301,7 @@ def metapack():
         scrape_page(mt_file, args.scrape)
 
     if args.enumerate:
-        enumerate_contents( args.enumerate, cache=cache)
+        enumerate_contents(args.enumerate, cache=cache)
 
     if args.resources:
         process_resources(mt_file, cache=cache)
@@ -316,7 +324,8 @@ def metapack():
     if args.s3:
         write_s3_package(mt_file, args.s3, cache=cache)
 
-
+    if args.datapackage:
+        write_datapackagejson(mt_file)
 
     clean_cache("metapack")
 
@@ -366,7 +375,6 @@ def init_metatab(mt_file, alt_mt_file):
         prt("Doing nothing; file '{}' already exists".format(mt_file))
 
 
-
 def classify_url(url):
     from rowgenerators import SourceSpec
 
@@ -382,7 +390,7 @@ def classify_url(url):
     return term_name
 
 
-def add_single_resource(doc, ref, cache):
+def add_single_resource(doc, ref, cache, seen_names):
     from metatab.util import slugify
 
     t = doc.find_first('Root.Datafile', value=ref)
@@ -395,7 +403,17 @@ def add_single_resource(doc, ref, cache):
 
     path, name = extract_path_name(ref)
 
-    prt("Adding resource for '{}'".format(ref))
+    if name in seen_names:
+        base_name = re.sub(r'-?\d+$', '', name)
+
+        for i in range(1, 20):
+            name = "{}-{}".format(base_name, i)
+            if name not in seen_names:
+                break
+
+    seen_names.add(name)
+
+    prt("Adding resource for '{}', name = '{}' ".format(ref, name))
     try:
         encoding, ri = run_row_intuit(path, cache)
     except Exception as e:
@@ -437,14 +455,15 @@ def scrape_page(mt_file, url):
 
     doc.write_csv(mt_file)
 
-def enumerate_contents(url, cache):
 
+def enumerate_contents(url, cache):
     from metatab.util import enumerate_contents
 
     specs = list(enumerate_contents(url, cache, callback=prt))
 
     for s in specs:
-        print (classify_url(s.url), s.target_format, s.url, s.target_segment)
+        print(classify_url(s.url), s.target_format, s.url, s.target_segment)
+
 
 def add_resource(mt_file, ref, cache):
     """Add a resources entry, downloading the intuiting the file, replacing entries with
@@ -457,6 +476,8 @@ def add_resource(mt_file, ref, cache):
     else:
         doc = MetatabDoc(mt_file)
 
+    seen_names = set()
+
     if isdir(ref):
         for f in find_files(ref, DATA_FORMATS):
 
@@ -466,11 +487,11 @@ def add_resource(mt_file, ref, cache):
             if doc.find_first('Root.Datafile', value=f):
                 prt("Datafile exists for '{}', ignoring".format(f))
             else:
-                add_single_resource(doc, f, cache=cache)
+                add_single_resource(doc, f, cache=cache, seen_names=seen_names)
     else:
 
         for c in enumerate_contents(ref, cache=cache, callback=prt):
-            add_single_resource(doc, c.rebuild_url(), cache=cache)
+            add_single_resource(doc, c.rebuild_url(), cache=cache, seen_names=seen_names)
 
     doc.write_csv(mt_file)
 
@@ -572,7 +593,7 @@ def process_schemas(mt_file, cache, clean=False):
 
         e = {k: v for k, v in t.properties.items() if v}
 
-        schema_term = doc.find_first(term='Table',value=e['name'], section='Schema')
+        schema_term = doc.find_first(term='Table', value=e['name'], section='Schema')
 
         if schema_term:
             prt("Found table for '{}'; skipping".format(e['name']))
@@ -608,7 +629,7 @@ def process_schemas(mt_file, cache, clean=False):
         prt("Adding table '{}' ".format(e['name']))
 
         for i, c in enumerate(ti.to_rows()):
-            raw_alt_name = alt_col_name(c['header'],i)
+            raw_alt_name = alt_col_name(c['header'], i)
             alt_name = raw_alt_name if raw_alt_name != c['header'] else ''
 
             table.new_child('Column', c['header'],
@@ -641,14 +662,13 @@ def write_dir_package(mt_file, d, cache):
 
     p.save()
 
-def write_s3_package(mt_file, url, cache):
 
+def write_s3_package(mt_file, url, cache):
     from metatab.package import S3Package
 
     p = S3Package(mt_file, callback=prt, cache=cache)
 
     p.save(url)
-
 
 
 def rewrite_resource_format(mt_file):
@@ -670,3 +690,17 @@ def rewrite_resource_format(mt_file):
     doc.write_csv(mt_file)
 
 
+def write_datapackagejson(mt_file):
+    from metatab.datapackage import convert_to_datapackage
+
+    doc = MetatabDoc(mt_file)
+
+    u = Url(mt_file)
+
+    if u.proto == 'file':
+        dpj_file = join(dirname(abspath(u.parts.path)), 'datapackage.json')
+    else:
+        dpj_file = join(getcwd(), 'datapackage.json')
+
+    with open(dpj_file, 'w') as f:
+        f.write(json.dumps(convert_to_datapackage(doc), indent=4))
