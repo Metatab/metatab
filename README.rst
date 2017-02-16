@@ -34,7 +34,7 @@ Then test parsing using a remote file with:
 
 .. code-block:: bash
 
-    $ metatab -j https://raw.githubusercontent.com/CivicKnowledge/metatab-py/master/test-data/children.csv
+    $ metatab -j https://raw.githubusercontent.com/CivicKnowledge/metatab-py/master/test-data/example1.csv
 
 Run ``metatab -h`` to get other program options. 
 
@@ -50,7 +50,7 @@ The metatab python distribution includes two programs, ``metatab`` for manipulat
 Creating a new package
 ----------------------
 
-[ For an overview of the Metata format, see the `Metatab specifications <http://www.metatab.org/>`_.
+[ For an overview of the Metata format, see the `Metatab specifications <http://www.metatab.org/>`_. ]
 
 Create a directory, usually with the name you'll give the package and create a new metatab file within it.
 
@@ -94,7 +94,7 @@ If you enter the ``Datafile`` terms manually, you should enter the URL for the d
 
 If you don't specify a tab name for an Excel file, the first will be used.
 
-There are also URL forms for Google spreadsheet, S3 files and Socrata,
+There are also URL forms for Google spreadsheet, S3 files and Socrata.
 
 To test URLS, use the ``rowgen`` program:
 
@@ -127,7 +127,7 @@ Now that the ``metadata.csv`` has resources specified, you can generate schemas 
 
     $ metapack -s
 
-Re-open   ``metadata.csv`` and you should see entries for tables and columns for each of the Datafiles.
+Re-open   ``metadata.csv`` and you should see entries for tables and columns for each of the Datafiles. After creating the schema, you should edit the description ane possible change the alternate names (``AltName`` terms. ) The alternate names are versions of the column headers that follow typical naming rules for columns. If an AltName is specified, iterating over the resource out of the package will use the AltName, rather than that column name. 
 
 
 Using a Package
@@ -153,3 +153,28 @@ You can dump one of the resources as a CSV by running the same command with the 
 .. code-block:: bash
 
     $ metatab -R metadata.csv#simple-example
+
+.. code-block:: python 
+
+    import metatab
+
+    doc = metatab.open_package('.')  # Will look for 'metadata.csv'
+
+    print(type(doc))
+
+    for r in doc.resources():
+        print(r.name, r.url)
+    
+    r = doc.first_resource('renter_cost')
+
+    # Dump the row
+    for row in r:
+        print row
+
+
+    # Or, turn it into a pandas dataframe
+    # ( After installing pandas ) 
+    
+    df = doc.first_resource('renter_cost').dataframe()
+    
+
