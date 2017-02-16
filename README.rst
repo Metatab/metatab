@@ -179,10 +179,10 @@ You can also read the resources from a Python program, with an easy way to conve
     
     df = doc.first_resource('renter_cost').dataframe()
     
-Making Otehr Package Formats
+Making Other Package Formats
 ++++++++++++++++++++++++++++
 
-The tutorial above is actually creating a data package in a directory. There are several other forms of packages that Metapack can create including Excel, ZIP and S3
+The tutorial above is actually creating a data package in a directory. There are several other forms of packages that Metapack can create including Excel, ZIP and S3.
 
 
 .. code-block:: bash
@@ -190,5 +190,20 @@ The tutorial above is actually creating a data package in a directory. There are
     $ metatab -e # Make an Excel package, example-package.xlsx
     $ metatab -z # Make a ZIP package, example-package.zip
     
-The excel package, ``example-package.xlsx`` will have the Metatab metadata from metata.csv in the ``Meta`` tab, and will have one tab per resource from the Resoruces section. The ZIP package ``example-package.zip`` will have all of the resources in the ``data`` directory and will also include the metadata in Tabulr Data Package format in the ``datapackage.json`` file. 
+The Excel package, ``example-package.xlsx`` will have the Metatab metadata from metata.csv in the ``Meta`` tab, and will have one tab per resource from the Resoruces section. The ZIP package ``example-package.zip`` will have all of the resources in the ``data`` directory and will also include the metadata in Tabulr Data Package format in the ``datapackage.json`` file. You can interate over the resoruces in these packages too:
+
+.. code-block:: bash
+
+    $ metatab -R example-package.xlsx#simple-example
+    $ metatab -R example-package.zip#simple-example 
+
+.. code-block:: python 
+
+    import metatab
+
+    doc = metatab.open_package('example-package.zip') 
+    # Or
+    doc = metatab.open_package('example-package.xlsx') 
+    
+
     
