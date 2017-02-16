@@ -154,6 +154,8 @@ You can dump one of the resources as a CSV by running the same command with the 
 
     $ metatab -R metadata.csv#simple-example
 
+You can also read the resources from a Python program, with an easy way to convert a resource to a Pandas DataFrame
+
 .. code-block:: python 
 
     import metatab
@@ -177,4 +179,16 @@ You can dump one of the resources as a CSV by running the same command with the 
     
     df = doc.first_resource('renter_cost').dataframe()
     
+Making Otehr Package Formats
+++++++++++++++++++++++++++++
 
+The tutorial above is actually creating a data package in a directory. There are several other forms of packages that Metapack can create including Excel, ZIP and S3
+
+
+.. code-block:: bash
+
+    $ metatab -e # Make an Excel package, example-package.xlsx
+    $ metatab -z # Make a ZIP package, example-package.zip
+    
+The excel package, ``example-package.xlsx`` will have the Metatab metadata from metata.csv in the ``Meta`` tab, and will have one tab per resource from the Resoruces section. The ZIP package ``example-package.zip`` will have all of the resources in the ``data`` directory and will also include the metadata in Tabulr Data Package format in the ``datapackage.json`` file. 
+    
