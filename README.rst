@@ -56,8 +56,8 @@ Create a directory, usually with the name you'll give the package and create a n
 
 .. code-block:: bash
 
-    $ mkdir example
-    $ cd example
+    $ mkdir example-package
+    $ cd example-package
     $ metatab -c
 
 The `metatab -c` command will create a new metatab file in the current directory, `metadata.csv`. You can open this file with a spreadsheet program to edit it.
@@ -68,6 +68,8 @@ The minimum terms to enter values for are:
 - Name
 - Datafile
 
+For this example, the `Name` term should be set to the name of the directory, 'example-package'
+
 For the `Datafile` term, you can add entries directly, but it is easier to use the metapack program to add them. The `metapack -a` program will inspect the file for you, finding internal files in ZIP files and creating the correct URLs for Excel files.
 
 If you have made changes to the `metadata.csv` file, save it, then run:
@@ -76,7 +78,7 @@ If you have made changes to the `metadata.csv` file, save it, then run:
 
     $ metapack -a http://public.source.civicknowledge.com/example.com/sources/test_data.zip
 
-The `test_data.zip` file is a test file with many types of tabular datafiles within it.
+The `test_data.zip` file is a test file with many types of tabular datafiles within it. The `metapack -a` command will download it, open it, find all of the data files int it, and add uRLs to the metatab. If any of the files in the zip file are Excel format, it will also create URLs for each of the tabs.
 
 ( This file is large and may take awhile. If you need a smaller file, try: http://public.source.civicknowledge.com/example.com/sources/renter_cost.csv )
 

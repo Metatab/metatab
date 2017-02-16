@@ -15,8 +15,8 @@ from metatab import _meta
 from metatab.doc import MetatabDoc
 from os import getcwd
 from os.path import exists, join, isdir, abspath, dirname
-from rowgenerators import RowGenerator, Url
-from tableintuit import TypeIntuiter, SelectiveRowGenerator
+from rowgenerators import RowGenerator, Url, SourceError
+from tableintuit import TypeIntuiter, SelectiveRowGenerator, RowIntuitError
 
 METATAB_FILE = 'metadata.csv'
 
@@ -413,11 +413,14 @@ def add_single_resource(doc, ref, cache, seen_names):
 
     seen_names.add(name)
 
-    prt("Adding resource for '{}', name = '{}' ".format(ref, name))
     try:
         encoding, ri = run_row_intuit(path, cache)
-    except Exception as e:
+        prt("Added resource for '{}', name = '{}' ".format(ref, name))
+    except RowIntuitError as e:
         warn("Failed to intuit '{}'; {}".format(path, e))
+        return None
+    except SourceError as e:
+        warn("Failed to add '{}'; {}".format(path, e))
         return None
 
     if not name:
@@ -502,14 +505,14 @@ def run_row_intuit(path, cache):
     from itertools import islice
     from rowgenerators import TextEncodingError
 
-    for encoding in ('ascii', 'utf8', 'latin1'):
+    for encoding in ('ascii',  'utf8', 'latin1'):
         try:
             rows = list(islice(RowGenerator(url=path, encoding=encoding, cache=cache), 5000))
             return encoding, RowIntuiter().run(list(rows))
-        except TextEncodingError:
+        except (TextEncodingError, UnicodeEncodeError) as e:
             pass
 
-    raise Exception('Failed to convert with any encoding')
+    raise RowIntuitError('Failed to convert with any encoding')
 
 
 def extract_path_name(ref):
