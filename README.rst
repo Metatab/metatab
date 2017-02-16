@@ -82,6 +82,11 @@ The ``test_data.zip`` file is a test file with many types of tabular datafiles w
 
 ( This file is large and may take awhile. If you need a smaller file, try: http://public.source.civicknowledge.com/example.com/sources/renter_cost.csv )
 
+The ``metapack -a`` command also works on directories and webpages. For instance, if you wanted to scrape all of the 60 data files for the California English Language Development Test, you could run: 
+
+.. code-block:: bash
+    metapack -a http://celdt.cde.ca.gov/research/admin1516/indexcsv.asp
+
 Now reload the file. The Resource section should have 9 ``Datafile`` entries, all of them with fragments. The fragments will be URL encoded, so are a bit hard to read. %2F is a '/' and %3B is a ';'. The ``metatab -a`` program will also add a name, and try to get where the data starts and which lines are for headers.
 
 Note that the ``unicode-latin1`` and ``unicode-utf8`` do not have values for StartLine and HeaderLines. This is because the row intuiting process failed to categorize the lines, because all of them are mostly strings. In these cases, download the file and examine it. For these two files, you can enter '0' for ``HeaderLines`` and '1' for ``StartLine.``
