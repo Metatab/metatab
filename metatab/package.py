@@ -12,14 +12,14 @@ from os.path import isdir, join, dirname, exists
 import unicodecsv as csv
 from six import string_types, text_type
 
-from metatab import TermParser, MetatabDoc
+from metatab import TermParser, MetatabDoc, DEFAULT_METATAB_FILE
 from rowgenerators import Url
 from rowgenerators.util import get_cache
 from .exc import PackageError
 from .util import Bunch
+from metatab.datapackage import convert_to_datapackage
 
 
-METATAB_FILE = 'metadata.csv'
 
 TableColumn = namedtuple('TableColumn', 'path name start_line header_lines columns')
 
@@ -325,7 +325,7 @@ class Package(object):
         if du.proto == 'file' and isdir(ref):
             for f in self.find_files(ref, ['csv']):
 
-                if f.endswith(METATAB_FILE):
+                if f.endswith(DEFAULT_METATAB_FILE):
                     continue
 
                 if self._doc.find_first('Root.Datafile', value=f):
@@ -428,12 +428,9 @@ class FileSystemPackage(Package):
         self.package_dir = np
 
     def _write_doc(self):
-        self._doc.write_csv(join(self.package_dir, 'metatab.csv'))
+        self._doc.write_csv(join(self.package_dir, DEFAULT_METATAB_FILE))
 
     def _write_dpj(self):
-
-
-        from metatab.datapackage import convert_to_datapackage
 
         with open(join(self.package_dir, 'datapackage.json'), 'w') as f:
             f.write(json.dumps(convert_to_datapackage(self._doc), indent=4))
@@ -665,12 +662,19 @@ class S3Package(Package):
         from rowgenerators import parse_url_to_dict
         import boto3
 
-        p = parse_url_to_dict(url)
-
         self._s3 = boto3.resource('s3')
 
-        self._bucket = self._s3.Bucket(p['netloc'])
-        self._prefix = p['path']
+        p = parse_url_to_dict(url)
+
+        if p['netloc']: # The URL didn't have the '//'
+            self._prefix = p['path']
+            bucket_name = p['netloc']
+        else:
+            proto, netpath = url.split(':')
+            bucket_name, self._prefix = netpath.split('/',1)
+
+        self._bucket = self._s3.Bucket(bucket_name)
+
 
     def close(self):
         pass
@@ -690,7 +694,6 @@ class S3Package(Package):
         self.write_to_s3('metadata.csv', bio.getvalue())
 
     def _write_dpj(self):
-
 
         self.write_to_s3('datapackage.json', json.dumps(convert_to_datapackage(self._doc), indent=4))
 

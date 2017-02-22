@@ -36,7 +36,7 @@ class GenerationTestCases(unittest.TestCase):
         for f, size in files:
             for clz, sourcef in ( (CsvPathRowGenerator, test_data),
                              (CsvUrlRowGenerator, test_url),
-                             (RowGenerator,data_rows) ):
+                             (MetatabRowGenerator,data_rows) ):
 
                 rows = tuple(clz(sourcef(f)))
                 self.assertEqual(size, len(rows))

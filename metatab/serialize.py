@@ -6,7 +6,7 @@
 import collections
 from six import string_types
 from .parser import TermParser
-from .generate import RowGenerator
+from .generate import MetatabRowGenerator
 
 class Serializer(object):
 
@@ -24,7 +24,7 @@ class Serializer(object):
 
         if config:
 
-            term_interp = TermParser(RowGenerator([['Declare', config]], "<none>"))
+            term_interp = TermParser(MetatabRowGenerator([['Declare', config]], "<none>"))
 
             term_interp.run()
 
@@ -84,7 +84,7 @@ class Serializer(object):
 
         def _load_declaration(dcl):
 
-            term_interp = Met(RowGenerator([['Declare', dcl]], "<none>"))
+            term_interp = MetatabDoc(MetatabRowGenerator([['Declare', dcl]], "<none>"))
 
             _ = list(term_interp)
 

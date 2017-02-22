@@ -4,7 +4,7 @@ import json
 import unittest
 
 from metatab import IncludeError
-from metatab import RowGenerator, TermParser, CsvPathRowGenerator, parse_file
+from metatab import MetatabRowGenerator, TermParser, CsvPathRowGenerator, parse_file
 from metatab.doc import MetatabDoc
 from metatab.util import flatten, declaration_path
 from metatab import TermParser, CsvPathRowGenerator, Serializer, Term
@@ -92,56 +92,7 @@ class MyTestCase(unittest.TestCase):
 
                 self.compare_dict(d, d2)
 
-    def test_terms(self):
-        from metatab import TermParser
-        from metatab import CsvPathRowGenerator, CsvDataRowGenerator, RowGenerator
-        import csv
 
-        fn = test_data('example1.csv')
-
-        with open(fn, 'rb') as f:
-            str_data = f.read();
-
-        with open(fn) as f:
-            row_data = [row for row in csv.reader(f)]
-
-        for rg_args in ((CsvPathRowGenerator, fn),
-                        (CsvDataRowGenerator, str_data, fn),
-                        (RowGenerator, row_data, fn)):
-
-            with open(fn) as f:
-                rg = rg_args[0](*rg_args[1:])
-
-                if False:
-                    self.assertEqual(141, len(terms))
-
-                    self.assertEqual('declare', terms[0].record_term)
-                    self.assertEqual('metatab.csv', terms[0].value)
-
-                    self.assertTrue(terms[48].file_name.endswith('example1.csv'))
-                    self.assertEqual('root', terms[48].parent_term)
-                    self.assertEqual('column', terms[48].record_term)
-                    self.assertEqual('geoname', terms[48].value)
-
-                    self.assertTrue(terms[100].file_name.endswith('example1.csv'))
-                    self.assertEqual('root', terms[100].parent_term)
-                    self.assertEqual('column', terms[100].record_term)
-                    self.assertEqual('percent', terms[100].value)
-
-                rg = rg_args[0](*rg_args[1:])
-
-                doc = MetatabDoc(rg)
-
-                d = doc.as_dict()
-
-                l1 = sorted(['creator', 'datafile', 'declare', 'description', 'documentation', 'format', 'homepage',
-                             'identifier', 'name', 'note', 'obsoletes', 'spatial', 'spatialgrain', 'table', 'time',
-                             'title', 'version', 'wrangler']  )
-
-                l2 = sorted(str(e) for e in d.keys())
-
-                self.assertListEqual(l1, l2, "Failure for file '{}': \n{}\n{} "
-                                     .format(fn, l1, l2))
 
     def test_declarations(self):
 
@@ -163,17 +114,18 @@ class MyTestCase(unittest.TestCase):
 
         fn = test_data('example1.csv')  # Not acutally used. Sets base directory
 
-        doc =  MetatabDoc(RowGenerator([['Declare', 'metatab']], fn))
+        doc =  MetatabDoc(MetatabRowGenerator([['Declare', 'metatab-latest']], fn))
 
         terms = doc.decl_terms
 
         self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
-        self.assertEquals(190, len(terms.keys()))
+        self.assertEquals(234, len(terms.keys()))
 
         sections = doc.decl_sections
 
-        self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas'},
+        self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
+                           'sources','documentation','data'},
                           set(sections.keys()))
 
         # Use the Declare term
@@ -189,14 +141,15 @@ class MyTestCase(unittest.TestCase):
 
         self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
-        self.assertEquals(228, len(terms.keys()))
+        self.assertEquals(234, len(terms.keys()))
 
         sections = d['sections']
 
-        self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas'},
+        self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
+                           'sources', 'documentation', 'data'},
                           set(sections.keys()))
 
-        self.assertEqual(['Email'], sections['contacts']['args'])
+        self.assertEqual(['Email', 'Organization', 'Tel', 'Url'], sections['contacts']['args'])
         self.assertEqual(['TermValueName', 'ChildPropertyType', 'Section'], sections['declaredterms']['args'])
         self.assertEqual(['DataType', 'ValueType', 'Description'], sections['schemas']['args'])
 
@@ -453,14 +406,10 @@ class MyTestCase(unittest.TestCase):
             print(t.properties)
 
 
-    def test_enumerate(self):
-        from metatab.util import  enumerate_contents
+    def test_html(self):
+        d = MetatabDoc(test_data('example1.csv'))
 
-
-        u = "http://star.cde.ca.gov/star2012/ResearchFileList.aspx?rf=True&ps=True"
-
-        enumerate_contents(u)
-
+        print(d._repr_html_())
 
 
 if __name__ == '__main__':

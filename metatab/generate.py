@@ -14,16 +14,17 @@ def generateRows(ref, cache=None):
     from six import string_types
 
     if isinstance(ref, (list,tuple)):
-        return RowGenerator(ref)
+        rg = MetatabRowGenerator(ref)
     elif isgenerator(ref):
-        return RowGenerator(ref)
+        rg = MetatabRowGenerator(ref)
     elif isinstance(ref, string_types):
-       return GenericRowGenerator(ref, cache=cache)
+        rg = GenericRowGenerator(ref, cache=cache)
+    else:
+        raise GenerateError("Cant figure out how to generate rows from ref: "+str(ref))
 
-    raise GenerateError("Cant figure out how to generate rows from ref: "+str(ref))
+    return rg
 
-
-class RowGenerator(object):
+class MetatabRowGenerator(object):
     """An object that generates rows. The current implementation mostly just a wrapper around
     csv.reader, but it add a path property so term interperters know where the terms are coming from
     """
@@ -47,7 +48,7 @@ class RowGenerator(object):
             yield row
 
 # FIXME: Can probably remove this class in favor of GenericRowGenerator
-class CsvUrlRowGenerator(RowGenerator):
+class CsvUrlRowGenerator(MetatabRowGenerator):
     """An object that generates rows. The current implementation mostly just a wrapper around
     csv.reader, but it add a path property so term interperters know where the terms are coming from
     """
@@ -89,7 +90,7 @@ class CsvUrlRowGenerator(RowGenerator):
         self.close()
 
 # FIXME: Can probably remove this class in favor of GenericRowGenerator
-class CsvPathRowGenerator(RowGenerator):
+class CsvPathRowGenerator(MetatabRowGenerator):
     """An object that generates rows. The current implementation mostly just a wrapper around
     csv.reader, but it add a path property so term interperters know where the terms are coming from
     """
@@ -136,7 +137,7 @@ class CsvPathRowGenerator(RowGenerator):
         self.close()
 
 # FIXME: Can probably remove this class in favor of GenericRowGenerator
-class CsvDataRowGenerator(RowGenerator):
+class CsvDataRowGenerator(MetatabRowGenerator):
     """Generate rows from CSV data, as a string
     """
 
@@ -164,7 +165,7 @@ class CsvDataRowGenerator(RowGenerator):
         for row in csv.reader(f):
             yield row
 
-class GenericRowGenerator(RowGenerator):
+class GenericRowGenerator(MetatabRowGenerator):
     """Use generators from the rowgenerator package"""
 
     def __init__(self, url, cache=None):

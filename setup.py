@@ -69,7 +69,8 @@ setup(
         'pyyaml',
         'datapackage',
         'rowgenerators',
-        'rowpipe'
+        'rowpipe',
+        'boto3'
     ],
 
     

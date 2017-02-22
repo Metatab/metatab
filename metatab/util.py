@@ -40,6 +40,14 @@ def slugify(value):
     return value
 
 
+def linkify(v, description = None):
+    if v.startswith('http'):
+        if description is None:
+            description = v
+        return '<a href="{url}" target="_blank">{desc}</a>'.format(url=v, desc = description)
+    else:
+        return v
+
 def flatten(d, sep='.'):
     """Flatten a data structure into tuples"""
     def _flatten(e, parent_key='', sep='.'):

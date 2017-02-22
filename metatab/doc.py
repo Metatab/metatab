@@ -4,44 +4,59 @@
 """
 Generate rows from a variety of paths, references or other input
 """
+from collections import OrderedDict, MutableSequence
+from itertools import islice
+from os.path import join
+
 import six
 import unicodecsv as csv
-from collections import OrderedDict, MutableSequence
-from metatab import TermParser, SectionTerm, Term, generateRows, MetatabError, CsvPathRowGenerator, RootSectionTerm
-from rowgenerators import RowGenerator, SelectiveRowGenerator
 from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
-from os.path import join, dirname, isfile
-from itertools import islice
+
+from metatab import (TermParser, SectionTerm, Term, generateRows, MetatabError,
+                     CsvPathRowGenerator, RootSectionTerm )
+from metatab.util import linkify
+from .exc import PackageError
+from rowgenerators import RowGenerator
 from rowpipe import RowProcessor
-from rowgenerators import Url
+
+DEFAULT_METATAB_FILE = 'metadata.csv'
 
 def resolve_package_metadata_url(ref):
     """Re-write a url to a resource to include the likely refernce to the
     internal Metatab metadata"""
     from rowgenerators import Url
-    from os.path import isfile, dirname
+    from os.path import isfile, dirname, join
 
     du = Url(ref)
 
     if du.resource_format == 'zip':
-        package_url = ref
-        metadata_url = reparse_url(ref, fragment='metadata.csv')
+        package_url = reparse_url(ref, fragment=False)
+        metadata_url = reparse_url(ref, fragment=DEFAULT_METATAB_FILE)
+
     elif du.target_format == 'xlsx' or du.target_format == 'xls':
-        package_url = ref
+        package_url = reparse_url(ref, fragment=False)
         metadata_url = reparse_url(ref, fragment='meta')
+
     elif du.target_format == 'csv':
-        metadata_url = ref
+        metadata_url = reparse_url(ref)
         package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']))
+
     elif du.proto == 'file':
         p = parse_url_to_dict(ref)
 
         if isfile(p['path']):
-            metadata_url = ref
+            metadata_url = reparse_url(ref)
             package_url = reparse_url(ref, path=dirname(p['path']))
         else:
-            p['path'] = join(p['path'], 'metadata.csv')
-            package_url = ref
+            p['path'] = join(p['path'], DEFAULT_METATAB_FILE)
+            package_url = reparse_url(ref)
             metadata_url = unparse_url_dict(p)
+
+    else:
+        metadata_url = join(ref, DEFAULT_METATAB_FILE)
+        package_url = reparse_url(ref)
+
+    #raise PackageError("Can't determine package URLs for '{}'".format(ref))
 
     return package_url, metadata_url
 
@@ -162,11 +177,21 @@ class Resource(Term):
         else:
             return None
 
+    def columns(self):
+
+        t = self.doc.find_first('Root.Table', value=self.properties.get('name'))
+
+        for i, c in enumerate(t.children):
+            if c.term_is("Table.Column"):
+                p = c.properties
+                p['header'] = self._name_for_col_term(c, i)
+                yield p
+
+
     def row_processor_table(self):
         """Create a row processor from the schema, to convert the text velus from the
         CSV into real types"""
         from rowpipe.table import Table
-        from rowpipe.processor import RowProcessor
 
         type_map = {
             None: None,
@@ -272,6 +297,14 @@ class Resource(Term):
         df.metatab_errors = rg.errors
 
         return df
+
+    def _repr_html_(self):
+        return ("<p><strong>{name}</strong> - <small><a target=\"_blank\" href=\"{url}\">{url}</a></small></p>"\
+                .format(name=self.name, url=self.url)) + \
+                "<table>\n" + \
+                "<tr><th>Header</th><th>Type</th><th>Description</th></tr>" + \
+               '\n'.join("<tr><td>{}</td><td>{}</td><td>{}</td></tr> ".format(c['header'], c['datatype'], c['description'])
+                         for c in self.columns())
 
 
 class MetatabDoc(object):
@@ -483,7 +516,7 @@ class MetatabDoc(object):
                 yield Resource(t, self.package_url if self.package_url else self._ref)
 
 
-    def first_resource(self, name=None, term=None):
+    def resource(self, name=None, term=None):
 
         resources = list(self.resources(name=name, term=term))
 
@@ -626,3 +659,46 @@ class MetatabDoc(object):
 
         with open(path, 'wb') as f:
             f.write(self.as_csv())
+
+    def _repr_html_(self):
+
+        def resource_repr(r):
+            return "<p><strong>{name}</strong> - <small><a target=\"_blank\" href=\"{url}\">{url}</a></small></p>" \
+                    .format(name=r.name, url=r.url)
+
+        def documentation():
+            doc_term = self.find_first("Root.Documentation")
+            home_term = self.find_first("Root.Homepage")
+            origin_term = self.find_first("Root.Origin")
+            creator_term = self.find_first("Root.Creator")
+
+
+            return (
+                ("\n<tr><td>Documentation</td><td>{}</td></tr>"
+                 .format(linkify(doc_term.value, doc_term.properties.get('title'))) if doc_term else '') +
+                ("\n<tr><td>Homepage</td><td>{}</td></tr>"
+                 .format(linkify(home_term.value, home_term.properties.get('title'))) if home_term else '') +
+                ("\n<tr><td>Origin</td><td>{}</td></tr>"
+                 .format(linkify(origin_term.value, origin_term.properties.get('title'))) if origin_term else '') +
+                ("\n<tr><td>Creator</td><td>{}</td></tr>"
+                 .format(linkify(creator_term.value, creator_term.properties.get('title'))) if creator_term else '')
+
+            )
+
+
+        return """
+<h1>{title}</h1>
+<p><small>{name}</small></p>
+<p>{description}</p>
+<table>{doc}</table>
+<h2>Resources</h2>
+<ol>
+{resources}
+</ol>
+""".format(
+            title=self.find_first_value('Root.Title', section='Root'),
+            name=self.find_first_value('Root.Name', section='Root'),
+            description=self.find_first_value('Root.Description', section='Root'),
+            doc=documentation(),
+            resources='\n'.join([ "<li>"+resource_repr(r)+"</li>" for r in self.resources() ])
+        )

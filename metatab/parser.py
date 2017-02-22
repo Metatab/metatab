@@ -16,9 +16,9 @@ METATAB_ASSETS_URL = 'http://assets.metatab.org/'
 import six
 
 from .exc import IncludeError, DeclarationError, GenerateError
-from .generate import generateRows, CsvPathRowGenerator, RowGenerator
+from .generate import generateRows, CsvPathRowGenerator, MetatabRowGenerator
 from os.path import dirname, join, split, exists
-from .util import declaration_path
+from .util import declaration_path, linkify
 from rowgenerators import SourceError
 
 
@@ -401,6 +401,13 @@ class Term(object):
             return "{}{}.{}: val={} sec={} ".format(
                 self.file_ref(), self.parent_term, self.record_term, self.value, sec_name)
 
+    def _repr_html_(self):
+
+
+        return ("<p><strong>{}</strong>: {}</p><ul>{}</ul>".format(
+            self.qualified_term, linkify(self.value),
+            '\n'.join("<li>{}: {}</li>".format(k, linkify(v)) for k, v in self.properties.items() if k)
+        ))
 
 class SectionTerm(Term):
     def __init__(self, name, term='Section', doc=None, term_args=None,
@@ -783,7 +790,7 @@ class TermParser(object):
 
         # This method is seperate from __iter__ so it can recurse for Include and Declare
 
-        if isinstance(ref, RowGenerator):
+        if isinstance(ref, MetatabRowGenerator):
             row_gen = ref
             ref = row_gen.path
         else:

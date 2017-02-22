@@ -12,22 +12,19 @@ import re
 import six
 from metatab.util import make_metatab_file
 from metatab import _meta
-from metatab.doc import MetatabDoc
+from metatab.doc import MetatabDoc, resolve_package_metadata_url, DEFAULT_METATAB_FILE
 from os import getcwd
 from os.path import exists, join, isdir, abspath, dirname
 from rowgenerators import RowGenerator, Url, SourceError
 from tableintuit import TypeIntuiter, SelectiveRowGenerator, RowIntuitError
 
-METATAB_FILE = 'metadata.csv'
+
 
 DATA_FORMATS = ('xls', 'xlsx', 'tsv', 'csv')
 DOC_FORMATS = ('pdf', 'doc', 'docx', 'html')
 
 # Change the row cache name
 from rowgenerators.util import get_cache, clean_cache
-
-LE = 'metadata.csv'
-
 
 def prt(*args):
     print(*args)
@@ -67,7 +64,6 @@ def metatab():
     g.add_argument('-y', '--yaml', default=False, action='store_true',
                    help='Parse a file and print out a YAML representation')
 
-
     g.add_argument('-R', '--resource', default=False, action='store_true',
                    help='If the URL has no fragment, dump the resources listed in the metatab file. With a fragment, dump a resource as a CSV')
 
@@ -86,9 +82,13 @@ def metatab():
     g.add_argument('-V', '--version', default=False, action='store_true',
                    help='Display the package version and exit')
 
-    parser.add_argument('file', nargs='?', default='metadata.csv', help='Path to a Metatab file')
+    parser.add_argument('file', nargs='?', default=DEFAULT_METATAB_FILE, help='Path to a Metatab file')
 
     args = parser.parse_args(sys.argv[1:])
+
+    # Specing a fragment screws up setting the default metadata file name
+    if args.file.startswith('#'):
+        args.file = DEFAULT_METATAB_FILE + args.file
 
     cache = get_cache('metapack')
 
@@ -104,10 +104,17 @@ def metatab():
         limit = 20 if args.head else None
 
         u = Url(args.file)
-
         resource = u.parts.fragment
+        metadata_url = u.rebuild_url(False,False)
 
-        doc = MetatabDoc(u.rebuild_url(False,False), cache=cache)
+        package_url, metadata_url = resolve_package_metadata_url(metadata_url)
+
+        try:
+            doc = MetatabDoc(metadata_url, cache=cache)
+        except OSError as e:
+            raise
+            err("Failed to open Metatab doc: {}".format(e))
+
 
         if resource:
             dump_resource(doc, resource, limit)
@@ -115,9 +122,6 @@ def metatab():
             dump_resources(doc)
 
         exit(0)
-
-
-
 
     if args.show_declaration:
 
@@ -131,7 +135,9 @@ def metatab():
         exit(0)
     else:
 
-        doc = MetatabDoc(args.file, cache=cache)
+        package_url, metadata_url = resolve_package_metadata_url(args.file)
+
+        doc = MetatabDoc(metadata_url, cache=cache)
 
     if args.terms:
         for t in doc._term_parser:
@@ -189,18 +195,29 @@ def dump_resource(doc, name, lines=None):
     import unicodecsv as csv
     import sys
     from itertools import islice
+    from tabulate import tabulate
 
     r = doc.first_resource(name=name)
 
     if lines:
-        gen = islice(r, lines)
+        try:
+            gen = islice(r, int(r.startline), lines)
+        except ValueError:
+            gen = islice(r, lines)
     else:
         gen = r
 
-    w = csv.writer(sys.stdout if six.PY2 else sys.stdout.buffer)
+    if lines and lines <= 20:
+        print(tabulate(list(gen),list(r.headers())))
 
-    for row in gen:
-        w.writerow(row)
+    else:
+
+        w = csv.writer(sys.stdout if six.PY2 else sys.stdout.buffer)
+
+        w.writerow(r.headers())
+
+        for row in gen:
+            w.writerow(row)
 
 
 def get_table(doc, name):
@@ -292,7 +309,7 @@ def metapack():
 
     prt('Cache dir: {}'.format(str(cache.getsyspath('/'))))
 
-    mt_file = args.metatabfile if args.metatabfile else join(d, METATAB_FILE)
+    mt_file = args.metatabfile if args.metatabfile else join(d, DEFAULT_METATAB_FILE)
 
     if args.init is not False:
         init_metatab(mt_file, args.init)
@@ -484,7 +501,7 @@ def add_resource(mt_file, ref, cache):
     if isdir(ref):
         for f in find_files(ref, DATA_FORMATS):
 
-            if f.endswith(METATAB_FILE):
+            if f.endswith(DEFAULT_METATAB_FILE):
                 continue
 
             if doc.find_first('Root.Datafile', value=f):
