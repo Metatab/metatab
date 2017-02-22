@@ -34,7 +34,7 @@ Then test parsing using a remote file with:
 
 .. code-block:: bash
 
-    $ metatab -j https://raw.githubusercontent.com/CivicKnowledge/metatab-py/master/test-data/children.csv
+    $ metatab -j https://raw.githubusercontent.com/CivicKnowledge/metatab-py/master/test-data/example1.csv
 
 Run ``metatab -h`` to get other program options. 
 
@@ -50,7 +50,7 @@ The metatab python distribution includes two programs, ``metatab`` for manipulat
 Creating a new package
 ----------------------
 
-[ For an overview of the Metata format, see the `Metatab specifications <http://www.metatab.org/>`_.
+[ For an overview of the Metata format, see the `Metatab specifications <http://www.metatab.org/>`_. ]
 
 Create a directory, usually with the name you'll give the package and create a new metatab file within it.
 
@@ -60,7 +60,7 @@ Create a directory, usually with the name you'll give the package and create a n
     $ cd example-package
     $ metatab -c
 
-The `metatab -c` command will create a new metatab file in the current directory, `metadata.csv`. You can open this file with a spreadsheet program to edit it.
+The ``metatab -c`` command will create a new metatab file in the current directory, ``metadata.csv``. You can open this file with a spreadsheet program to edit it.
 
 The minimum terms to enter values for are:
 
@@ -68,25 +68,30 @@ The minimum terms to enter values for are:
 - Name
 - Datafile
 
-For this example, the `Name` term should be set to the name of the directory, 'example-package'
+For this example, the ``Name`` term should be set to the name of the directory, 'example-package'
 
-For the `Datafile` term, you can add entries directly, but it is easier to use the metapack program to add them. The `metapack -a` program will inspect the file for you, finding internal files in ZIP files and creating the correct URLs for Excel files.
+For the ``Datafile`` term, you can add entries directly, but it is easier to use the metapack program to add them. The ``metapack -a`` program will inspect the file for you, finding internal files in ZIP files and creating the correct URLs for Excel files.
 
-If you have made changes to the `metadata.csv` file, save it, then run:
+If you have made changes to the ``metadata.csv`` file, save it, then run:
 
 .. code-block:: bash
 
     $ metapack -a http://public.source.civicknowledge.com/example.com/sources/test_data.zip
 
-The `test_data.zip` file is a test file with many types of tabular datafiles within it. The `metapack -a` command will download it, open it, find all of the data files int it, and add uRLs to the metatab. If any of the files in the zip file are Excel format, it will also create URLs for each of the tabs.
+The ``test_data.zip`` file is a test file with many types of tabular datafiles within it. The ``metapack -a`` command will download it, open it, find all of the data files int it, and add uRLs to the metatab. If any of the files in the zip file are Excel format, it will also create URLs for each of the tabs.
 
 ( This file is large and may take awhile. If you need a smaller file, try: http://public.source.civicknowledge.com/example.com/sources/renter_cost.csv )
 
-Now reload the file. The Resource section should have 9 `Datafile` entries, all of them with fragments. The fragments will be URL encoded, so are a bit hard to read. %2F is a '/' and %3B is a ';'. The `metatab -a` program will also add a name, and try to get where the data starts and which lines are for headers.
+The ``metapack -a`` command also works on directories and webpages. For instance, if you wanted to scrape all of the 60 data files for the California English Language Development Test, you could run: 
 
-Note that the `unicode-latin1` and `unicode-utf8` do not have values for StartLine and HeaderLines. This is because the row intuiting process failed to categorize the lines, because all of them are mostly strings. In these cases, download the file and examine it. For these two files, you can enter '0' for `HeaderLines` and '1' for `StartLine.`
+.. code-block:: bash
+    metapack -a http://celdt.cde.ca.gov/research/admin1516/indexcsv.asp
 
-If you enter the `Datafile` terms manually, you should enter the URL for the datafile, ( in the cell below "Resources" ) and the `Name` value. If the URL to the resource is a zip file or an Excel file, you can use a URL fragment to indicate the inner filename. For Excel files, the fragment is either the name of the tab in the file, or the number of the tab. ( The first number is 0 ). If the resource is a zip file that holds an Excel file, the fragment can have both the internal file name and the tab number, seperated by a semicolon ';' For instance:
+Now reload the file. The Resource section should have 9 ``Datafile`` entries, all of them with fragments. The fragments will be URL encoded, so are a bit hard to read. %2F is a '/' and %3B is a ';'. The ``metatab -a`` program will also add a name, and try to get where the data starts and which lines are for headers.
+
+Note that the ``unicode-latin1`` and ``unicode-utf8`` do not have values for StartLine and HeaderLines. This is because the row intuiting process failed to categorize the lines, because all of them are mostly strings. In these cases, download the file and examine it. For these two files, you can enter '0' for ``HeaderLines`` and '1' for ``StartLine.``
+
+If you enter the ``Datafile`` terms manually, you should enter the URL for the datafile, ( in the cell below "Resources" ) and the ``Name`` value. If the URL to the resource is a zip file or an Excel file, you can use a URL fragment to indicate the inner filename. For Excel files, the fragment is either the name of the tab in the file, or the number of the tab. ( The first number is 0 ). If the resource is a zip file that holds an Excel file, the fragment can have both the internal file name and the tab number, seperated by a semicolon ';' For instance:
 
 - http://public.source.civicknowledge.com/example.com/sources/test_data.zip#simple-example.csv
 - http://example.com/renter_cost_excel07.xlsx#2
@@ -94,9 +99,9 @@ If you enter the `Datafile` terms manually, you should enter the URL for the dat
 
 If you don't specify a tab name for an Excel file, the first will be used.
 
-There are also URL forms for Google spreadsheet, S3 files and Socrata,
+There are also URL forms for Google spreadsheet, S3 files and Socrata.
 
-To test URLS, use the `rowgen` program:
+To test URLS, use the ``rowgen`` program:
 
 .. code-block:: bash
 
@@ -121,13 +126,13 @@ Or just download the file and look at it. In this case, for both `unicode-latin1
 Generating Schemas
 ++++++++++++++++++
 
-Now that the `metadata.csv` has resources specified, you can generate schemas for the resources with the `metapack -s` program.   First, save the file, then run:
+Now that the ``metadata.csv`` has resources specified, you can generate schemas for the resources with the `metapack -s` program.   First, save the file, then run:
 
 .. code-block:: bash
 
     $ metapack -s
 
-Re-open   `metadata.csv` and you should see entries for tables and columns for each of the Datafiles.
+Re-open   ``metadata.csv`` and you should see entries for tables and columns for each of the Datafiles. After creating the schema, you should edit the description ane possible change the alternate names (``AltName`` terms. ) The alternate names are versions of the column headers that follow typical naming rules for columns. If an AltName is specified, iterating over the resource out of the package will use the AltName, rather than that column name. 
 
 
 Using a Package
@@ -153,3 +158,57 @@ You can dump one of the resources as a CSV by running the same command with the 
 .. code-block:: bash
 
     $ metatab -R metadata.csv#simple-example
+
+You can also read the resources from a Python program, with an easy way to convert a resource to a Pandas DataFrame
+
+.. code-block:: python 
+
+    import metatab
+
+    doc = metatab.open_package('.')  # Will look for 'metadata.csv'
+
+    print(type(doc))
+
+    for r in doc.resources():
+        print(r.name, r.url)
+    
+    r = doc.first_resource('renter_cost')
+
+    # Dump the row
+    for row in r:
+        print row
+
+
+    # Or, turn it into a pandas dataframe
+    # ( After installing pandas ) 
+    
+    df = doc.first_resource('renter_cost').dataframe()
+    
+Making Other Package Formats
+++++++++++++++++++++++++++++
+
+The tutorial above is actually creating a data package in a directory. There are several other forms of packages that Metapack can create including Excel, ZIP and S3.
+
+
+.. code-block:: bash
+
+    $ metatab -e # Make an Excel package, example-package.xlsx
+    $ metatab -z # Make a ZIP package, example-package.zip
+    
+The Excel package, ``example-package.xlsx`` will have the Metatab metadata from metata.csv in the ``Meta`` tab, and will have one tab per resource from the Resoruces section. The ZIP package ``example-package.zip`` will have all of the resources in the ``data`` directory and will also include the metadata in Tabulr Data Package format in the ``datapackage.json`` file. You can interate over the resoruces in these packages too:
+
+.. code-block:: bash
+
+    $ metatab -R example-package.xlsx#simple-example
+    $ metatab -R example-package.zip#simple-example 
+
+.. code-block:: python 
+
+    import metatab
+
+    doc = metatab.open_package('example-package.zip') 
+    # Or
+    doc = metatab.open_package('example-package.xlsx') 
+    
+
+    
