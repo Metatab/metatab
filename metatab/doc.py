@@ -182,6 +182,12 @@ class Resource(Term):
 
         t = self.doc.find_first('Root.Table', value=self.properties.get('name'))
 
+        if not t:
+            t = self.doc.find_first('Root.Table', value=self.properties.get('schema'))
+
+        if not t:
+            return
+
         for i, c in enumerate(t.children):
             if c.term_is("Table.Column"):
                 p = c.properties
@@ -300,12 +306,13 @@ class Resource(Term):
         return df
 
     def _repr_html_(self):
-        return ("<p><strong>{name}</strong> - <small><a target=\"_blank\" href=\"{url}\">{url}</a></small></p>"\
+        return ("<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a></p>"\
                 .format(name=self.name, url=self.url)) + \
                 "<table>\n" + \
                 "<tr><th>Header</th><th>Type</th><th>Description</th></tr>" + \
                '\n'.join("<tr><td>{}</td><td>{}</td><td>{}</td></tr> ".format(c['header'], c['datatype'], c['description'])
-                         for c in self.columns())
+                         for c in self.columns()) + \
+                '</table>'
 
 
 class MetatabDoc(object):
@@ -692,7 +699,7 @@ class MetatabDoc(object):
     def _repr_html_(self):
 
         def resource_repr(r):
-            return "<p><strong>{name}</strong> - <small><a target=\"_blank\" href=\"{url}\">{url}</a></small></p>" \
+            return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
                     .format(name=r.name, url=r.url)
 
         def documentation():
@@ -717,7 +724,7 @@ class MetatabDoc(object):
 
         return """
 <h1>{title}</h1>
-<p><small>{name}</small></p>
+<p>{name}</p>
 <p>{description}</p>
 <table>{doc}</table>
 <h2>Resources</h2>

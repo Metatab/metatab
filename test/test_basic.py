@@ -385,31 +385,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEquals('root.parent3', t.qualified_term)
         self.assertEquals('root.parent3', t.join)
 
-    def test_move_term(self):
 
-        d = MetatabDoc(test_data('example1.csv'))
-
-        import json
-
-        print(json.dumps(d.decl_terms, indent=4))
-
-    def test_edit_resource(self):
-
-        d = MetatabDoc(test_data('example1.csv'))
-
-        for r in d.resources():
-
-            r.url = r.name
-            print(r.url, r.properties)
-
-        for t in d.find('Root.Datafile'):
-            print(t.properties)
-
-
-    def test_html(self):
-        d = MetatabDoc(test_data('example1.csv'))
-
-        print(d._repr_html_())
 
 
 if __name__ == '__main__':

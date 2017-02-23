@@ -196,7 +196,7 @@ def dump_resource(doc, name, lines=None):
     from itertools import islice
     from tabulate import tabulate
 
-    r = doc.first_resource(name=name)
+    r = doc.resource(name=name)
 
     if lines:
         try:

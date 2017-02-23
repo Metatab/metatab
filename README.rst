@@ -65,10 +65,19 @@ The ``metatab -c`` command will create a new metatab file in the current directo
 The minimum terms to enter values for are:
 
 - Title
-- Name
+- Name, or Dataset, Version and Origin
 - Datafile
 
-For this example, the ``Name`` term should be set to the name of the directory, 'example-package'
+For this example, the ``Name`` term could be set to the name of the directory, 'example-package.' However, it is more rigorous to set the name component terms, ``DatasetName`` and zero or more of ``Origin``, ``Version``, ``Time`` or ``Space``. These terms will be combined to make the name, and the name will include important components to distinguish different package versions and similar datasets from different sources. The ``Name`` term is used to generate files names when making ZIP, Excel and S3 packages. For this tutorial use these values:
+
+- DatasetName: 'example-data-package'
+- Origin ( in the Contacts Section): 'example.com'
+- Version ( Automatically set ) : '1'
+- Space: 'US'
+- Time: '2017'
+
+ These values will generate the name 'example.com-example_data_package-2017-us-1'
+
 
 For the ``Datafile`` term, you can add entries directly, but it is easier to use the metapack program to add them. The ``metapack -a`` program will inspect the file for you, finding internal files in ZIP files and creating the correct URLs for Excel files.
 
@@ -85,6 +94,7 @@ The ``test_data.zip`` file is a test file with many types of tabular datafiles w
 The ``metapack -a`` command also works on directories and webpages. For instance, if you wanted to scrape all of the 60 data files for the California English Language Development Test, you could run: 
 
 .. code-block:: bash
+
     metapack -a http://celdt.cde.ca.gov/research/admin1516/indexcsv.asp
 
 Now reload the file. The Resource section should have 9 ``Datafile`` entries, all of them with fragments. The fragments will be URL encoded, so are a bit hard to read. %2F is a '/' and %3B is a ';'. The ``metatab -a`` program will also add a name, and try to get where the data starts and which lines are for headers.
@@ -192,15 +202,15 @@ The tutorial above is actually creating a data package in a directory. There are
 
 .. code-block:: bash
 
-    $ metapack -e # Make an Excel package, example-package.xlsx
-    $ metapack -z # Make a ZIP package, example-package.zip
+    $ metapack -e # Make an Excel package, example.com-example_data_package-2017-us-1.xlsx
+    $ metapack -z # Make a ZIP package, example.com-example_data_package-2017-us-1.zip
 
 The Excel package, ``example-package.xlsx`` will have the Metatab metadata from metata.csv in the ``Meta`` tab, and will have one tab per resource from the Resources section. The ZIP package ``example-package.zip`` will have all of the resources in the ``data`` directory and will also include the metadata in `Tabular Data Package <http://specs.frictionlessdata.io/tabular-data-package/>`_ format in the ``datapackage.json`` file. You can interate over the resources in these packages too:
 
 .. code-block:: bash
 
-    $ metatab -R example-package.xlsx#simple-example
-    $ metatab -R example-package.zip#simple-example 
+    $ metatab -R example.com-example_data_package-2017-us-1.zip#simple-example
+    $ metatab -R example.com-example_data_package-2017-us-1.xlsx#simple-example
 
 .. code-block:: python 
 
@@ -210,5 +220,7 @@ The Excel package, ``example-package.xlsx`` will have the Metatab metadata from 
     # Or
     doc = metatab.open_package('example-package.xlsx') 
     
+Note that the data files in a derived package may be different that the ones in the source directory package. The derived data files will always have a header on the first line and data starting on the second line. The header will be taken from the data file's schema, using the ``Table.Column`` term value as the header name, or the ``AltName`` property, if it is defined. The names are always "slugified" to remove characters other than '-', '_' and '.' and will always be lowercase, with initial numbers removed.
 
+If the ``Datafile`` term has a ``StartLine`` property, the values will be used in generating the data in derived packages to select the first line for yielding data rows. ( The ``HeaderLines`` property is used to build the schema, from which the header line is generated. )
     
