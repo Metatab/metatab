@@ -44,23 +44,28 @@ def metatab():
     import argparse
     parser = argparse.ArgumentParser(
         prog='metatab',
-        description='Simple Structured Table format parser, version {}'.format(_meta.__version__))
+        description='Matatab file parser, version {}'.format(_meta.__version__))
 
     parser.add_argument('-C', '--clean-cache', default=False, action='store_true',
                         help="Clean the download cache")
 
     g = parser.add_mutually_exclusive_group(required=True)
 
+    g.add_argument('-i', '--info', default=False, action='store_true',
+                        help="Show configuration information")
+
     g.add_argument('-c', '--create', action='store', nargs='?', default=False,
                    help="Create a new metatab file, from named template. With no argument, uses the 'metatab' template ")
 
     g.add_argument('-t', '--terms', default=False, action='store_true',
                    help='Parse a file and print out the stream of terms, before interpretation')
-    g.add_argument('-i', '--interp', default=False, action='store_true',
+
+    g.add_argument('-I', '--interp', default=False, action='store_true',
                    help='Parse a file and print out the stream of terms, after interpretation')
 
     g.add_argument('-j', '--json', default=False, action='store_true',
                    help='Parse a file and print out a JSON representation')
+
     g.add_argument('-y', '--yaml', default=False, action='store_true',
                    help='Parse a file and print out a YAML representation')
 
@@ -79,8 +84,7 @@ def metatab():
     parser.add_argument('-D', '--declare', help='Parse and incorporate a declaration before parsing the file.' +
                                                 ' (Adds the declaration to the start of the file as the first term. )')
 
-    g.add_argument('-V', '--version', default=False, action='store_true',
-                   help='Display the package version and exit')
+
 
     parser.add_argument('file', nargs='?', default=DEFAULT_METATAB_FILE, help='Path to a Metatab file')
 
@@ -91,6 +95,11 @@ def metatab():
         args.file = DEFAULT_METATAB_FILE + args.file
 
     cache = get_cache('metapack')
+
+    if args.info:
+        prt('Version  : {}'.format(_meta.__version__))
+        prt('Cache dir: {}'.format(str(cache.getsyspath('/'))))
+        exit(0)
 
     if args.clean_cache:
         clean_cache('metapack')
@@ -135,8 +144,10 @@ def metatab():
     else:
 
         package_url, metadata_url = resolve_package_metadata_url(args.file)
-
-        doc = MetatabDoc(metadata_url, cache=cache)
+        try:
+            doc = MetatabDoc(metadata_url, cache=cache)
+        except IOError as e:
+            err("Failed to open '{}': {}".format(metadata_url,e))
 
     if args.terms:
         for t in doc._term_parser:
@@ -254,69 +265,107 @@ def metapack():
 
     parser = argparse.ArgumentParser(
         prog='metapack',
-        description='Create metatab data packages, version {}'.format(_meta.__version__))
+        description='Create and manipulate metatab data packages, version {}'.format(_meta.__version__))
 
-    parser.add_argument('--clean-cache', default=False, action='store_true',
-                        help="Clean the download cache")
+    parser.add_argument('metatabfile', nargs='?',
+                        help="Path or URL to a metatab file. If not provided, defaults to 'metadata.csv' ")
 
-    parser.add_argument('-C', '--clean', default=False, action='store_true',
-                        help="FOr some operations, like updating schemas, clear the section of existing terms first")
+    ##
+    ## Build Group
 
-    parser.add_argument('-i', '--init', action='store', nargs='?', default=False,
-                        help='Set the cache directory for downloads and building packages')
+    build_group = parser.add_argument_group('Building Metatab Files', 'Build and manage a metatab file for a pacakge')
 
-    parser.add_argument('-a', '--add', default=False,
+    build_group.add_argument('-c', '--create', action='store', nargs='?', default=False,
+                        help="Create a new metatab file, from named template. With no argument, uses the "
+                             "'metatab' template ")
+
+    build_group.add_argument('-a', '--add', default=False,
                         help='Add a file or url to the resources. With a directory add a data files in the directory')
 
-    parser.add_argument('-S', '--scrape',
-                        help='Scrape a web page for links to data files, documentation and web pages. ')
+    build_group.add_argument('-S', '--scrape',
+                    help='Similar to --add, but scrape a web page for links to data files, documentation '
+                         'and web pages and add the links as resources ')
 
-    parser.add_argument('-E', '--enumerate',
-                        help='Enumerate the resources referenced from a URL')
-
-    parser.add_argument('-r', '--resources', default=False, action='store_true',
+    build_group.add_argument('-r', '--resources', default=False, action='store_true',
                         help='Rebuild the resources, intuiting rows and encodings from the URLs')
 
-    parser.add_argument('-s', '--schemas', default=False, action='store_true',
+    build_group.add_argument('-s', '--schemas', default=False, action='store_true',
                         help='Rebuild the schemas for files referenced in the resource section')
 
-    parser.add_argument('-d', '--datapackage', action='store_true', default=False,
+    build_group.add_argument('-d', '--datapackage', action='store_true', default=False,
                         help="Write a datapackage.json file adjacent to the metatab file")
 
-    parser.add_argument('-u', '--update', action='store_true', default=False,
-                        help="Update the Name from the Datasetname, Origin and Version")
+    build_group.add_argument('-u', '--update', action='store_true', default=False,
+                        help="Update the Name from the Datasetname, Origin and Version terms")
 
-    parser.add_argument('-e', '--excel', action='store_true', default=False,
+    ##
+    ## Derived Package Group
+
+    derived_group = parser.add_argument_group('Derived Packages','Generate other types of packages')
+
+    derived_group.add_argument('-e', '--excel', action='store_true', default=False,
                         help='Create an excel archive from a metatab file')
 
-    parser.add_argument('-z', '--zip', action='store_true', default=False,
+    derived_group.add_argument('-z', '--zip', action='store_true', default=False,
                         help='Create a zip archive from a metatab file')
 
-    parser.add_argument('-f', '--filesystem', action='store_true', default=False,
+    derived_group.add_argument('-f', '--filesystem', action='store_true', default=False,
                         help='Create a filesystem archive from a metatab file')
 
-    parser.add_argument('-s3', '--s3', action='store',
-                        help='Create a s3 archive from a metatab file')
+    derived_group.add_argument('-s3', '--s3', action='store',
+                        help='Create a s3 archive from a metatab file. Argument is an S3 URL with the bucket name and '
+                             'prefix, such as "s3://devel.metatab.org:/excel/". Uses boto configuration for credentials')
+
+    ##
+    ## QueryPackage Group
+
+    query_group = parser.add_argument_group('Query', 'Return information and data from a package')
+
+    query_group.add_argument('-R', '--resource', default=False, action='store_true',
+                        help='If the URL has no fragment, dump the resources listed in the metatab file.'
+                             ' With a fragment, dump a resource as a CSV')
+
+    query_group.add_argument('-H', '--head', default=False, action='store_true',
+                    help="Dump the first 20 lines of a resoruce ")
 
 
+    ##
+    ## Administration Group
 
-    parser.add_argument('metatabfile', nargs='?')
+    admin_group = parser.add_argument_group('Administration', 'Information and administration')
+
+    admin_group.add_argument('--clean-cache', default=False, action='store_true',
+                        help="Clean the download cache")
+
+    admin_group.add_argument('-C', '--clean', default=False, action='store_true',
+                        help="For some operations, like updating schemas, clear the section of existing terms first")
+
+    admin_group.add_argument('-i', '--info', default=False, action='store_true',
+                        help="Show configuration information")
+
+    admin_group.add_argument('-E', '--enumerate',
+                        help='Enumerate the resources referenced from a URL. Does not alter the Metatab file')
 
     args = parser.parse_args(sys.argv[1:])
 
     d = getcwd()
 
+    cache = get_cache('metapack')
+
+    if args.info:
+        prt('Version  : {}'.format(_meta.__version__))
+        prt('Cache dir: {}'.format(str(cache.getsyspath('/'))))
+        exit(0)
+
     if args.clean_cache:
         clean_cache('metapack')
 
-    cache = get_cache('metapack')
-
-    prt('Cache dir: {}'.format(str(cache.getsyspath('/'))))
 
     mt_file = args.metatabfile if args.metatabfile else join(d, DEFAULT_METATAB_FILE)
 
-    if args.init is not False:
-        init_metatab(mt_file, args.init)
+    if args.create is not False:
+        new_metatab_file(args.file, args.create)
+
 
     if args.scrape:
         scrape_page(mt_file, args.scrape)
@@ -352,6 +401,28 @@ def metapack():
         update_name(mt_file, fail_on_missing=True)
     else:
         update_name(mt_file, fail_on_missing=False)
+
+    if args.resource or args.head:
+
+        limit = 20 if args.head else None
+
+        u = Url(args.file)
+        resource = u.parts.fragment
+        metadata_url = u.rebuild_url(False, False)
+
+        package_url, metadata_url = resolve_package_metadata_url(metadata_url)
+
+        try:
+            doc = MetatabDoc(metadata_url, cache=cache)
+        except OSError as e:
+
+            err("Failed to open Metatab doc: {}".format(e))
+
+        if resource:
+            dump_resource(doc, resource, limit)
+        else:
+            dump_resources(doc)
+
 
     clean_cache("metapack")
 
