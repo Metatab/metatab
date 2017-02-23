@@ -69,7 +69,8 @@ setup(
         'datapackage',
         'rowgenerators',
         'rowpipe',
-        'boto3'
+        'boto3',
+        'bs4'
     ],
 
     
