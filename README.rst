@@ -44,7 +44,7 @@ The ``test-data`` directory has test files that also serve as examples to parse.
 Metatab and Metapack
 --------------------
 
-The metatab Python distribution includes two programs, ``metatab`` for manipulating single Metatab files  and ``metapack`` for creating data packages.
+The metatab Python distribution includes two programs, ``metatab`` for manipulating single Metatab files  and ``metapack`` for creating data packages. The two programs share some options, so when building packages, you can use the ``metapack`` program exclusively, and ``metatab`` is most useful for converting Metatab files to JSON. This tutorial will primarily use ``metapack``
 
 
 Creating a new package
@@ -58,28 +58,32 @@ Create a directory, usually with the name you'll give the package and create a n
 
     $ mkdir example-data-package
     $ cd example-data-package
-    $ metatab -c
+    $ metapack -c
 
-The ``metatab -c`` command will create a new metatab file in the current directory, ``metadata.csv``. You can open this file with a spreadsheet program to edit it.
+The ``metapack -c`` command will create a new Metatab file in the current directory, ``metadata.csv``. You can open this file with a spreadsheet program to edit it.
 
-The minimum terms to enter values for are:
+Tne only required term to set is ``Name``, but you should have values for ``Title`` and ``Description.`` Initially, the ``Name`` is set to the same values as ``Identity``, which is set to a randuom UUID4. 
 
-- Title
-- Name, or Dataset, Version and Origin
-- Datafile
-
-For this example, the ``Name`` term could be set to the name of the directory, 'example-package.' However, it is more rigorous to set the name component terms, ``DatasetName`` and zero or more of ``Origin``, ``Version``, ``Time`` or ``Space``. These terms will be combined to make the name, and the name will include important components to distinguish different package versions and similar datasets from different sources. The ``Name`` term is used to generate files names when making ZIP, Excel and S3 packages. For this tutorial use these values:
+For this example, the ``Name`` term could be changed to the name of the directory, 'example-package.' However, it is more rigorous to set the name component terms, ``DatasetName`` and zero or more of ``Origin``, ``Version``, ``Time`` or ``Space``. These terms will be combined to make the name, and the name will include important components to distinguish different package versions and similar datasets from different sources. The ``Name`` term is used to generate files names when making ZIP, Excel and S3 packages. For this tutorial use these values:
 
 - DatasetName: 'example-data-package'
-- Origin ( in the Contacts Section): 'example.com'
+- Origin ( in the 'Contacts' Section): 'example.com'
 - Version ( Automatically set ) : '1'
 - Space: 'US'
 - Time: '2017'
 
- These values will generate the name 'example.com-example_data_package-2017-us-1'
+ These values will generate the name 'example.com-example_data_package-2017-us-1'. If you update the package, change the ``Version`` value and run ``metapack -u`` to regenerate the ``Name``.
 
+After setting the ``DatasetName``, ``Origin``, ``Version``, ``Time`` or ``Space`` and saving the file, , run ``metapack -u`` to update ``Name``:
 
-For the ``Datafile`` term, you can add entries directly, but it is easier to use the metapack program to add them. The ``metapack -a`` program will inspect the file for you, finding internal files in ZIP files and creating the correct URLs for Excel files.
+.. code-block:: bash
+
+    $ metapack -u
+    Updated Root.Name to: 'example.com-example_data_package-2017-us-1' 
+
+Since this is a data package, it is important to have references to data. The package we are creating here is a filesystem package, and will usually reference the URLs to data on the web. Later, we will generate other packages, such as ZIP or Excel files, and the data will be downloaded and included directly in the package. We define the paths or URLs to data files with the ``DataFile`` term. 
+
+For the ``Datafile`` term, you can add entries directly, but it is easier to use the ``metapack`` program to add them. The ``metapack -a`` program will inspect the file for you, finding internal files in ZIP files and creating the correct URLs for Excel files.
 
 If you have made changes to the ``metadata.csv`` file, save it, then run:
 
@@ -111,7 +115,7 @@ If you don't specify a tab name for an Excel file, the first will be used.
 
 There are also URL forms for Google spreadsheet, S3 files and Socrata.
 
-To test URLS, use the ``rowgen`` program:
+To test manually added URLs, use the ``rowgen`` program, which will download and cache the URL resource, then try to interpret it as a CSV or Excel file. 
 
 .. code-block:: bash
 
@@ -131,10 +135,12 @@ To test URLS, use the ``rowgen`` program:
 
 ( As of metatab 1.8, rowgenerator 0.0.7, some files with encodings that are not ascii or utf-8 will fail for Python2, but will work for Python3. )
 
-Or just download the file and look at it. In this case, for both `unicode-latin1` and `unicode-utf8` you can see that the headers are on line 0 and the data starts on line 1 so enter those values into the `metadata.csv` file.
+Or just download the file and look at it. In this case, for both `unicode-latin1` and `unicode-utf8` you can see that the headers are on line 0 and the data starts on line 1 so enter those values into the `metadata.csv` file. Setting the ``StartLine`` and ``HeaderLines`` values is critical for properly generating schemas. 
 
 Generating Schemas
 ++++++++++++++++++
+
+Before generating schemas, be sure that the ``StartLine`` and ``HeaderLines`` properties are set for every ``DataFile`` term.
 
 Now that the ``metadata.csv`` has resources specified, you can generate schemas for the resources with the `metapack -s` program.   First, save the file, then run:
 
@@ -142,7 +148,7 @@ Now that the ``metadata.csv`` has resources specified, you can generate schemas 
 
     $ metapack -s
 
-Re-open   ``metadata.csv`` and you should see entries for tables and columns for each of the Datafiles. After creating the schema, you should edit the description ane possible change the alternate names (``AltName`` terms. ) The alternate names are versions of the column headers that follow typical naming rules for columns. If an AltName is specified, iterating over the resource out of the package will use the AltName, rather than that column name. 
+Re-open  ``metadata.csv`` and you should see entries for tables and columns for each of the Datafiles. After creating the schema, you should edit the description ane possible change the alternate names (``AltName`` terms. ) The alternate names are versions of the column headers that follow typical naming rules for columns. If an AltName is specified, iterating over the resource out of the package will use the AltName, rather than that column name. 
 
 
 Using a Package
@@ -152,7 +158,7 @@ At this point, the package is functionally complete, and you can check that the 
 
 .. code-block:: bash
 
-    $ metatab -R metadata.csv
+    $ metapack -R metadata.csv
     random-names http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Frandom-names.csv
     renter_cost http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Frenter_cost.csv
     simple-example-altnames http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Fsimple-example-altnames.csv
@@ -167,7 +173,13 @@ You can dump one of the resources as a CSV by running the same command with the 
 
 .. code-block:: bash
 
-    $ metatab -R metadata.csv#simple-example
+    $ metapack -R metadata.csv#simple-example
+
+or:
+
+.. code-block:: bash
+
+    $ metapack -R "#simple-example"
 
 You can also read the resources from a Python program, with an easy way to convert a resource to a Pandas DataFrame
 
@@ -209,8 +221,18 @@ The Excel package, ``example-package.xlsx`` will have the Metatab metadata from 
 
 .. code-block:: bash
 
-    $ metatab -R example.com-example_data_package-2017-us-1.zip#simple-example
-    $ metatab -R example.com-example_data_package-2017-us-1.xlsx#simple-example
+    $ metapack -R example.com-example_data_package-2017-us-1.zip#simple-example
+    $ metapack -R example.com-example_data_package-2017-us-1.xlsx#simple-example
+
+The ``metapack -R`` also works with URLs:
+
+.. code-block:: bash
+
+    $ metapack -R http://devel.metatab.org/excel/example.com-example_data_package-2017-us-1.xlsx#simple-example
+    $ metapack -R http://devel.metatab.org/excel/example.com-example_data_package-2017-us-1.zip#simple-example
+
+And, you can access the packages in Python:
+
 
 .. code-block:: python 
 
