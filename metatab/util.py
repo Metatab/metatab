@@ -34,8 +34,8 @@ def slugify(value):
     import unicodedata
     from six import text_type
     value = text_type(value)
-    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('utf8')
-    value = re.sub(r'[^\w\s-]', '', value).strip().lower()
+    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('utf8').strip().lower()
+    value = re.sub(r'[^\w\s\-\.]', '', value)
     value = re.sub(r'[-\s]+', '-', value)
     return value
 

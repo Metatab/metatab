@@ -474,13 +474,7 @@ class SectionTerm(Term):
 
     def get_term(self, term):
 
-        term = six.text_type(term)
-        for t in self.terms:
-
-            if t.term.lower() == term.lower():
-                return t
-
-        return None
+        return self.doc.find_first(term, section=self.name)
 
     def get_or_new_term(self, term, value=None, **kwargs):
 

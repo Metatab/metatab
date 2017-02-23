@@ -17,6 +17,7 @@ metatab/serialize.py
 metatab/util.py
 metatab/declarations/__init__.py
 metatab/declarations/datapackage-0.1.csv
+metatab/declarations/datapackage-latest.csv
 metatab/declarations/datapackage.csv
 metatab/declarations/metatab-0.1.csv
 metatab/declarations/metatab-latest.csv

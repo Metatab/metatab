@@ -10,8 +10,8 @@ from uuid import uuid4
 import re
 
 import six
-from metatab.util import make_metatab_file
-from metatab import _meta
+from metatab.util import make_metatab_file, slugify
+from metatab import _meta, MetatabError
 from metatab.doc import MetatabDoc, resolve_package_metadata_url, DEFAULT_METATAB_FILE
 from os import getcwd
 from os.path import exists, join, isdir, abspath, dirname
@@ -112,9 +112,8 @@ def metatab():
         try:
             doc = MetatabDoc(metadata_url, cache=cache)
         except OSError as e:
-            raise
-            err("Failed to open Metatab doc: {}".format(e))
 
+            err("Failed to open Metatab doc: {}".format(e))
 
         if resource:
             dump_resource(doc, resource, limit)
@@ -281,6 +280,12 @@ def metapack():
     parser.add_argument('-s', '--schemas', default=False, action='store_true',
                         help='Rebuild the schemas for files referenced in the resource section')
 
+    parser.add_argument('-d', '--datapackage', action='store_true', default=False,
+                        help="Write a datapackage.json file adjacent to the metatab file")
+
+    parser.add_argument('-u', '--update', action='store_true', default=False,
+                        help="Update the Name from the Datasetname, Origin and Version")
+
     parser.add_argument('-e', '--excel', action='store_true', default=False,
                         help='Create an excel archive from a metatab file')
 
@@ -293,8 +298,7 @@ def metapack():
     parser.add_argument('-s3', '--s3', action='store',
                         help='Create a s3 archive from a metatab file')
 
-    parser.add_argument('-D', '--datapackage', action='store_true', default=False,
-                        help="Write a datapackage.json file adjacent to the metatab file")
+
 
     parser.add_argument('metatabfile', nargs='?')
 
@@ -343,6 +347,9 @@ def metapack():
 
     if args.datapackage:
         write_datapackagejson(mt_file)
+
+    if args.update:
+        update_name(mt_file, fail_on_missing=True)
 
     clean_cache("metapack")
 
@@ -724,3 +731,26 @@ def write_datapackagejson(mt_file):
 
     with open(dpj_file, 'w') as f:
         f.write(json.dumps(convert_to_datapackage(doc), indent=4))
+
+def update_name(mt_file, fail_on_missing=False):
+
+
+
+    if isinstance(mt_file, MetatabDoc):
+        doc = mt_file
+    else:
+        doc = MetatabDoc(mt_file)
+
+    try:
+        name = doc.update_name(fail_on_missing=True)
+        prt("Updated Root.Name to: '{}' ".format(name))
+        doc.write_csv(mt_file)
+
+    except MetatabError as e:
+        err('Failed to set Name: {}'.format(e))
+
+
+
+
+
+

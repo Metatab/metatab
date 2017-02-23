@@ -14,10 +14,11 @@ from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
 
 from metatab import (TermParser, SectionTerm, Term, generateRows, MetatabError,
                      CsvPathRowGenerator, RootSectionTerm )
-from metatab.util import linkify
+from metatab.util import linkify, slugify
 from .exc import PackageError
 from rowgenerators import RowGenerator
 from rowpipe import RowProcessor
+
 
 DEFAULT_METATAB_FILE = 'metadata.csv'
 
@@ -590,12 +591,16 @@ class MetatabDoc(object):
 
         name = self.find_first('Root.Name', section='root')
 
-        if name and name.value:
-            name.value = slugify(name.value)
-        elif name:
-            name.value = slugify(identity.value)
-        else:
-            self['Root']['Name'] = slugify(identity.value)
+        try:
+            self.update_name(fail_on_missing=True)
+        except MetatabError:
+
+            if name and name.value:
+                name.value = slugify(name.value)
+            elif name:
+                name.value = slugify(identity.value)
+            else:
+                self['Root']['Name'] = slugify(identity.value)
 
         version = self.find_first('Root.Version', section='root')
 
@@ -603,6 +608,30 @@ class MetatabDoc(object):
             version.value = 1
         elif not version:
             self['Root']['Version'] = 1
+
+    def update_name(self, fail_on_missing=True):
+        """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
+
+        name = self.find_first_value('Root.DatasetName', section='Root')
+
+        if not name:
+            if fail_on_missing:
+                raise MetatabError("Can't generate name without a Root.DatasetName term")
+            else:
+                return None
+
+        version = self.find_first_value('Root.Version', section='Root')
+        origin = self.find_first_value('Root.Origin', section='Contacts')
+        time = self.find_first_value('Root.Time', section='Root')
+        space = self.find_first_value('Root.Spatial', section='Root')
+
+        parts = [slugify(e.replace('-', '_')) for e in (origin, name, time, space, version) if e and str(e).strip()]
+
+        name = '-'.join(parts)
+
+        self['Root'].get_or_new_term('Root.Name', name)
+
+        return name
 
     def as_dict(self):
         """Iterate, link terms and convert to a dict"""
