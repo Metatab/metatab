@@ -56,8 +56,8 @@ Create a directory, usually with the name you'll give the package and create a n
 
 .. code-block:: bash
 
-    $ mkdir example-package
-    $ cd example-package
+    $ mkdir example-data-package
+    $ cd example-data-package
     $ metatab -c
 
 The ``metatab -c`` command will create a new metatab file in the current directory, ``metadata.csv``. You can open this file with a spreadsheet program to edit it.
