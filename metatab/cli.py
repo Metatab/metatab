@@ -280,11 +280,13 @@ def metapack():
                              "'metatab' template ")
 
     build_group.add_argument('-a', '--add', default=False,
-                        help='Add a file or url to the resources. With a directory add a data files in the directory')
+                        help='Add a file or url to the resources. With a directory add a data files in the directory. '
+                             'If given a URL to a web page, will add all links that point to CSV, Excel Files and'
+                             'data files in ZIP files. (Caution: it will download and cache all of these files. )')
 
-    build_group.add_argument('-S', '--scrape',
-                    help='Similar to --add, but scrape a web page for links to data files, documentation '
-                         'and web pages and add the links as resources ')
+    #build_group.add_argument('-S', '--scrape',
+    #                help='Similar to --add, but scrape a web page for links to data files, documentation '
+    #                     'and web pages and add the links as resources ')
 
     build_group.add_argument('-r', '--resources', default=False, action='store_true',
                         help='Rebuild the resources, intuiting rows and encodings from the URLs')
@@ -361,14 +363,18 @@ def metapack():
         clean_cache('metapack')
 
 
-    mt_file = args.metatabfile if args.metatabfile else join(d, DEFAULT_METATAB_FILE)
+    mtfile_arg = args.metatabfile if args.metatabfile else join(d, DEFAULT_METATAB_FILE)
+
+    mtfile_url = Url(mtfile_arg)
+    resource = mtfile_url.parts.fragment
+
+    package_url, mt_file = resolve_package_metadata_url(mtfile_url.rebuild_url(False, False))
 
     if args.create is not False:
-        new_metatab_file(args.file, args.create)
+        new_metatab_file(mt_file, args.create)
 
-
-    if args.scrape:
-        scrape_page(mt_file, args.scrape)
+    #if args.scrape:
+    #    scrape_page(mt_file, args.scrape)
 
     if args.enumerate:
         enumerate_contents(args.enumerate, cache=cache)
@@ -397,25 +403,13 @@ def metapack():
     if args.datapackage:
         write_datapackagejson(mt_file)
 
-    if args.update:
-        update_name(mt_file, fail_on_missing=True)
-    else:
-        update_name(mt_file, fail_on_missing=False)
-
     if args.resource or args.head:
 
         limit = 20 if args.head else None
 
-        u = Url(args.file)
-        resource = u.parts.fragment
-        metadata_url = u.rebuild_url(False, False)
-
-        package_url, metadata_url = resolve_package_metadata_url(metadata_url)
-
         try:
-            doc = MetatabDoc(metadata_url, cache=cache)
+            doc = MetatabDoc(mt_file, cache=cache)
         except OSError as e:
-
             err("Failed to open Metatab doc: {}".format(e))
 
         if resource:
@@ -423,12 +417,20 @@ def metapack():
         else:
             dump_resources(doc)
 
+    if mtfile_url.scheme == 'file':
+        if args.update:
+            update_name(mt_file, fail_on_missing=True)
+        else:
+            update_name(mt_file, fail_on_missing=False)
+
 
     clean_cache("metapack")
 
 
-def new_metatab_file(mt_file, template):
+def new_metatab_file(mt_file_url, template):
     template = template if template else 'metatab'
+
+    mt_file = Url(mt_file_url).parts.path
 
     if not exists(mt_file):
         doc = make_metatab_file(template)
@@ -814,9 +816,12 @@ def update_name(mt_file, fail_on_missing=False):
         doc = MetatabDoc(mt_file)
 
     try:
+        orig_name = doc.find_first_value('Root.Name',section='Root')
+
         name = doc.update_name(fail_on_missing=True)
-        prt("Updated Root.Name to: '{}' ".format(name))
-        doc.write_csv(mt_file)
+        if name != orig_name:
+            prt("Updated Root.Name to: '{}' ".format(name))
+            doc.write_csv(mt_file)
 
     except MetatabError as e:
         if fail_on_missing:

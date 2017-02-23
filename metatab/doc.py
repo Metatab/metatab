@@ -690,10 +690,15 @@ class MetatabDoc(object):
         return s.getvalue()
 
     def write_csv(self, path):
-
+        from rowgenerators import Url
         self.cleanse()
 
-        with open(path, 'wb') as f:
+        u = Url(path)
+
+        if u.scheme != 'file':
+            raise MetatabError("Can't write file to URL '{}'".format(path))
+
+        with open(u.parts.path, 'wb') as f:
             f.write(self.as_csv())
 
     def _repr_html_(self):
