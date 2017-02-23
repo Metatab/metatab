@@ -181,7 +181,7 @@ or:
 
     $ metapack -R "#simple-example"
 
-You can also read the resources from a Python program, with an easy way to convert a resource to a Pandas DataFrame
+You can also read the resources from a Python program, with an easy way to convert a resource to a Pandas DataFrame.
 
 .. code-block:: python 
 
@@ -205,7 +205,9 @@ You can also read the resources from a Python program, with an easy way to conve
     # ( After installing pandas ) 
     
     df = doc.first_resource('renter_cost').dataframe()
-    
+
+For a more complete example, see `this Jupyter notebook example https://github.com/CivicKnowledge/metatab/blob/master/examples/Access%20Examples.ipynb`_
+
 Making Other Package Formats
 ++++++++++++++++++++++++++++
 
