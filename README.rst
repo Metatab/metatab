@@ -1,13 +1,13 @@
 Metatab
 =======
 
-Parse and manipulate structured data in a tabular format. 
+Parse and manipulate structured data and metadata in a tabular format.
 
-`Metatab <http://metatab.org>`_ is a data format that allows structured information -- the sort you'd normally store in JSON, YAML or XML -- to be stored and edited in tabular forms like CSV or Excel. Metatab files look exactly like you'd expect, so they
-are very easy for non technical users to read and edit, using tools they already have. Metatab is an excellt format
-for creating, storing and transmitting metadata. For more information about metatab, visit http://metatab.org. 
+`Metatab <http://metatab.org>`_ is a data format that allows structured metadata -- the sort you'd normally store in JSON, YAML or XML -- to be stored and edited in tabular forms like CSV or Excel. Metatab files look exactly like you'd expect, so they
+are very easy for non-technical users to read and edit, using tools they already have. Metatab is an excellent format
+for creating, storing and transmitting metadata. For more information about metatab, visit http://metatab.org.
 
-This repository has a python module and executable. For a Javascript version, see the `metatab-js <https://github.com/CivicKnowledge/metatab-js>`_ repository.
+This repository has a Python module and executable. For a Javascript version, see the `metatab-js <https://github.com/CivicKnowledge/metatab-js>`_ repository.
 
 What is Metatab For?
 --------------------
@@ -44,13 +44,13 @@ The ``test-data`` directory has test files that also serve as examples to parse.
 Metatab and Metapack
 --------------------
 
-The metatab python distribution includes two programs, ``metatab`` for manipulating single Metatab files  and ``metapack`` for creating data packages.
+The metatab Python distribution includes two programs, ``metatab`` for manipulating single Metatab files  and ``metapack`` for creating data packages.
 
 
 Creating a new package
 ----------------------
 
-[ For an overview of the Metata format, see the `Metatab specifications <http://www.metatab.org/>`_. ]
+[ For an overview of the Metatab format, see the `Metatab specifications <http://www.metatab.org/>`_. ]
 
 Create a directory, usually with the name you'll give the package and create a new metatab file within it.
 
@@ -78,7 +78,7 @@ If you have made changes to the ``metadata.csv`` file, save it, then run:
 
     $ metapack -a http://public.source.civicknowledge.com/example.com/sources/test_data.zip
 
-The ``test_data.zip`` file is a test file with many types of tabular datafiles within it. The ``metapack -a`` command will download it, open it, find all of the data files int it, and add uRLs to the metatab. If any of the files in the zip file are Excel format, it will also create URLs for each of the tabs.
+The ``test_data.zip`` file is a test file with many types of tabular datafiles within it. The ``metapack -a`` command will download it, open it, find all of the data files int it, and add URLs to the metatab. If any of the files in the zip file are Excel format, it will also create URLs for each of the tabs.
 
 ( This file is large and may take awhile. If you need a smaller file, try: http://public.source.civicknowledge.com/example.com/sources/renter_cost.csv )
 
@@ -91,7 +91,7 @@ Now reload the file. The Resource section should have 9 ``Datafile`` entries, al
 
 Note that the ``unicode-latin1`` and ``unicode-utf8`` do not have values for StartLine and HeaderLines. This is because the row intuiting process failed to categorize the lines, because all of them are mostly strings. In these cases, download the file and examine it. For these two files, you can enter '0' for ``HeaderLines`` and '1' for ``StartLine.``
 
-If you enter the ``Datafile`` terms manually, you should enter the URL for the datafile, ( in the cell below "Resources" ) and the ``Name`` value. If the URL to the resource is a zip file or an Excel file, you can use a URL fragment to indicate the inner filename. For Excel files, the fragment is either the name of the tab in the file, or the number of the tab. ( The first number is 0 ). If the resource is a zip file that holds an Excel file, the fragment can have both the internal file name and the tab number, seperated by a semicolon ';' For instance:
+If you enter the ``Datafile`` terms manually, you should enter the URL for the datafile, ( in the cell below "Resources" ) and the ``Name`` value. If the URL to the resource is a zip file or an Excel file, you can use a URL fragment to indicate the inner filename. For Excel files, the fragment is either the name of the tab in the file, or the number of the tab. ( The first number is 0 ). If the resource is a zip file that holds an Excel file, the fragment can have both the internal file name and the tab number, separated by a semicolon ';' For instance:
 
 - http://public.source.civicknowledge.com/example.com/sources/test_data.zip#simple-example.csv
 - http://example.com/renter_cost_excel07.xlsx#2
@@ -192,10 +192,10 @@ The tutorial above is actually creating a data package in a directory. There are
 
 .. code-block:: bash
 
-    $ metatab -e # Make an Excel package, example-package.xlsx
-    $ metatab -z # Make a ZIP package, example-package.zip
-    
-The Excel package, ``example-package.xlsx`` will have the Metatab metadata from metata.csv in the ``Meta`` tab, and will have one tab per resource from the Resoruces section. The ZIP package ``example-package.zip`` will have all of the resources in the ``data`` directory and will also include the metadata in Tabulr Data Package format in the ``datapackage.json`` file. You can interate over the resoruces in these packages too:
+    $ metapack -e # Make an Excel package, example-package.xlsx
+    $ metapack -z # Make a ZIP package, example-package.zip
+
+The Excel package, ``example-package.xlsx`` will have the Metatab metadata from metata.csv in the ``Meta`` tab, and will have one tab per resource from the Resources section. The ZIP package ``example-package.zip`` will have all of the resources in the ``data`` directory and will also include the metadata in `Tabular Data Package <http://specs.frictionlessdata.io/tabular-data-package/>`_ format in the ``datapackage.json`` file. You can interate over the resources in these packages too:
 
 .. code-block:: bash
 
