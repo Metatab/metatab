@@ -350,6 +350,8 @@ def metapack():
 
     if args.update:
         update_name(mt_file, fail_on_missing=True)
+    else:
+        update_name(mt_file, fail_on_missing=False)
 
     clean_cache("metapack")
 
@@ -735,7 +737,6 @@ def write_datapackagejson(mt_file):
 def update_name(mt_file, fail_on_missing=False):
 
 
-
     if isinstance(mt_file, MetatabDoc):
         doc = mt_file
     else:
@@ -747,7 +748,8 @@ def update_name(mt_file, fail_on_missing=False):
         doc.write_csv(mt_file)
 
     except MetatabError as e:
-        err('Failed to set Name: {}'.format(e))
+        if fail_on_missing:
+            err('Failed to set Name: {}'.format(e))
 
 
 

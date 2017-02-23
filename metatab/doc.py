@@ -630,7 +630,7 @@ class MetatabDoc(object):
         version = self.find_first_value('Root.Version', section='Root')
         origin = self.find_first_value('Root.Origin', section='Contacts')
         time = self.find_first_value('Root.Time', section='Root')
-        space = self.find_first_value('Root.Spatial', section='Root')
+        space = self.find_first_value('Root.Space', section='Root')
 
         parts = [slugify(e.replace('-', '_')) for e in (origin, name, time, space, version) if e and str(e).strip()]
 
