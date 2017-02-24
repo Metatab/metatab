@@ -809,7 +809,6 @@ def write_datapackagejson(mt_file):
 
 def update_name(mt_file, fail_on_missing=False):
 
-
     if isinstance(mt_file, MetatabDoc):
         doc = mt_file
     else:
@@ -822,6 +821,8 @@ def update_name(mt_file, fail_on_missing=False):
         if name != orig_name:
             prt("Updated Root.Name to: '{}' ".format(name))
             doc.write_csv(mt_file)
+        else:
+            prt("Root.Name is unchanged: '{}' ".format(name))
 
     except MetatabError as e:
         if fail_on_missing:
