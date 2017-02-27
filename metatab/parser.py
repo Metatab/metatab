@@ -2,7 +2,7 @@
 # Revised BSD License, included in this distribution as LICENSE
 
 """
-Parser for the Simple Data Package format. The parser consists of several iterable generator
+Parser for the Metatab format. The parser consists of several iterable generator
 objects.
 
 """
@@ -21,9 +21,15 @@ from os.path import dirname, join, split, exists
 from .util import declaration_path, linkify
 from rowgenerators import SourceError
 
+# Python2 doesn't have FileNotFoundError
+try:
+    FileNotFoundError
+except NameError:
+    FileNotFoundError = IOError
 
 class Term(object):
-    """Parses a row into the parts of a term
+    """Term object represent a row in a Metatab file, and handle interpeting the
+        row into the parts of a term
 
         Public attributes. These are set externally to the constructor.
 
@@ -43,8 +49,14 @@ class Term(object):
 
         :param term: Simple or compoint term name
         :param value: Term value, from second column of spreadsheet
-        :param term_args: Colums 2+ from term row
-        :param term_parent: If set, the term is an arg child, and the term_parent is the parent term.
+        :param term_args: Colums 2+ from term row, which become properties
+        :param row: Row number in the file where the term appears. Starts at 0
+        :param col: Column number, for arg children ( properties )
+        :param file_name: The name or url of the file where the term appears.
+        :param file_type: Usually None, but may be 'declare' for terms that appear in declare docs.
+        :param parent: If set, the term is an arg child, and the term_parent is the parent term.
+        :param doc: a MetatabDoc object, for the document the term is being parsed into.
+
 
         """
 
@@ -97,9 +109,7 @@ class Term(object):
         if v:
             self._doc = v.doc
 
-    @classmethod
-    def normalize_term(cls, term):
-        return "{}.{}".format(*cls.split_term_lower(term))
+
 
     @classmethod
     def split_term(cls, term):
@@ -146,27 +156,38 @@ class Term(object):
             return ''
 
     def add_child(self, child):
+        """Add a term to this term's children. Also sets the child term's parent"""
         assert isinstance(child, Term)
         self.children.append(child)
         child.parent = self
 
     def new_child(self, term, value, **kwargs):
+        """Create a new term and add it to this term as a child. Creates grandchildren from the kwargs.
+
+        :param term: term name. Just the record term
+        :param term: Value to assign to the term
+        :param term: Term properties, which create children of the child term.
+
+        """
+
         c = Term(term, value, parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
         self.children.append(c)
         return c
 
     def remove_child(self, child):
+        """Remove the term from this term's children. """
         assert isinstance(child, Term)
         self.children.remove(child)
 
     def new_children(self, **kwargs):
+        """Create new children from kwargs"""
         for k, v in kwargs.items():
             self.new_child(k, v)
 
         return self
 
     def set_ownership(self):
-
+        """Recursivelt set the parent, section and doc for a children"""
         assert self.section is not None
 
         for t in self.children:
@@ -175,20 +196,36 @@ class Term(object):
             t.doc = self.doc
             t.set_ownership()
 
-    def find_first(self, term):
+    def find(self, term):
+        """Return a terms by name. If the name is not qualified, use this term's record name for the parent.
+        The method will yield all terms with a matching qualified name. """
+        if '.' in  term:
+            parent, term = term.split('.')
+            assert parent.lower() == self.record_term_lc
 
         for c in self.children:
             if c.record_term_lc == term.lower():
+                yield c
+
+    def find_first(self, term):
+        """Like find(), but returns only the first matching term"""
+        for c in self.children:
+            if c.record_term_lc == term.lower():
                 return c
+
         return None
 
     def find_value(self, term):
+        """LIke find_first(), but returns the matching term's value, or None"""
+
         try:
             return self.find_first(term).value
         except AttributeError:
             return None
 
     def get_or_new_child(self, term, value=None, **kwargs):
+        """Find a term, using find_first, and set it's value and properties, if it exists. If
+        it does not, create a new term and children. """
 
         c = self.find_first(term)
 
@@ -203,6 +240,8 @@ class Term(object):
         return c
 
     def __getitem__(self, item):
+        """Item getter for child property values. Returns the value of this term with given the term's
+        term value name"""
 
         if item.lower() == self.term_value_name.lower():
             return self
@@ -215,10 +254,18 @@ class Term(object):
             return c
 
     def __setitem__(self, item, value):
+        """Set the term's value or one of it's properties. If the item name is a property, and the value
+        is None, remove the child. """
 
         if item.lower() == self.term_value_name.lower() or item.lower() == 'value':
             self.value = value
+
             return self
+        elif value is None:
+            child = self.find_first(item)
+            if child:
+                return self.remove_child(child)
+
         else:
             return self.get_or_new_child(item, value)
 
@@ -233,24 +280,34 @@ class Term(object):
         self.parent_term, self.record_term = Term.split_term_lower(self._term)
 
 
+    @classmethod
+    def normalize_term(cls, term):
+        """Return a string of the qualified term, all lower cased. """
+        return "{}.{}".format(*cls.split_term_lower(term))
+
     @property
     def join(self):
+        """Join the perant and record terms, but don't change the case"""
         return "{}.{}".format(self.parent_term, self.record_term)
 
     @property
     def join_lc(self):
+        """Like join, but returns the term lowercased. """
         return "{}.{}".format(self.parent_term_lc, self.record_term_lc)
 
     @property
     def record_term_lc(self):
+        """Return the lowercased record term name"""
         return self.record_term.lower()
 
     @property
     def parent_term_lc(self):
+        """Return the lowercase parent term name"""
         return self.parent_term.lower()
 
     @property
     def qualified_term(self):
+        """Return the fully qualified term name. The parent will be 'root' if there is no parent term defined. """
 
         assert self.parent is not None or self.parent_term_lc == 'root'
 
@@ -260,7 +317,13 @@ class Term(object):
             return 'root.' + self.record_term_lc
 
     def term_is(self, v):
+        """Return True if the fully qualified name of the term is the same as the argument. If the
+        argument is a list or tuple, return  True if any of the term names match.
 
+        Either the parent or the record term can be '*' ( 'Table.*' or '*.Name' ) to match any value for
+        either the parent or record term.
+
+        """
         if isinstance(v, six.string_types):
 
             if '.' not in v:
@@ -361,7 +424,7 @@ class Term(object):
 
     @property
     def rows(self):
-        """Yield rows"""
+        """Yield rows for the term, for writing terms to a CSV file. """
 
         # Translate the term value name so it can be assigned to a parameter.
         tvm = self.section.doc.decl_terms.get(self.qualified_term, {}).get('termvaluename', '@value')
@@ -402,7 +465,7 @@ class Term(object):
                 self.file_ref(), self.parent_term, self.record_term, self.value, sec_name)
 
     def _repr_html_(self):
-
+        """HTML Representation method for IPYthon Notebook. """
 
         return ("<p><strong>{}</strong>: {}</p><ul>{}</ul>".format(
             self.qualified_term, linkify(self.value),
@@ -410,6 +473,7 @@ class Term(object):
         ))
 
 class SectionTerm(Term):
+    """A Subclass fo Term specificall for Sections """
     def __init__(self, name, term='Section', doc=None, term_args=None,
                  row=None, col=None, file_name=None, file_type=None, parent=None):
 
@@ -441,13 +505,15 @@ class SectionTerm(Term):
 
     @property
     def property_names(self):
+        """Returns either the Section terms, or the Header term arguments. Will prefer the
+        Header args, if they exist. """
         if self.header_args:
             return self.header_args
         else:
             return self.args
 
     def add_term(self, t):
-
+        """Add a term to this section and set it's ownership. Should only be used on root level terms"""
         if t not in self.terms:
             if t.parent_term_lc == 'root':
                 self.terms.append(t)
@@ -464,16 +530,18 @@ class SectionTerm(Term):
         assert t.section or t.join_lc == 'root.root', t
 
     def move_term(self, t):
+        """Synonym for add_term. Once did other things. Probably should be deprecated. """
         return self.add_term(t)
 
     def new_term(self, term, value, **kwargs):
+        """Create a neew root-level term in this section"""
         t = Term(term, value, doc=self.doc, parent=None, section=self).new_children(**kwargs)
 
         self.doc.add_term(t)
         return t
 
     def get_term(self, term):
-
+        """Synonym for find_first, restructed to this section"""
         return self.doc.find_first(term, section=self.name)
 
     def get_or_new_term(self, term, value=None, **kwargs):
@@ -506,13 +574,15 @@ class SectionTerm(Term):
         self.terms = sorted(self.terms, key=lambda e: e.join_lc)
 
     def __getitem__(self, item):
+        """Synonym for get_term()"""
         return self.get_term(item)
 
     def __setitem__(self, item, value):
+        """Synonym for get_or_new_term()"""
         return self.get_or_new_term(item, value)
 
     def __delitem__(self, item):
-
+        """Delete all terms that match the given name"""
         for t in self.terms:
             if t.term.lower() == item.lower():
                 self.delete_term(item)
@@ -520,6 +590,7 @@ class SectionTerm(Term):
         return
 
     def __iter__(self):
+        """Iterate over all terms in the section"""
         for t in self.terms:
             yield t
 
@@ -564,7 +635,7 @@ class SectionTerm(Term):
                     yield row
 
     def as_dict(self):
-
+        """Return the whole section as a dict"""
         old_children = self.children
         self.children = self.terms
 
@@ -775,12 +846,6 @@ class TermParser(object):
         children.
 
         """
-
-        #Python2 doesn't have FileNotFoundError
-        try:
-            FileNotFoundError
-        except NameError:
-            FileNotFoundError = IOError
 
         # This method is seperate from __iter__ so it can recurse for Include and Declare
 
