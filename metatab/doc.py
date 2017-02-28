@@ -9,6 +9,7 @@ from itertools import islice
 from os.path import join
 
 import six
+import collections
 import unicodecsv as csv
 from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
 
@@ -96,6 +97,7 @@ class Resource(Term):
         from rowgenerators import Url
 
         u = Url(self.doc.ref)
+
         nu = u.component_url(self.url)
 
         assert nu
@@ -133,6 +135,7 @@ class Resource(Term):
             return object.__setattr__(self, item, value)
 
         elif item in self.__dict__ and not (item.lower() == self.term_value_name.lower() or item.lower() == 'value'):
+
             assert item != 'url'
             object.__setattr__(self, item, value)
 
@@ -141,7 +144,7 @@ class Resource(Term):
             self._orig_term.value = value
 
         else:
-
+            # Set a property, which is also a child term.
             self.__setitem__(item, value)
 
     def get(self, attr, default=None):
@@ -431,7 +434,17 @@ class MetatabDoc(object):
             raise KeyError("No section for '{}'; sections are: '{}' ".format(name.lower(), self.sections.keys()))
 
     def __getitem__(self, item):
-        return self.get_section(item)
+        """Dereference a section name"""
+
+        # Handle dereferencing a list of sections
+        if isinstance(item, collections.Iterable) and not isinstance(item, six.string_types):
+            for e in item:
+                try:
+                    return self.__getitem__(e)
+                except KeyError:
+                    pass
+        else:
+            return self.get_section(item)
 
     def __delitem__(self, item):
 
@@ -459,9 +472,9 @@ class MetatabDoc(object):
 
         kwargs is used to set term properties, all of which match returned terms.
         """
-        import itertools
 
-        if kwargs:
+        import itertools
+        if kwargs: # Look for terms with particular property values
             terms = self.find(term, value, section)
 
             found_terms = []
@@ -475,10 +488,22 @@ class MetatabDoc(object):
 
             return found_terms
 
+        def in_section(term, section):
+
+            if section is None:
+                return True
+
+            if isinstance(section, (list, tuple)):
+                return any(in_section(t, e) for e in section)
+            else:
+                return section.lower() == term.section.name.lower()
+
+        # Find any of a list of terms
         if isinstance(term, (list, tuple)):
             return list(itertools.chain(*[self.find(e, value=value, section=section) for e in term]))
 
         else:
+
             found = []
 
             if not '.' in term:
@@ -492,13 +517,15 @@ class MetatabDoc(object):
                 assert t.section or t.join_lc == 'root.root', t
 
                 if (t.join_lc == term.lower()
-                    and (section is None or section.lower() == t.section.name.lower())
+                    and in_section(t, section)
                     and (value is False or value == t.value)):
+
                     found.append(t)
 
             return found
 
     def find_first(self, term, value=False, section=None):
+
         terms = self.find(term, value=value, section=section)
 
         if len(terms) > 0:
@@ -507,6 +534,7 @@ class MetatabDoc(object):
             return None
 
     def find_first_value(self, term, value=False, section=None):
+
         term = self.find_first(term, value=value, section=section)
 
         if term is None:
@@ -587,19 +615,16 @@ class MetatabDoc(object):
     def cleanse(self):
         """Clean up some terms, like ensuring that the name is a slug"""
         from .util import slugify
-        from uuid import uuid4
 
-        identity = self.find_first('Root.Identifier', section='root')
 
-        if not identity:
-            self['Root'].new_term('Root.Identifier', six.text_type(uuid4()))
-            identity = self.find_first('Root.Identifier', section='root')
-            assert identity is not None
+        self.ensure_identifier()
 
-        name = self.find_first('Root.Name', section='root')
+        identity = self.find_first('Root.Identifier', section=['Identity', 'Root'])
+
+        name = self.find_first('Root.Name', section=['Identity','Root'])
 
         try:
-            self.update_name(fail_on_missing=True)
+            self.update_name()
         except MetatabError:
 
             if name and name.value:
@@ -607,36 +632,91 @@ class MetatabDoc(object):
             elif name:
                 name.value = slugify(identity.value)
             else:
-                self['Root']['Name'] = slugify(identity.value)
+                try:
+                    self['Identity']['Name'] = slugify(identity.value)
+                except KeyError:
+                    self['Root']['Name'] = slugify(identity.value)
 
-        version = self.find_first('Root.Version', section='root')
+
+        version = self.find_first('Root.Version',section=['Identity','Root'])
 
         if version and not version.value:
             version.value = 1
         elif not version:
-            self['Root']['Version'] = 1
+            try:
+                self['Identity']['Version'] = 1
+            except KeyError:
+                self['Root']['Version'] = 1
 
-    def update_name(self, fail_on_missing=True):
+    def ensure_identifier(self):
+        from uuid import uuid4
+
+        identity = self.find_first('Root.Identifier', section=['Identity', 'Root'])
+
+        if not identity:
+            try:
+                self['Identity'].new_term('Root.Identifier', six.text_type(uuid4()))
+            except KeyError:
+                self['Root'].new_term('Root.Identifier', six.text_type(uuid4()))
+
+            identity = self.find_first('Root.Identifier', section=['Identity', 'Root'])
+            assert identity is not None
+
+
+    def update_name(self):
         """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
 
-        name = self.find_first_value('Root.DatasetName', section='Root')
+        updates = []
 
-        if not name:
-            if fail_on_missing:
-                raise MetatabError("Can't generate name without a Root.DatasetName term")
+        self.ensure_identifier()
+
+        orig_name = self.find_first_value('Root.Name', section=['Identity', 'Root'])
+        identifier = self.find_first_value('Root.Identifier', section=['Identity', 'Root'])
+        datasetname = self.find_first_value('Root.DatasetName', section=['Identity','Root'])
+
+        if datasetname:
+
+            name = self._generate_identity_name()
+
+            if name != orig_name:
+                self[['Identity', 'Root']].get_or_new_term('Root.Name', name)
+                updates.append("Changed Name")
             else:
-                return None
+                updates.append("Name did not change")
 
-        version = self.find_first_value('Root.Version', section='Root')
-        origin = self.find_first_value('Root.Origin', section='Contacts')
-        time = self.find_first_value('Root.Time', section='Root')
-        space = self.find_first_value('Root.Space', section='Root')
+        elif not orig_name:
 
-        parts = [slugify(e.replace('-', '_')) for e in (origin, name, time, space, version) if e and str(e).strip()]
+            if not identifier:
+                updates.append("Failed to find DatasetName term or Identity term. Giving up")
+
+            else:
+                updates.append("Setting the name to the identifier")
+                self[['Identity','Root']].get_or_new_term('Root.Name', identifier)
+
+        elif orig_name == identifier:
+            updates.append("Name did not change")
+
+        else:
+            # There is no DatasetName, so we can't gneerate name, and the Root.Name is not empty, so we should
+            # not set it to the identity.
+            updates.append("No Root.DatasetName, so can't update the name")
+
+        return updates
+
+
+    def _generate_identity_name(self):
+
+        datasetname = self.find_first_value('Root.DatasetName', section='Identity')
+        version = self.find_first_value('Root.Version', section=['Identity','Root'])
+        origin = self.find_first_value('Root.Origin', section=['Identity','Root'])
+        time = self.find_first_value('Root.Time', section=['Identity','Root'])
+        space = self.find_first_value('Root.Space', section=['Identity','Root'])
+        grain = self.find_first_value('Root.Grain', section=['Identity', 'Root'])
+
+        parts = [slugify(e.replace('-', '_')) for e in (origin, datasetname, time, space, grain, version) if e and str(e).strip()]
 
         name = '-'.join(parts)
 
-        self['Root'].get_or_new_term('Root.Name', name)
 
         return name
 
@@ -738,7 +818,7 @@ class MetatabDoc(object):
 </ol>
 """.format(
             title=self.find_first_value('Root.Title', section='Root'),
-            name=self.find_first_value('Root.Name', section='Root'),
+            name=self.find_first_value('Root.Name', section=['Identity','Root']),
             description=self.find_first_value('Root.Description', section='Root'),
             doc=documentation(),
             resources='\n'.join([ "<li>"+resource_repr(r)+"</li>" for r in self.resources() ])

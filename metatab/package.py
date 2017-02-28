@@ -12,14 +12,12 @@ from os.path import isdir, join, dirname, exists
 import unicodecsv as csv
 from six import string_types, text_type
 
-from metatab import TermParser, MetatabDoc, DEFAULT_METATAB_FILE
+from metatab import TermParser, MetatabDoc, DEFAULT_METATAB_FILE, Resource
 from rowgenerators import Url
 from rowgenerators.util import get_cache
 from .exc import PackageError
 from .util import Bunch
 from metatab.datapackage import convert_to_datapackage
-
-
 
 TableColumn = namedtuple('TableColumn', 'path name start_line header_lines columns')
 
@@ -123,7 +121,6 @@ class Package(object):
         else:
             return r[0]
 
-
     @property
     def documentation(self):
         for t in self.doc.terms:
@@ -165,12 +162,20 @@ class Package(object):
 
                 return self.doc['Contacts']
 
+
             @property
             def documentation(self):
                 if not 'Documentation' in self.doc:
                     self.doc.get_or_new_section('Documentation', 'Name  Schema Space Time Title Description '.split())
 
                 return self.doc['documentation']
+
+            @property
+            def identity(self):
+                if not 'Identity' in self.doc:
+                    self.doc.get_or_new_section('Documentation', 'Code'.split())
+
+                return self.doc['identity']
 
             @property
             def schema(self):
@@ -185,7 +190,7 @@ class Package(object):
     def extract_path_name(ref):
         from os.path import splitext, basename, abspath
 
-        du = Bunch(decompose_url(ref))
+        du = Url(ref)
 
         if du.proto == 'file':
             path = abspath(ref)
@@ -194,13 +199,13 @@ class Package(object):
         else:
             path = ref
 
-            if du.file_segment:
+            if du.target_segment:
                 try:
-                    int(du.file_segment)
-                    name = du.target_file + text_type(du.file_segment)
+                    int(du.target_segment)
+                    name = du.target_file + text_type(du.target_segment)
 
                 except ValueError:
-                    name = du.file_segment
+                    name = du.target_segment
 
             else:
                 name = splitext(du.target_file)[0]
@@ -319,6 +324,8 @@ class Package(object):
         from rowgenerators import enumerate_contents
         from os.path import isdir
 
+        raise NotImplementedError("Still uses decompose_url")
+
         du = Bunch(decompose_url(ref))
 
         added = []
@@ -339,6 +346,29 @@ class Package(object):
                 added.append(self.add_single_resource(c.rebuild_url(), **properties))
 
         return added
+
+    def _clean_doc(self):
+        """Clean the doc before writing it, removing unnecessary properties and doing other operations."""
+
+        resources = self.doc['Resources']
+
+        for arg in [ 'startline', 'headerlines', 'encoding']:
+            for e in list(resources.args):
+                if e.lower() == arg:
+                    resources.args.remove(e)
+
+        schema = self.doc['Schema']
+
+        for arg in [ 'altname', 'transform' ]:
+            for e in list(schema.args):
+                if e.lower() == arg:
+                    schema.args.remove(e)
+
+        for table in self.doc.find('Root.Table'):
+            for col in table.find('Column'):
+                col.value = col['altname'].value if col['altname'] else col['name'].value
+                col['altname'] = None
+                col['transform'] = None
 
     def _load_resources(self):
         """Copy all of the Datafile entries into the Excel file"""
@@ -362,17 +392,16 @@ class Package(object):
             gen = islice(rg, start_line, None)
 
             r.encoding = None
-            r.startlines = None
+            r.startline = None
             r.headerlines = None
             r.format = None
 
-            self._load_resource(r, gen)
+            self._load_resource(r, gen, r.headers())
 
     def _load_documentation(self):
         """Copy all of the Datafile entries into the Excel file"""
 
         raise NotImplementedError()
-
 
 
 class GooglePackage(Package):
@@ -403,9 +432,12 @@ class FileSystemPackage(Package):
 
         self._load_resources()
 
+        self._clean_doc()
+
         self._write_doc()
 
         self._write_dpj()
+
 
         return self
 
@@ -435,7 +467,7 @@ class FileSystemPackage(Package):
         with open(join(self.package_dir, 'datapackage.json'), 'w') as f:
             f.write(json.dumps(convert_to_datapackage(self._doc), indent=4))
 
-    def _load_resource(self, r, gen):
+    def _load_resource(self, r, gen, headers):
 
         self.prt("Loading data for '{}' ".format(r.name))
 
@@ -450,6 +482,7 @@ class FileSystemPackage(Package):
 
         with open(path, 'wb') as f:
             w = csv.writer(f)
+            w.writerow(headers)
             w.writerows(gen)
 
 
@@ -480,6 +513,8 @@ class CsvPackage(Package):
             _path = self.doc.find_first_value('Root.Name') + ".csv"
 
         assert _path
+
+        self._clean_doc()
 
         self.doc.write_csv(_path)
 
@@ -512,6 +547,8 @@ class ExcelPackage(Package):
 
         self._load_resources()
 
+        self._clean_doc()
+
         for row in self.doc.rows:
             meta_ws.append(row)
 
@@ -524,7 +561,7 @@ class ExcelPackage(Package):
         else:
             self.wb.save(self.doc.find_first_value('Root.Name') + ".xlsx")
 
-    def _load_resource(self, r, gen):
+    def _load_resource(self, r, gen, headers):
 
         self.prt("Loading data for sheet '{}' ".format(r.name))
 
@@ -534,6 +571,8 @@ class ExcelPackage(Package):
 
         # table = self.doc.find_first('Root.Table', r.name)
         # ws.append([ c.value for c in table.children if c.term_is('table.column')])
+
+        ws.append(headers)
 
         for row in gen:
             ws.append(row)
@@ -560,6 +599,8 @@ class ZipPackage(Package):
         self._init_zf(path)
 
         self._load_resources()
+
+        self._clean_doc()
 
         self._write_doc()
 
@@ -606,23 +647,24 @@ class ZipPackage(Package):
         try:
             dpj = convert_to_datapackage(self._doc)
         except ConversionError as e:
-            self.warn(("Error while writing datapackage.json. Skipping: "+str(e)))
+            self.warn(("Error while writing datapackage.json. Skipping: " + str(e)))
             return
 
-        self.zf.writestr(self.package_name + '/datapackage.json',json.dumps(dpj, indent=4))
+        self.zf.writestr(self.package_name + '/datapackage.json', json.dumps(dpj, indent=4))
 
-    def _load_resource(self, r, gen):
+    def _load_resource(self, r, gen, headers):
 
         self.prt("Loading data for '{}'  from '{}'".format(r.name, r.resolved_url))
 
         bio = BytesIO()
         writer = csv.writer(bio)
-
+        writer.writerow(headers)
         writer.writerows(gen)
 
         r.url = 'data/' + r.name + '.csv'
 
         self.zf.writestr(self.package_name + '/' + r.url, bio.getvalue())
+
 
 class S3Package(Package):
     """A Zip File package"""
@@ -650,6 +692,8 @@ class S3Package(Package):
 
         self._load_resources()
 
+        self._clean_doc()
+
         self._write_doc()
 
         self._write_dpj()
@@ -666,15 +710,14 @@ class S3Package(Package):
 
         p = parse_url_to_dict(url)
 
-        if p['netloc']: # The URL didn't have the '//'
+        if p['netloc']:  # The URL didn't have the '//'
             self._prefix = p['path']
             bucket_name = p['netloc']
         else:
             proto, netpath = url.split(':')
-            bucket_name, self._prefix = netpath.split('/',1)
+            bucket_name, self._prefix = netpath.split('/', 1)
 
         self._bucket = self._s3.Bucket(bucket_name)
-
 
     def close(self):
         pass
@@ -697,16 +740,17 @@ class S3Package(Package):
 
         self.write_to_s3('datapackage.json', json.dumps(convert_to_datapackage(self._doc), indent=4))
 
-    def _load_resource(self, r, gen):
+    def _load_resource(self, r, gen, headers):
 
         bio = BytesIO()
         writer = csv.writer(bio)
+        writer.writerow(headers)
         writer.writerows(gen)
 
         r.url = 'data/' + r.name + '.csv'
 
         data = bio.getvalue()
 
-        self.prt("Loading data ({} bytes) to '{}' ".format(len(data),r.url))
+        self.prt("Loading data ({} bytes) to '{}' ".format(len(data), r.url))
 
         self.write_to_s3(r.url, data)

@@ -381,26 +381,34 @@ def metapack():
 
     if args.resources:
         process_resources(mt_file, cache=cache)
+        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
 
     if args.schemas:
         process_schemas(mt_file, cache=cache, clean=args.clean)
+        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
 
     if args.add:
         add_resource(mt_file, args.add, cache=cache)
+        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
 
     if args.excel is not False:
+        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
         write_excel_package(mt_file, args.excel, cache=cache)
 
     if args.zip is not False:
+        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
         write_zip_package(mt_file, args.zip, cache=cache)
 
     if args.filesystem is not False:
+        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
         write_dir_package(mt_file, args.filesystem, cache=cache)
 
     if args.s3:
+        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
         write_s3_package(mt_file, args.s3, cache=cache)
 
     if args.datapackage:
+        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
         write_datapackagejson(mt_file)
 
     if args.resource or args.head:
@@ -417,11 +425,8 @@ def metapack():
         else:
             dump_resources(doc)
 
-    if mtfile_url.scheme == 'file':
-        if args.update:
+    if mtfile_url.scheme == 'file' and args.update:
             update_name(mt_file, fail_on_missing=True)
-        else:
-            update_name(mt_file, fail_on_missing=False)
 
 
     clean_cache("metapack")
@@ -435,9 +440,13 @@ def new_metatab_file(mt_file_url, template):
     if not exists(mt_file):
         doc = make_metatab_file(template)
 
-        doc['Root']['Identifier'] = six.text_type(uuid4())
+        doc[('Identity', 'Root')]['Identifier'] = six.text_type(uuid4())
 
         doc.write_csv(mt_file)
+
+        prt('Created', mt_file)
+    else:
+        err('File',mt_file,'already exists')
 
 
 def find_files(base_path, types):
@@ -807,29 +816,21 @@ def write_datapackagejson(mt_file):
     with open(dpj_file, 'w') as f:
         f.write(json.dumps(convert_to_datapackage(doc), indent=4))
 
-def update_name(mt_file, fail_on_missing=False):
+def update_name(mt_file, fail_on_missing=False, report_unchanged = True):
 
     if isinstance(mt_file, MetatabDoc):
         doc = mt_file
     else:
         doc = MetatabDoc(mt_file)
 
-    try:
-        orig_name = doc.find_first_value('Root.Name',section='Root')
+    updates = doc.update_name()
 
-        name = doc.update_name(fail_on_missing=True)
-        if name != orig_name:
-            prt("Updated Root.Name to: '{}' ".format(name))
-            doc.write_csv(mt_file)
-        else:
-            prt("Root.Name is unchanged: '{}' ".format(name))
+    for u in updates:
+        prt(u)
 
-    except MetatabError as e:
-        if fail_on_missing:
-            err('Failed to set Name: {}'.format(e))
+    prt("Name is: ", doc.find_first_value("Root.Name", section=['Identity','Root']))
 
-
-
+    doc.write_csv(mt_file)
 
 
 
