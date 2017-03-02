@@ -16,9 +16,14 @@ metatab/parser.py
 metatab/serialize.py
 metatab/util.py
 metatab/declarations/__init__.py
+metatab/declarations/datapackage-0.1.csv
+metatab/declarations/datapackage.csv
+metatab/declarations/metatab-0.1.csv
+metatab/declarations/metatab-latest.csv
 metatab/templates/__init__.py
 metatab/templates/datapackage.csv
 metatab/templates/metatab.csv
+metatab_plugins/__init__.py
 test/__init__.py
 test/test_basic.py
 test/test_builder.py
