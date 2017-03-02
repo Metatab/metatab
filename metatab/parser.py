@@ -196,22 +196,29 @@ class Term(object):
             t.doc = self.doc
             t.set_ownership()
 
-    def find(self, term):
+    def find(self, term, value = None):
         """Return a terms by name. If the name is not qualified, use this term's record name for the parent.
         The method will yield all terms with a matching qualified name. """
         if '.' in  term:
             parent, term = term.split('.')
-            assert parent.lower() == self.record_term_lc
+            assert parent.lower() == self.record_term_lc, (parent.lower(),self.record_term_lc)
 
         for c in self.children:
             if c.record_term_lc == term.lower():
-                yield c
+                if value is None or c.value == value:
+                    yield c
 
-    def find_first(self, term):
+    def find_first(self, term, value = None):
         """Like find(), but returns only the first matching term"""
+
+        if '.' in  term:
+            parent, term = term.split('.')
+            assert parent.lower() == self.record_term_lc, (parent.lower(),self.record_term_lc)
+
         for c in self.children:
             if c.record_term_lc == term.lower():
-                return c
+                if value is None or c.value == value:
+                    return c
 
         return None
 
@@ -227,15 +234,26 @@ class Term(object):
         """Find a term, using find_first, and set it's value and properties, if it exists. If
         it does not, create a new term and children. """
 
-        c = self.find_first(term)
+        pt, rt = self.split_term(term)
+
+        term = self.record_term+'.'+rt
+
+        c = self.find_first(rt)
 
         if c is None:
             c = Term(term, value, parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
+            self.children.append(c)
+
         else:
             if value is not None:
                 c.value = value
+
             for k, v in kwargs.items():
                 c.get_or_new_child(k, v)
+
+        # Check that ther term was inserted and can be found.
+        assert self.find_first(rt)
+        assert self.find_first(rt) == c
 
         return c
 
@@ -267,7 +285,10 @@ class Term(object):
                 return self.remove_child(child)
 
         else:
-            return self.get_or_new_child(item, value)
+
+            c = self.get_or_new_child(item, value)
+
+            return c
 
     @property
     def term(self):
@@ -366,6 +387,7 @@ class Term(object):
         """Return the value and scalar properties as a dictionary"""
 
         d = dict(zip([str(e).lower() for e in self.section.property_names], self.args))
+        #print({ c.record_term_lc:c.value for c in self.children})
         d[self.term_value_name.lower()] = self.value
 
         return d

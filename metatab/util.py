@@ -41,10 +41,14 @@ def slugify(value):
 
 
 def linkify(v, description = None):
-    if v.startswith('http'):
+
+    if v and (v.startswith('http') or v.startswith('mailto')):
+
+        target = 'target="_blank"'
+
         if description is None:
             description = v
-        return '<a href="{url}" target="_blank">{desc}</a>'.format(url=v, desc = description)
+        return '<a href="{url}" {target} >{desc}</a>'.format(url=v, target=target, desc = description)
     else:
         return v
 

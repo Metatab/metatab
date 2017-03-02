@@ -5,20 +5,19 @@ from __future__ import print_function
 
 import json
 import sys
+import collections
 from itertools import islice
 from uuid import uuid4
 import re
 
 import six
 from metatab.util import make_metatab_file, slugify
-from metatab import _meta, MetatabError
+from metatab import _meta, MetatabError, ConversionError
 from metatab.doc import MetatabDoc, resolve_package_metadata_url, DEFAULT_METATAB_FILE
 from os import getcwd
 from os.path import exists, join, isdir, abspath, dirname
 from rowgenerators import RowGenerator, Url, SourceError
 from tableintuit import TypeIntuiter, SelectiveRowGenerator, RowIntuitError
-
-
 
 DATA_FORMATS = ('xls', 'xlsx', 'tsv', 'csv')
 DOC_FORMATS = ('pdf', 'doc', 'docx', 'html')
@@ -26,18 +25,26 @@ DOC_FORMATS = ('pdf', 'doc', 'docx', 'html')
 # Change the row cache name
 from rowgenerators.util import get_cache, clean_cache
 
-def prt(*args):
-    print(*args)
+def prt(*args, **kwargs):
+    print(*args, **kwargs)
 
 
-def warn(*args):
-    print('WARN:', *args)
+def warn(*args, **kwargs):
+    print('WARN:', *args, file=sys.stderr, **kwargs)
 
 
-def err(*args):
+def err(*args, **kwargs):
     import sys
-    print("ERROR:", *args)
+    print("ERROR:", *args, file=sys.stderr, **kwargs)
     sys.exit(1)
+
+
+def load_plugins(parser):
+
+    import metatab_plugins._plugins as mtp
+
+    for p in mtp.metatab_plugins_list:
+        p(parser)
 
 
 def metatab():
@@ -168,6 +175,13 @@ def metatab():
     exit(0)
 
 
+def metatab_info(cache):
+
+    prt('Version  : {}'.format(_meta.__version__))
+    prt('Cache dir: {}'.format(str(cache.getsyspath('/'))))
+
+    print(__file__)
+
 def new_metatab_file(mt_file, template):
     template = template if template else 'metatab'
 
@@ -200,14 +214,39 @@ def dump_resources(doc):
     for r in doc.resources():
         print(r.name, r.resolved_url)
 
+def get_lib_module_dict(doc):
+
+    from os.path import dirname, abspath
+    from importlib import import_module
+    import sys
+
+    u = Url(doc.ref)
+    if u.proto == 'file':
+
+        # Add the dir with the metatab file to the system path
+        sys.path.append(dirname(abspath(u.parts.path)))
+
+        try:
+            m = import_module("lib")
+            return { k:v for k,v in m.__dict__.items() if k in m.__all__ }
+        except ImportError:
+            return {}
+
+    else:
+        return {}
 
 def dump_resource(doc, name, lines=None):
     import unicodecsv as csv
     import sys
     from itertools import islice
     from tabulate import tabulate
+    from rowpipe.exceptions import CasterExceptionError
 
-    r = doc.resource(name=name)
+    r = doc.resource(name=name, env=get_lib_module_dict(doc))
+
+    # WARNING! This code will not generate errors if line is set ( as for the -H
+    # option because the errors are tansfered from the row pipe to the resource after the
+    # iterator is exhausted
 
     if lines:
         try:
@@ -217,18 +256,30 @@ def dump_resource(doc, name, lines=None):
     else:
         gen = r
 
-    if lines and lines <= 20:
-        print(tabulate(list(gen),list(r.headers())))
+    if not r.headers():
+        print(r.schema_table, r.name, r.schema)
+        err("No headers for resource '{}'; have schemas been generated? ".format(name))
 
-    else:
+    try:
+        if lines and lines <= 20:
+            print(tabulate(list(gen),list(r.headers())))
 
-        w = csv.writer(sys.stdout if six.PY2 else sys.stdout.buffer)
+        else:
 
-        w.writerow(r.headers())
+            w = csv.writer(sys.stdout if six.PY2 else sys.stdout.buffer)
 
-        for row in gen:
-            w.writerow(row)
+            w.writerow(r.headers())
 
+            for row in gen:
+                w.writerow(row)
+
+    except CasterExceptionError as e: # Really bad errors, not just casting problems.
+        err(e)
+
+    for col, errors in r.errors.items():
+        warn("Errors in casting column '{}' in resource '{}' ".format(col, r.name))
+        for e in errors:
+            warn("    ",e)
 
 def get_table(doc, name):
     t = doc.find_first('Root.Table', value=name)
@@ -270,6 +321,8 @@ def metapack():
     parser.add_argument('metatabfile', nargs='?',
                         help="Path or URL to a metatab file. If not provided, defaults to 'metadata.csv' ")
 
+    parser.set_defaults(handler=None)
+
     ##
     ## Build Group
 
@@ -288,8 +341,9 @@ def metapack():
     #                help='Similar to --add, but scrape a web page for links to data files, documentation '
     #                     'and web pages and add the links as resources ')
 
-    build_group.add_argument('-r', '--resources', default=False, action='store_true',
-                        help='Rebuild the resources, intuiting rows and encodings from the URLs')
+    #build_group.add_argument('-r', '--resources', default=False, action='store_true',
+    #                    help='Rebuild the resources, intuiting rows and encodings from the URLs')
+
 
     build_group.add_argument('-s', '--schemas', default=False, action='store_true',
                         help='Rebuild the schemas for files referenced in the resource section')
@@ -299,6 +353,8 @@ def metapack():
 
     build_group.add_argument('-u', '--update', action='store_true', default=False,
                         help="Update the Name from the Datasetname, Origin and Version terms")
+
+
 
     ##
     ## Derived Package Group
@@ -323,12 +379,12 @@ def metapack():
 
     query_group = parser.add_argument_group('Query', 'Return information and data from a package')
 
-    query_group.add_argument('-R', '--resource', default=False, action='store_true',
+    query_group.add_argument('-r', '--resource', default=False, action='store_true',
                         help='If the URL has no fragment, dump the resources listed in the metatab file.'
                              ' With a fragment, dump a resource as a CSV')
 
     query_group.add_argument('-H', '--head', default=False, action='store_true',
-                    help="Dump the first 20 lines of a resoruce ")
+                    help="Dump the first 20 lines of a resource ")
 
 
     ##
@@ -348,105 +404,174 @@ def metapack():
     admin_group.add_argument('-E', '--enumerate',
                         help='Enumerate the resources referenced from a URL. Does not alter the Metatab file')
 
-    args = parser.parse_args(sys.argv[1:])
+    #cmd = parser.add_subparsers(title='Plugin Commands', help='Additional command supplied by plugins')
+    #load_plugins(cmd)
 
-    d = getcwd()
+    class MetapackCliMemo(object):
 
-    cache = get_cache('metapack')
+        def __init__(self, args):
+            self.cwd = getcwd()
+            self.args = args
+            self.cache = get_cache('metapack')
 
-    if args.info:
-        prt('Version  : {}'.format(_meta.__version__))
-        prt('Cache dir: {}'.format(str(cache.getsyspath('/'))))
-        exit(0)
+            self.mtfile_arg = args.metatabfile if args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
 
-    if args.clean_cache:
-        clean_cache('metapack')
+            self.mtfile_url = Url(self.mtfile_arg)
+            self.resource = self.mtfile_url.parts.fragment
 
+            self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url.rebuild_url(False, False))
 
-    mtfile_arg = args.metatabfile if args.metatabfile else join(d, DEFAULT_METATAB_FILE)
+    m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 
-    mtfile_url = Url(mtfile_arg)
-    resource = mtfile_url.parts.fragment
-
-    package_url, mt_file = resolve_package_metadata_url(mtfile_url.rebuild_url(False, False))
-
-    if args.create is not False:
-        new_metatab_file(mt_file, args.create)
-
-    #if args.scrape:
-    #    scrape_page(mt_file, args.scrape)
-
-    if args.enumerate:
-        enumerate_contents(args.enumerate, cache=cache)
-
-    if args.resources:
-        process_resources(mt_file, cache=cache)
-        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
-
-    if args.schemas:
-        process_schemas(mt_file, cache=cache, clean=args.clean)
-        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
-
-    if args.add:
-        add_resource(mt_file, args.add, cache=cache)
-        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
-
-    if args.excel is not False:
-        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
-        write_excel_package(mt_file, args.excel, cache=cache)
-
-    if args.zip is not False:
-        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
-        write_zip_package(mt_file, args.zip, cache=cache)
-
-    if args.filesystem is not False:
-        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
-        write_dir_package(mt_file, args.filesystem, cache=cache)
-
-    if args.s3:
-        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
-        write_s3_package(mt_file, args.s3, cache=cache)
-
-    if args.datapackage:
-        update_name(mt_file, fail_on_missing=False, report_unchanged=False)
-        write_datapackagejson(mt_file)
-
-    if args.resource or args.head:
-
-        limit = 20 if args.head else None
-
-        try:
-            doc = MetatabDoc(mt_file, cache=cache)
-        except OSError as e:
-            err("Failed to open Metatab doc: {}".format(e))
-
-        if resource:
-            dump_resource(doc, resource, limit)
-        else:
-            dump_resources(doc)
-
-    if mtfile_url.scheme == 'file' and args.update:
-            update_name(mt_file, fail_on_missing=True)
-
+    for handler in (metatab_build_handler, metatab_derived_handler, metatab_query_handler,  metatab_admin_handler):
+        handler(m)
 
     clean_cache("metapack")
 
+def metatab_build_handler(m):
 
-def new_metatab_file(mt_file_url, template):
-    template = template if template else 'metatab'
+    if m.args.create is not False:
 
-    mt_file = Url(mt_file_url).parts.path
+        template =  m.args.create if  m.args.create else 'metatab'
 
-    if not exists(mt_file):
-        doc = make_metatab_file(template)
+        mt_file = Url(m.mt_file_url).parts.path
 
-        doc[('Identity', 'Root')]['Identifier'] = six.text_type(uuid4())
+        if not exists(mt_file):
+            doc = make_metatab_file(template)
 
-        doc.write_csv(mt_file)
+            doc[('Identity', 'Root')]['Identifier'] = six.text_type(uuid4())
 
-        prt('Created', mt_file)
-    else:
-        err('File',mt_file,'already exists')
+            doc.write_csv(mt_file)
+
+            prt('Created', mt_file)
+        else:
+            err('File', mt_file, 'already exists')
+
+
+    if m.args.add:
+        update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+
+        add_resource(m.mt_file, m.args.add, cache=m.cache)
+
+    if False: #m.args.resources:
+        update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+
+        doc = MetatabDoc(m.mt_file)
+
+        try:
+            doc['Schema'].clean()
+        except KeyError:
+            pass
+
+        for t in list(doc['Resources']):  # w/o list(), will iterate over new terms
+
+            if not t.term_is('root.datafile'):
+                continue
+
+            if t.as_dict().get('url'):
+                add_resource(doc, t.as_dict()['url'], m.cache)
+
+            else:
+                warn("Entry '{}' on row {} is missing a url; skipping".format(t.join, t.row))
+
+        doc.write_csv(m.mt_file)
+
+
+    if m.args.schemas:
+        update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+
+        process_schemas(m.mt_file, cache=m.cache, clean=m.args.clean)
+
+
+    if m.args.datapackage:
+        update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+
+        from metatab.datapackage import convert_to_datapackage
+
+        doc = MetatabDoc(m.mt_file)
+
+        u = Url(m.mt_file)
+
+        if u.proto == 'file':
+            dpj_file = join(dirname(abspath(u.parts.path)), 'datapackage.json')
+        else:
+            dpj_file = join(getcwd(), 'datapackage.json')
+
+        try:
+            with open(dpj_file, 'w') as f:
+                f.write(json.dumps(convert_to_datapackage(doc), indent=4))
+        except ConversionError as e:
+            err(e)
+
+    if m.mtfile_url.scheme == 'file' and m.args.update:
+        update_name(m.mt_file, fail_on_missing=True)
+
+def metatab_derived_handler(m):
+    from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage , S3Package, PackageError
+
+    try:
+
+        if m.args.excel is not False:
+            update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+            p = ExcelPackage(m.mt_file, callback=prt, cache=m.cache)
+            p.save()
+
+        if m.args.zip is not False:
+            update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+            p = ZipPackage(m.mt_file, callback=prt, cache=m.cache)
+            p.save()
+
+        if m.args.filesystem is not False:
+            update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+            p = FileSystemPackage(m.mt_file, callback=prt, cache=m.cache)
+            p.save()
+
+        if m.args.s3:
+            update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+            p = S3Package(m.mt_file, callback=prt, cache=m.cache)
+            p.save( m.args.s3)
+
+    except PackageError as e:
+        err("Failed to generate package: {}".format(e))
+
+
+
+def metatab_query_handler(m):
+
+    if m.args.resource or m.args.head:
+
+        limit = 20 if m.args.head else None
+
+        try:
+            doc = MetatabDoc(m.mt_file, cache=m.cache)
+        except OSError as e:
+            err("Failed to open Metatab doc: {}".format(e))
+
+        if m.resource:
+            dump_resource(doc, m.resource, limit)
+        else:
+            dump_resources(doc)
+
+
+def metatab_admin_handler(m):
+
+    if m.args.info:
+        metatab_info(m.cache)
+        exit(0)
+
+    if m.args.enumerate:
+
+        from metatab.util import enumerate_contents
+
+        specs = list(enumerate_contents(m.args.enumerate, m.cache, callback=prt))
+
+        for s in specs:
+            print(classify_url(s.url), s.target_format, s.url, s.target_segment)
+
+    if m.args.clean_cache:
+        clean_cache('metapack')
+
+
 
 
 def find_files(base_path, types):
@@ -498,54 +623,24 @@ def classify_url(url):
     return term_name
 
 
-def add_single_resource(doc, ref, cache, seen_names):
-    from metatab.util import slugify
 
-    t = doc.find_first('Root.Datafile', value=ref)
 
-    if t:
-        prt("Datafile exists for '{}', deleting".format(ref))
-        doc.remove_term(t)
 
-    term_name = classify_url(ref)
+def run_row_intuit(path, cache):
+    from rowgenerators import RowGenerator
+    from tableintuit import RowIntuiter
+    from itertools import islice
+    from rowgenerators import TextEncodingError
 
-    path, name = extract_path_name(ref)
-
-    if name in seen_names:
-        base_name = re.sub(r'-?\d+$', '', name)
-
-        for i in range(1, 20):
-            name = "{}-{}".format(base_name, i)
-            if name not in seen_names:
-                break
-
-    seen_names.add(name)
-
-    try:
-        encoding, ri = run_row_intuit(path, cache)
-        prt("Added resource for '{}', name = '{}' ".format(ref, name))
-    except RowIntuitError as e:
-        warn("Failed to intuit '{}'; {}".format(path, e))
-        return None
-    except SourceError as e:
-        warn("Failed to add '{}'; {}".format(path, e))
-        return None
-
-    if not name:
-        from hashlib import sha1
-        name = sha1(slugify(path).encode('ascii')).hexdigest()[:12]
-
-        # xlrd gets grouchy if the name doesn't start with a char
+    for encoding in ('ascii',  'utf8', 'latin1'):
         try:
-            int(name[0])
-            name = 'a' + name[1:]
-        except:
+            rows = list(islice(RowGenerator(url=path, encoding=encoding, cache=cache), 5000))
+            return encoding, RowIntuiter().run(list(rows))
+        except (TextEncodingError, UnicodeEncodeError) as e:
             pass
 
-    return doc['Resources'].new_term(term_name, ref, name=name,
-                                     startline=ri.start_line,
-                                     headerlines=','.join(str(e) for e in ri.header_lines),
-                                     encoding=encoding)
+    raise RowIntuitError('Failed to convert with any encoding')
+
 
 
 def scrape_page(mt_file, url):
@@ -566,14 +661,6 @@ def scrape_page(mt_file, url):
 
     doc.write_csv(mt_file)
 
-
-def enumerate_contents(url, cache):
-    from metatab.util import enumerate_contents
-
-    specs = list(enumerate_contents(url, cache, callback=prt))
-
-    for s in specs:
-        print(classify_url(s.url), s.target_format, s.url, s.target_segment)
 
 
 def add_resource(mt_file, ref, cache):
@@ -607,21 +694,59 @@ def add_resource(mt_file, ref, cache):
     doc.write_csv(mt_file)
 
 
-def run_row_intuit(path, cache):
-    from rowgenerators import RowGenerator
-    from tableintuit import RowIntuiter
-    from itertools import islice
-    from rowgenerators import TextEncodingError
+def add_single_resource(doc, ref, cache, seen_names):
+    from metatab.util import slugify
 
-    for encoding in ('ascii',  'utf8', 'latin1'):
+    t = doc.find_first('Root.Datafile', value=ref)
+
+    if t:
+        prt("Datafile exists for '{}', deleting".format(ref))
+        doc.remove_term(t)
+
+    term_name = classify_url(ref)
+
+    path, name = extract_path_name(ref)
+
+    if name in seen_names:
+        base_name = re.sub(r'-?\d+$', '', name)
+
+        for i in range(1, 20):
+            name = "{}-{}".format(base_name, i)
+            if name not in seen_names:
+                break
+
+    seen_names.add(name)
+
+    encoding = start_line  = None
+    header_lines = []
+
+    try:
+        encoding, ri = run_row_intuit(path, cache)
+        prt("Added resource for '{}', name = '{}' ".format(ref, name))
+        start_line = ri.start_line
+        header_lines = ri.header_lines
+    except RowIntuitError as e:
+        warn("Failed to intuit '{}'; {}".format(path, e))
+
+    except SourceError as e:
+        warn("Source Error: '{}'; {}".format(path, e))
+
+
+    if not name:
+        from hashlib import sha1
+        name = sha1(slugify(path).encode('ascii')).hexdigest()[:12]
+
+        # xlrd gets grouchy if the name doesn't start with a char
         try:
-            rows = list(islice(RowGenerator(url=path, encoding=encoding, cache=cache), 5000))
-            return encoding, RowIntuiter().run(list(rows))
-        except (TextEncodingError, UnicodeEncodeError) as e:
+            int(name[0])
+            name = 'a' + name[1:]
+        except:
             pass
 
-    raise RowIntuitError('Failed to convert with any encoding')
-
+    return doc['Resources'].new_term(term_name, ref, name=name,
+                                     startline=start_line,
+                                     headerlines=','.join(str(e) for e in header_lines),
+                                     encoding=encoding)
 
 def extract_path_name(ref):
     from os.path import splitext, basename, abspath
@@ -651,27 +776,6 @@ def alt_col_name(name, i):
         return 'col{}'.format(i)
     return re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
 
-
-def process_resources(mt_file, cache):
-    doc = MetatabDoc(mt_file)
-
-    try:
-        doc['Schema'].clean()
-    except KeyError:
-        pass
-
-    for t in list(doc['Resources']):  # w/o list(), will iterate over new terms
-
-        if not t.term_is('root.datafile'):
-            continue
-
-        if t.as_dict().get('url'):
-            add_resource(doc, t.as_dict()['url'], cache)
-
-        else:
-            warn("Entry '{}' on row {} is missing a url; skipping".format(t.join, t.row))
-
-    doc.write_csv(mt_file)
 
 
 type_map = {
@@ -749,39 +853,6 @@ def process_schemas(mt_file, cache, clean=False):
 
     doc.write_csv(mt_file)
 
-
-def write_excel_package(mt_file, d, cache):
-    from metatab.package import ExcelPackage
-
-    p = ExcelPackage(mt_file, callback=prt, cache=cache)
-
-    p.save()
-
-
-def write_zip_package(mt_file, d, cache):
-    from metatab.package import ZipPackage
-
-    p = ZipPackage(mt_file, callback=prt, cache=cache)
-
-    p.save()
-
-
-def write_dir_package(mt_file, d, cache):
-    from metatab.package import FileSystemPackage
-
-    p = FileSystemPackage(mt_file, callback=prt, cache=cache)
-
-    p.save()
-
-
-def write_s3_package(mt_file, url, cache):
-    from metatab.package import S3Package
-
-    p = S3Package(mt_file, callback=prt, cache=cache)
-
-    p.save(url)
-
-
 def rewrite_resource_format(mt_file):
     doc = MetatabDoc(mt_file)
 
@@ -800,21 +871,6 @@ def rewrite_resource_format(mt_file):
 
     doc.write_csv(mt_file)
 
-
-def write_datapackagejson(mt_file):
-    from metatab.datapackage import convert_to_datapackage
-
-    doc = MetatabDoc(mt_file)
-
-    u = Url(mt_file)
-
-    if u.proto == 'file':
-        dpj_file = join(dirname(abspath(u.parts.path)), 'datapackage.json')
-    else:
-        dpj_file = join(getcwd(), 'datapackage.json')
-
-    with open(dpj_file, 'w') as f:
-        f.write(json.dumps(convert_to_datapackage(doc), indent=4))
 
 def update_name(mt_file, fail_on_missing=False, report_unchanged = True):
 

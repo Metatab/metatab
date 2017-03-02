@@ -9,6 +9,14 @@ import glob
 from distutils.command import sdist as sdist_module
 from os.path import dirname, abspath, join, isdir
 
+try:
+    from site import getsitepackages
+    plugin_base_dir = [e for e in getsitepackages() if e.startswith(sys.prefix)][0]
+except ImportError:
+    # Virtualenvs have their own copy of site.py, which is empty/
+    plugin_base_dir = os.path.join(sys.prefix, "lib","python%d.%d" % sys.version_info[:2],
+                 "site-packages")
+
 from setuptools import find_packages
 
 try:
@@ -53,6 +61,11 @@ class sdist(sdist_module.sdist):
 
         return sdist_module.sdist.run(self)
 
+# Setup a directory for a fake package for importing plugins
+
+
+
+
 setup(
     name='metatab',
     version=ps_meta.__version__,
@@ -80,6 +93,9 @@ setup(
             'metapack=metatab.cli:metapack',
         ],
     },
+
+    include_package_data=True,
+    data_files=[(join(plugin_base_dir,'metatab_plugins'), ['metatab_plugins/__init__.py'])],
 
     author=ps_meta.__author__,
     author_email=ps_meta.__author__,

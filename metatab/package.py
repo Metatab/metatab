@@ -1,5 +1,5 @@
 # Copyright (c) 2016 Civic Knowledge. This file is licensed under the terms of the
-# Revised BSD License, included in this distribution as LICENSE
+# MIT License, included in this distribution as LICENSE
 
 """Class for writing Metapack packages"""
 
@@ -272,6 +272,11 @@ class Package(object):
         if self._callback:
             self._callback('WARN', *args)
 
+    def err(self, *args):
+        if self._callback:
+            self._callback('ERROR', *args)
+
+
     def add_single_resource(self, ref, **properties):
         """ Add a single resource, without trying to enumerate it's contents
         :param ref:
@@ -366,7 +371,11 @@ class Package(object):
 
         for table in self.doc.find('Root.Table'):
             for col in table.find('Column'):
-                col.value = col['altname'].value if col['altname'] else col['name'].value
+                try:
+                    col.value = col['altname'].value
+                except:
+                    pass
+
                 col['altname'] = None
                 col['transform'] = None
 
@@ -383,9 +392,17 @@ class Package(object):
 
             self.prt("Reading resource {} from {} ".format(r.name, r.resolved_url))
 
-            assert r.properties.get('encoding') == r.get('encoding')
+            assert r.properties.get('encoding') == r.get('encoding') or  \
+                   bool(r.properties.get('encoding'))==bool(r.get('encoding')),\
+                   (r.properties.get('encoding'),r.get('encoding'))
 
-            rg = RowGenerator(url=r.resolved_url, cache=self._cache, encoding=r.get('encoding'))
+            rg = RowGenerator(url=r.resolved_url,
+                              name=r.get('name'),
+                              encoding=r.get('encoding'),
+                              target_format=r.get('format'),
+                              target_file=r.get('file'),
+                              target_segment=r.get('segment'),
+                              cache=self._cache)
 
             start_line = int(r.get('startline')) if r.get('startline') is not None  else 1
 
@@ -396,6 +413,9 @@ class Package(object):
             r.headerlines = None
             r.format = None
 
+            if not r.headers():
+                raise PackageError("Resource {} does not have header. Have schemas been generated?".format(r.name))
+
             self._load_resource(r, gen, r.headers())
 
     def _load_documentation(self):
@@ -403,6 +423,8 @@ class Package(object):
 
         raise NotImplementedError()
 
+    def check_is_ready(self):
+        pass
 
 class GooglePackage(Package):
     """A Zip File package"""
@@ -418,6 +440,8 @@ class FileSystemPackage(Package):
         super(FileSystemPackage, self).__init__(path, callback=callback, cache=cache)
 
     def save(self, path=None):
+
+        self.check_is_ready()
 
         if not self.doc.find_first_value('Root.Name'):
             raise PackageError("Package must have Root.Name term defined")
@@ -499,6 +523,8 @@ class CsvPackage(Package):
 
     def save(self, path=None):
 
+        self.check_is_ready()
+
         self.doc.cleanse()
 
         self.load_declares()
@@ -529,6 +555,8 @@ class ExcelPackage(Package):
     def save(self, path=None):
         from openpyxl import Workbook
         from os.path import isdir, join
+
+        self.check_is_ready()
 
         self.wb = Workbook(write_only=True)
 
@@ -586,6 +614,8 @@ class ZipPackage(Package):
         super(ZipPackage, self).__init__(path, callback=callback, cache=cache)
 
     def save(self, path=None):
+
+        self.check_is_ready()
 
         if not self.doc.find_first_value('Root.Name'):
             raise PackageError("Package must have Root.Name term defined")
@@ -675,6 +705,8 @@ class S3Package(Package):
 
     def save(self, url):
 
+        self.check_is_ready()
+
         name = self.doc.find_first_value('Root.Name')
 
         if not name:
@@ -723,10 +755,28 @@ class S3Package(Package):
         pass
 
     def write_to_s3(self, path, body):
+        from botocore.exceptions import ClientError
 
         key = join(self._prefix, self.package_name, path).strip('/')
 
-        return self._bucket.put_object(Key=key, Body=body, ACL='public-read')
+        try:
+            o = self._bucket.Object(key)
+            if o.content_length == len(body):
+                self.prt("File '{}' already in bucket; skipping".format(path))
+                return
+            else:
+                self.prt("File '{}' already in bucket, but length is different; re-wirtting".format(path))
+
+
+        except ClientError as e:
+            if int(e.response['Error']['Code']) != 404:
+                raise
+
+
+        try:
+            return self._bucket.put_object(Key=key, Body=body, ACL='public-read')
+        except Exception as e:
+            self.err("Failed to write '{}': {}".format(path, e))
 
     def _write_doc(self):
 

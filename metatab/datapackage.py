@@ -19,9 +19,14 @@ def convert_to_datapackage(doc):
 
     dp = doc['root'].as_dict()
 
+    try:
+        dp.update(doc['identity'].as_dict())
+    except KeyError as e:
+        pass
+
     if not 'name' in dp:
-        if 'identity' in dp:
-            dp['name'] = dp['identity']
+        if 'indentifier' in dp:
+            dp['name'] = dp['indentifier']
         else:
             raise ConversionError("Datapackage.json requires a Name or Identity term")
 

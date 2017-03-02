@@ -14,14 +14,24 @@ import unicodecsv as csv
 from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
 
 from metatab import (TermParser, SectionTerm, Term, generateRows, MetatabError,
-                     CsvPathRowGenerator, RootSectionTerm )
+                     CsvPathRowGenerator, RootSectionTerm)
 from metatab.util import linkify, slugify
 from .exc import PackageError
 from rowgenerators import RowGenerator
 from rowpipe import RowProcessor
 
-
 DEFAULT_METATAB_FILE = 'metadata.csv'
+
+
+def get_cache(clean=False):
+    from rowgenerators.util import get_cache, clean_cache
+
+    cache =  get_cache('metapack')
+
+    if clean:
+        clean_cache(cache)
+
+    return cache
 
 def resolve_package_metadata_url(ref):
     """Re-write a url to a resource to include the likely refernce to the
@@ -58,26 +68,27 @@ def resolve_package_metadata_url(ref):
         metadata_url = join(ref, DEFAULT_METATAB_FILE)
         package_url = reparse_url(ref)
 
-    #raise PackageError("Can't determine package URLs for '{}'".format(ref))
+    # raise PackageError("Can't determine package URLs for '{}'".format(ref))
 
     return package_url, metadata_url
 
-def open_package(ref):
+
+def open_package(ref, clean_cache=False, cache=None):
 
     package_url, metadata_url = resolve_package_metadata_url(ref)
 
-    return MetatabDoc(metadata_url, package_url=package_url)
+    return MetatabDoc(metadata_url, package_url=package_url, cache=get_cache(clean_cache))
+
 
 class Resource(Term):
-
     _common_properties = 'url name description schema'.split()
 
-    def __init__(self, term, base_url, package=None):
+    def __init__(self, term, base_url, package=None, env=None):
 
         super(Resource, self).__init__(term.term, term.value, term.args,
-                 term.row, term.col,
-                 term.file_name, term.file_type,
-                 term.parent, term.doc, term.section)
+                                       term.row, term.col,
+                                       term.file_name, term.file_type,
+                                       term.parent, term.doc, term.section)
 
         self._orig_term = term
         self.base_url = base_url
@@ -85,6 +96,10 @@ class Resource(Term):
 
         self.term_value_name = term.term_value_name
         self.children = term.children
+
+        self.env = env if env is not None else {}
+
+        self.errors = {}  # Typecasting errors
 
         self.__initialised = True
 
@@ -157,7 +172,6 @@ class Resource(Term):
     def new_child(self, term, value, **kwargs):
         raise NotImplementedError("DOn't create children from resources. ")
 
-
     def _name_for_col_term(self, c, i):
 
         altname = c.properties.get('altname')
@@ -168,16 +182,30 @@ class Resource(Term):
             if n:
                 return n
 
+    @property
+    def schema_table(self):
+        t = self.doc.find_first('Root.Table', value=self.properties.get('name'))
+        frm = 'name'
+
+        if not t:
+            t = self.doc.find_first('Root.Table', value=self.properties.get('schema'))
+            frm = 'schema'
+
+        if not t:
+            frm = None
+
+        return t, frm
+
     def headers(self):
         """Return the headers for the resource"""
 
         doc = self.doc
 
-        t = doc.find_first('Root.Table', value=self.properties.get('name'))
+        t, _ = self.schema_table
 
         if t:
-            return [ self._name_for_col_term(c, i)
-                     for i,c in enumerate(t.children) if c.term_is("Table.Column")]
+            return [self._name_for_col_term(c, i)
+                    for i, c in enumerate(t.children) if c.term_is("Table.Column")]
         else:
             return None
 
@@ -197,7 +225,6 @@ class Resource(Term):
                 p['header'] = self._name_for_col_term(c, i)
                 yield p
 
-
     def row_processor_table(self):
         """Create a row processor from the schema, to convert the text velus from the
         CSV into real types"""
@@ -205,18 +232,21 @@ class Resource(Term):
 
         type_map = {
             None: None,
-            'string':'str',
+            'string': 'str',
             'text': 'str',
             'number': 'float',
             'integer': 'int'
         }
 
         def map_type(v):
-            return type_map.get(v,v)
+            return type_map.get(v, v)
 
         doc = self.doc
 
         table_term = doc.find_first('Root.Table', value=self.properties.get('name'))
+
+        if not table_term:
+            table_term = doc.find_first('Root.Table', value=self.properties.get('schema'))
 
         if table_term:
 
@@ -247,31 +277,32 @@ class Resource(Term):
 
         headers = self.headers()
 
-        assert all( bool(h) for h in headers), headers # Don't allow missing headers
+        assert all(bool(h) for h in headers), headers  # Don't allow missing headers
 
         if headers:
             # There are several args for SelectiveRowGenerator, but only
             # start is really important.
             start = d.get('start', 1)
 
-            rg = islice(rg,start, None)
+            rg = islice(rg, start, None)
 
             yield headers
 
         rp_table = self.row_processor_table()
 
-
         if rp_table:
-            rg = RowProcessor(rg, rp_table, source_headers=headers,env={})
+            rg = RowProcessor(rg, rp_table, source_headers=headers, env=self.env)
 
         if six.PY3:
             # Would like to do this, but Python2 can't handle the syntax
-            #yield from rg
+            # yield from rg
             for row in rg:
                 yield row
         else:
             for row in rg:
                 yield row
+
+        self.errors = rg.errors if rg.errors else {}
 
     def dataframe(self):
         """Return a pandas datafrome from the resource"""
@@ -301,27 +332,27 @@ class Resource(Term):
         if rp_table:
             rg = RowProcessor(rg, rp_table, source_headers=headers, env={})
 
+        df = MetatabDataFrame(list(rg), columns=headers, metatab_resource=self)
 
-        df =  MetatabDataFrame(list(rg), columns=headers, metatab_resource=self)
-
-        df.metatab_errors = rg.errors
+        self.errors = df.metatab_errors = rg.errors if rg.errors else {}
 
         return df
 
     def _repr_html_(self):
-        return ("<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a></p>"\
-                .format(name=self.name, url=self.url)) + \
-                "<table>\n" + \
-                "<tr><th>Header</th><th>Type</th><th>Description</th></tr>" + \
-               '\n'.join("<tr><td>{}</td><td>{}</td><td>{}</td></tr> ".format(c['header'], c['datatype'], c['description'])
-                         for c in self.columns()) + \
-                '</table>'
+        return ("<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
+                .format(name=self.name, url=self._resolved_url())) + \
+               "<table>\n" + \
+               "<tr><th>Header</th><th>Type</th><th>Description</th></tr>" + \
+               '\n'.join(
+                   "<tr><td>{}</td><td>{}</td><td>{}</td></tr> ".format(c['header'], c['datatype'], c['description'])
+                   for c in self.columns()) + \
+               '</table>'
 
 
 class MetatabDoc(object):
-    def __init__(self, ref=None, decl=None, package_url=None, cache=None):
+    def __init__(self, ref=None, decl=None, package_url=None, cache=None, clean_cache=False):
 
-        self._cache = cache
+        self._cache = cache if cache else get_cache(clean_cache)
 
         self.decl_terms = {}
         self.decl_sections = {}
@@ -329,7 +360,7 @@ class MetatabDoc(object):
         self.terms = []
         self.sections = OrderedDict()
         self.errors = []
-        self.package_url=package_url
+        self.package_url = package_url
 
         if decl is None:
             self.decls = []
@@ -474,7 +505,7 @@ class MetatabDoc(object):
         """
 
         import itertools
-        if kwargs: # Look for terms with particular property values
+        if kwargs:  # Look for terms with particular property values
             terms = self.find(term, value, section)
 
             found_terms = []
@@ -482,8 +513,7 @@ class MetatabDoc(object):
             for t in terms:
                 tp = t.properties
 
-                if all( tp.get(k) == v for k, v in kwargs.items()):
-
+                if all(tp.get(k) == v for k, v in kwargs.items()):
                     found_terms.append(t)
 
             return found_terms
@@ -519,7 +549,6 @@ class MetatabDoc(object):
                 if (t.join_lc == term.lower()
                     and in_section(t, section)
                     and (value is False or value == t.value)):
-
                     found.append(t)
 
             return found
@@ -542,17 +571,22 @@ class MetatabDoc(object):
         else:
             return term.value
 
-
     def resources(self, name=None, term=None):
         """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
 
-        for t in ( self['Resources'].terms if term is None else self.find(term, section='resources') ):
+        for t in (self['Resources'].terms if term is None else self.find(term, section='resources')):
 
             if 'url' in t.properties and t.properties.get('url') and (name is None or t.properties.get('name') == name):
                 yield Resource(t, self.package_url if self.package_url else self._ref)
 
+    def resource(self, name=None, term=None, env=None):
+        """
 
-    def resource(self, name=None, term=None):
+        :param name:
+        :param term:
+        :param env: And environment doc ( like a module ) to pass into the row processor
+        :return:
+        """
 
         resources = list(self.resources(name=name, term=term))
 
@@ -560,8 +594,9 @@ class MetatabDoc(object):
             return None
 
         else:
-            return resources[0]
-
+            r = resources[0]
+            r.env = env
+            return r
 
     def load_terms(self, terms):
         """Create a builder from a sequence of terms, usually a TermInterpreter"""
@@ -616,12 +651,11 @@ class MetatabDoc(object):
         """Clean up some terms, like ensuring that the name is a slug"""
         from .util import slugify
 
-
         self.ensure_identifier()
 
         identity = self.find_first('Root.Identifier', section=['Identity', 'Root'])
 
-        name = self.find_first('Root.Name', section=['Identity','Root'])
+        name = self.find_first('Root.Name', section=['Identity', 'Root'])
 
         try:
             self.update_name()
@@ -637,8 +671,7 @@ class MetatabDoc(object):
                 except KeyError:
                     self['Root']['Name'] = slugify(identity.value)
 
-
-        version = self.find_first('Root.Version',section=['Identity','Root'])
+        version = self.find_first('Root.Version', section=['Identity', 'Root'])
 
         if version and not version.value:
             version.value = 1
@@ -662,7 +695,6 @@ class MetatabDoc(object):
             identity = self.find_first('Root.Identifier', section=['Identity', 'Root'])
             assert identity is not None
 
-
     def update_name(self):
         """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
 
@@ -672,7 +704,7 @@ class MetatabDoc(object):
 
         orig_name = self.find_first_value('Root.Name', section=['Identity', 'Root'])
         identifier = self.find_first_value('Root.Identifier', section=['Identity', 'Root'])
-        datasetname = self.find_first_value('Root.DatasetName', section=['Identity','Root'])
+        datasetname = self.find_first_value('Root.DatasetName', section=['Identity', 'Root'])
 
         if datasetname:
 
@@ -691,7 +723,7 @@ class MetatabDoc(object):
 
             else:
                 updates.append("Setting the name to the identifier")
-                self[['Identity','Root']].get_or_new_term('Root.Name', identifier)
+                self[['Identity', 'Root']].get_or_new_term('Root.Name', identifier)
 
         elif orig_name == identifier:
             updates.append("Name did not change")
@@ -703,20 +735,19 @@ class MetatabDoc(object):
 
         return updates
 
-
     def _generate_identity_name(self):
 
         datasetname = self.find_first_value('Root.DatasetName', section='Identity')
-        version = self.find_first_value('Root.Version', section=['Identity','Root'])
-        origin = self.find_first_value('Root.Origin', section=['Identity','Root'])
-        time = self.find_first_value('Root.Time', section=['Identity','Root'])
-        space = self.find_first_value('Root.Space', section=['Identity','Root'])
+        version = self.find_first_value('Root.Version', section=['Identity', 'Root'])
+        origin = self.find_first_value('Root.Origin', section=['Identity', 'Root'])
+        time = self.find_first_value('Root.Time', section=['Identity', 'Root'])
+        space = self.find_first_value('Root.Space', section=['Identity', 'Root'])
         grain = self.find_first_value('Root.Grain', section=['Identity', 'Root'])
 
-        parts = [slugify(e.replace('-', '_')) for e in (origin, datasetname, time, space, grain, version) if e and str(e).strip()]
+        parts = [slugify(e.replace('-', '_')) for e in (origin, datasetname, time, space, grain, version) if
+                 e and str(e).strip()]
 
         name = '-'.join(parts)
-
 
         return name
 
@@ -769,9 +800,12 @@ class MetatabDoc(object):
 
         return s.getvalue()
 
-    def write_csv(self, path):
+    def write_csv(self, path=None):
         from rowgenerators import Url
         self.cleanse()
+
+        if path is None:
+            path = self.ref
 
         u = Url(path)
 
@@ -783,9 +817,11 @@ class MetatabDoc(object):
 
     def _repr_html_(self):
 
+        from itertools import chain
+
         def resource_repr(r):
             return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
-                    .format(name=r.name, url=r.url)
+                .format(name=r.name, url=r._resolved_url())
 
         def documentation():
             doc_term = self.find_first("Root.Documentation")
@@ -793,19 +829,38 @@ class MetatabDoc(object):
             origin_term = self.find_first("Root.Origin")
             creator_term = self.find_first("Root.Creator")
 
+            out = ''
 
-            return (
-                ("\n<tr><td>Documentation</td><td>{}</td></tr>"
-                 .format(linkify(doc_term.value, doc_term.properties.get('title'))) if doc_term else '') +
-                ("\n<tr><td>Homepage</td><td>{}</td></tr>"
-                 .format(linkify(home_term.value, home_term.properties.get('title'))) if home_term else '') +
-                ("\n<tr><td>Origin</td><td>{}</td></tr>"
-                 .format(linkify(origin_term.value, origin_term.properties.get('title'))) if origin_term else '') +
-                ("\n<tr><td>Creator</td><td>{}</td></tr>"
-                 .format(linkify(creator_term.value, creator_term.properties.get('title'))) if creator_term else '')
+            try:
+                for t in self['Documentation']:
+                    out += ("\n<tr><td>{}</td><td>{}</td></td><td>{}</td></tr>"
+                            .format(t.record_term.title(),
+                                    linkify(t.value, t.properties.get('title')),
+                                    t.properties.get('description')
+                                    ))
+            except KeyError:
+                pass
 
-            )
+            try:
 
+                for t in self['Contacts']:
+                    p = t.properties
+                    name = p.get('name', 'Name')
+                    email = "mailto:" + p.get('email') if p.get('email') else None
+
+                    web = p.get('web')
+                    org = p.get('organization', web)
+
+                    out += ("\n<tr><td>{}</td><td>{}</td></td><td>{}</td></tr>"
+                            .format(t.record_term.title(),
+                                    linkify(email, name) if (name or email) else '',
+                                    linkify(web, org) if (web or org) else ''
+                                    ))
+
+            except KeyError:
+                pass
+
+            return out
 
         return """
 <h1>{title}</h1>
@@ -818,8 +873,8 @@ class MetatabDoc(object):
 </ol>
 """.format(
             title=self.find_first_value('Root.Title', section='Root'),
-            name=self.find_first_value('Root.Name', section=['Identity','Root']),
+            name=self.find_first_value('Root.Name', section=['Identity', 'Root']),
             description=self.find_first_value('Root.Description', section='Root'),
             doc=documentation(),
-            resources='\n'.join([ "<li>"+resource_repr(r)+"</li>" for r in self.resources() ])
+            resources='\n'.join(["<li>" + resource_repr(r) + "</li>" for r in self.resources()])
         )
