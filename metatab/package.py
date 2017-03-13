@@ -14,7 +14,7 @@ from six import string_types, text_type
 
 from metatab import TermParser, MetatabDoc, DEFAULT_METATAB_FILE, Resource
 from rowgenerators import Url
-from rowgenerators.util import get_cache
+from rowgenerators.util import get_cache, slugify
 from .exc import PackageError
 from .util import Bunch
 from metatab.datapackage import convert_to_datapackage
@@ -27,17 +27,20 @@ class Package(object):
 
         if cls == Package:
 
-            b = Bunch(Url(ref).dict)
+            if isinstance(ref, Url):
+                b = Bunch(ref.dict)
+            else:
+                b = Bunch(Url(ref).dict)
 
-            if b.target_format in ('xls', 'xlsx'):
+            if b.resource_format in ('xls', 'xlsx'):
                 return super(Package, cls).__new__(ExcelPackage)
-            elif b.target_format == 'zip':
+            elif b.resource_format == 'zip':
                 return super(Package, cls).__new__(ZipPackage)
             elif b.proto == 'gs':
                 return super(Package, cls).__new__(GooglePackage)
             elif b.proto == 's3':
                 return super(Package, cls).__new__(S3Package)
-            elif b.target_format == 'csv':
+            elif b.resource_format == 'csv' or b.target_format == 'csv':
                 return super(Package, cls).__new__(CsvPackage)
             else:
                 raise PackageError("Can't determine package type for ref '{}' ".format(ref))
@@ -87,6 +90,13 @@ class Package(object):
     def path(self):
         return self._ref
 
+    def save_path(self):
+        """Default path for the file to be wrotten to"""
+        raise NotImplementedError()
+
+    def exists(self, path=None):
+        return exists(self.save_path(path))
+
     @property
     def doc(self):
         """Return the Metatab metadata document"""
@@ -100,9 +110,8 @@ class Package(object):
         for t in doc[section_name]:
             self.doc.add_term(t)
 
-    @property
-    def resources(self):
-        for r in self.doc.resources():
+    def resources(self, name=None, term=None, section='resources'):
+        for r in self.doc.resources(name, term, section=section):
             yield r
 
     @property
@@ -162,20 +171,12 @@ class Package(object):
 
                 return self.doc['Contacts']
 
-
             @property
             def documentation(self):
                 if not 'Documentation' in self.doc:
-                    self.doc.get_or_new_section('Documentation', 'Name  Schema Space Time Title Description '.split())
+                    self.doc.get_or_new_section('Documentation', 'Title Schema Description '.split())
 
                 return self.doc['documentation']
-
-            @property
-            def identity(self):
-                if not 'Identity' in self.doc:
-                    self.doc.get_or_new_section('Documentation', 'Code'.split())
-
-                return self.doc['identity']
 
             @property
             def schema(self):
@@ -276,7 +277,6 @@ class Package(object):
         if self._callback:
             self._callback('ERROR', *args)
 
-
     def add_single_resource(self, ref, **properties):
         """ Add a single resource, without trying to enumerate it's contents
         :param ref:
@@ -357,14 +357,14 @@ class Package(object):
 
         resources = self.doc['Resources']
 
-        for arg in [ 'startline', 'headerlines', 'encoding']:
+        for arg in ['startline', 'headerlines', 'encoding']:
             for e in list(resources.args):
                 if e.lower() == arg:
                     resources.args.remove(e)
 
         schema = self.doc['Schema']
 
-        for arg in [ 'altname', 'transform' ]:
+        for arg in ['altname', 'transform']:
             for e in list(schema.args):
                 if e.lower() == arg:
                     schema.args.remove(e)
@@ -390,11 +390,18 @@ class Package(object):
                 self.warn("No value for URL for {} ".format(r.term))
                 continue
 
+            try:
+                if self._resource.exists(r):
+                    self.prt("Resource '{}' exists, skipping".format(r.name))
+                continue
+            except AttributeError:
+                pass
+
             self.prt("Reading resource {} from {} ".format(r.name, r.resolved_url))
 
-            assert r.properties.get('encoding') == r.get('encoding') or  \
-                   bool(r.properties.get('encoding'))==bool(r.get('encoding')),\
-                   (r.properties.get('encoding'),r.get('encoding'))
+            assert r.properties.get('encoding') == r.get('encoding') or \
+                   bool(r.properties.get('encoding')) == bool(r.get('encoding')), \
+                (r.properties.get('encoding'), r.get('encoding'))
 
             rg = RowGenerator(url=r.resolved_url,
                               name=r.get('name'),
@@ -418,13 +425,48 @@ class Package(object):
 
             self._load_resource(r, gen, r.headers())
 
-    def _load_documentation(self):
+    def _load_documentation_files(self):
         """Copy all of the Datafile entries into the Excel file"""
+        from rowgenerators.fetch import get_dflo, download_and_cache
+        from rowgenerators import SourceSpec
+        from os.path import basename, splitext
 
+        for doc in self.doc.find('Root.Documentation'):
+
+            ss = SourceSpec(doc.value)
+
+            d = download_and_cache(ss, self._cache)
+
+            dflo = get_dflo(ss, d['sys_path'])
+
+            f = dflo.open('rb')
+
+            try:
+                # FOr file file, the target_file may actually be a regex, so we have to resolve the
+                # regex before using it as a filename
+                real_name = basename(dflo.memo[1].name)  # Internal detail of how Zip files are accessed
+            except (AttributeError, TypeError):
+
+                real_name = basename(ss.target_file)
+
+            # Prefer the slugified title to the base name, because in cases of collections
+            # of many data releases, like annual datasets, documentation files may all have the same name,
+            # but the titles should be different.
+            real_name_base, ext = splitext(real_name)
+            name = doc.properties.get('title') if doc.properties.get('title') else real_name_base
+
+            real_name = slugify(name) + ext
+
+            self._load_documentation(doc, f.read(), real_name)
+
+            f.close()
+
+    def _load_documentation(self, term, contents):
         raise NotImplementedError()
 
     def check_is_ready(self):
         pass
+
 
 class GooglePackage(Package):
     """A Zip File package"""
@@ -438,6 +480,12 @@ class FileSystemPackage(Package):
     def __init__(self, path=None, callback=None, cache=None):
 
         super(FileSystemPackage, self).__init__(path, callback=callback, cache=cache)
+
+    def exists(self, path):
+        return exists(self.save_path(path))
+
+    def save_path(self, path):
+        return exists(join(self.package_dir, DEFAULT_METATAB_FILE))
 
     def save(self, path=None):
 
@@ -454,16 +502,19 @@ class FileSystemPackage(Package):
 
         self._init_dir(path)
 
+        self._load_documentation_files()
+
         self._load_resources()
 
         self._clean_doc()
 
-        self._write_doc()
+        doc_file = self._write_doc()
 
         self._write_dpj()
 
+        self._write_html()
 
-        return self
+        return doc_file
 
     def _init_dir(self, path=None):
         from os import getcwd
@@ -484,12 +535,19 @@ class FileSystemPackage(Package):
         self.package_dir = np
 
     def _write_doc(self):
-        self._doc.write_csv(join(self.package_dir, DEFAULT_METATAB_FILE))
+        path = join(self.package_dir, DEFAULT_METATAB_FILE)
+        self._doc.write_csv(path)
+        return path
 
     def _write_dpj(self):
 
         with open(join(self.package_dir, 'datapackage.json'), 'w') as f:
             f.write(json.dumps(convert_to_datapackage(self._doc), indent=4))
+
+    def _write_html(self):
+
+        with open(join(self.package_dir, 'index.html'), 'w') as f:
+            f.write(self._doc.html)
 
     def _load_resource(self, r, gen, headers):
 
@@ -508,6 +566,28 @@ class FileSystemPackage(Package):
             w = csv.writer(f)
             w.writerow(headers)
             w.writerows(gen)
+
+    def _load_documentation(self, term, contents, file_name):
+
+        try:
+            title = term['title'].value
+        except KeyError:
+            self.warn("Documentation has no title, skipping: '{}' ".format(term.value))
+            return
+
+        self.prt("Loading documentation for '{}', '{}' ".format(title, file_name))
+
+        term['url'].value = 'docs/' + file_name
+
+        path = join(self.package_dir, term['url'].value)
+
+        makedirs(dirname(path), exist_ok=True)
+
+        if exists(path):
+            remove(path)
+
+        with open(path, 'wb') as f:
+            f.write(contents)
 
 
 class SocrataPackage(Package):
@@ -552,6 +632,16 @@ class ExcelPackage(Package):
 
         super(ExcelPackage, self).__init__(path, callback=callback, cache=cache)
 
+    def save_path(self, path=None):
+        base = self.doc.find_first_value('Root.Name') + '.xlsx'
+
+        if path and isdir(path):
+            return join(path, base)
+        elif path:
+            return path
+        else:
+            return base
+
     def save(self, path=None):
         from openpyxl import Workbook
         from os.path import isdir, join
@@ -580,14 +670,9 @@ class ExcelPackage(Package):
         for row in self.doc.rows:
             meta_ws.append(row)
 
-        if path and isdir(path):
-            self.wb.save(join(path, self.doc.find_first_value('Root.Name') + ".xlsx"))
+        self.wb.save(self.save_path(path))
 
-        elif path:
-            self.wb.save(path)
-
-        else:
-            self.wb.save(self.doc.find_first_value('Root.Name') + ".xlsx")
+        return self.save_path(path)
 
     def _load_resource(self, r, gen, headers):
 
@@ -613,6 +698,16 @@ class ZipPackage(Package):
 
         super(ZipPackage, self).__init__(path, callback=callback, cache=cache)
 
+    def save_path(self, path=None):
+        base = self.doc.find_first_value('Root.Name') + '.zip'
+
+        if path and isdir(path):
+            return join(path, base)
+        elif path:
+            return path
+        else:
+            return base
+
     def save(self, path=None):
 
         self.check_is_ready()
@@ -636,26 +731,17 @@ class ZipPackage(Package):
 
         self._write_dpj()
 
+        self._write_html()
+
         self.close()
 
-        return self
+        return self.save_path(path)
 
     def _init_zf(self, path):
 
         from zipfile import ZipFile
 
-        name = self.doc.find_first_value('Root.Name')
-
-        if path and isdir(path):
-            zf_path = join(path, name + ".zip")
-
-        elif path:
-            zf_path = path
-
-        else:
-            zf_path = name + ".zip"
-
-        self.zf = ZipFile(zf_path, 'w')
+        self.zf = ZipFile(self.save_path(path), 'w')
 
     def close(self):
         if self.zf:
@@ -682,6 +768,9 @@ class ZipPackage(Package):
 
         self.zf.writestr(self.package_name + '/datapackage.json', json.dumps(dpj, indent=4))
 
+    def _write_html(self):
+        self.zf.writestr(self.package_name + '/index.html', self._doc.html)
+
     def _load_resource(self, r, gen, headers):
 
         self.prt("Loading data for '{}'  from '{}'".format(r.name, r.resolved_url))
@@ -695,6 +784,15 @@ class ZipPackage(Package):
 
         self.zf.writestr(self.package_name + '/' + r.url, bio.getvalue())
 
+    def _load_documentation(self, term, contents, file_name):
+        title = term['title'].value
+
+        self.prt("Loading documentation for '{}', '{}' ".format(title, file_name))
+
+        term['url'].value = 'docs/' + file_name
+
+        self.zf.writestr(self.package_name + '/' + term['url'].value, contents)
+
 
 class S3Package(Package):
     """A Zip File package"""
@@ -703,9 +801,15 @@ class S3Package(Package):
 
         super(S3Package, self).__init__(path, callback=callback, cache=cache)
 
+        self._s3 = None
+        self._bucket_name = None
+        self._prefix = None
+
     def save(self, url):
 
         self.check_is_ready()
+
+        self._init_s3(url)
 
         name = self.doc.find_first_value('Root.Name')
 
@@ -720,7 +824,7 @@ class S3Package(Package):
 
         self.load_declares()
 
-        self._init_s3(url)
+        self._load_documentation_files()
 
         self._load_resources()
 
@@ -730,9 +834,11 @@ class S3Package(Package):
 
         self._write_dpj()
 
+        self._write_html()
+
         self.close()
 
-        return self
+        return self.access_url
 
     def _init_s3(self, url):
         from rowgenerators import parse_url_to_dict
@@ -749,13 +855,47 @@ class S3Package(Package):
             proto, netpath = url.split(':')
             bucket_name, self._prefix = netpath.split('/', 1)
 
+        self._bucket_name = bucket_name
         self._bucket = self._s3.Bucket(bucket_name)
 
     def close(self):
         pass
 
+    @property
+    def access_url(self):
+        import boto3
+
+        key = join(self._prefix, self.package_name).strip('/')
+
+        s3 = boto3.client('s3')
+
+        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
+
+    def exists(self, url):
+        import botocore
+
+        self._init_s3(url)
+
+        # index.html is the last file written
+        key = join(self._prefix, self.package_name, 'index.html').strip('/')
+
+        exists = False
+
+        try:
+            self._bucket.Object(key).load()
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == "404":
+                exists = False
+            else:
+                raise
+        else:
+            exists = True
+
+        return exists
+
     def write_to_s3(self, path, body):
         from botocore.exceptions import ClientError
+        import mimetypes
 
         key = join(self._prefix, self.package_name, path).strip('/')
 
@@ -767,16 +907,19 @@ class S3Package(Package):
             else:
                 self.prt("File '{}' already in bucket, but length is different; re-wirtting".format(path))
 
-
         except ClientError as e:
             if int(e.response['Error']['Code']) != 404:
                 raise
 
+        ct = mimetypes.guess_type(key)[0]
 
         try:
-            return self._bucket.put_object(Key=key, Body=body, ACL='public-read')
+            return self._bucket.put_object(Key=key, Body=body, ACL='public-read',
+                                           ContentType=ct if ct else 'binary/octet-stream')
         except Exception as e:
             self.err("Failed to write '{}': {}".format(path, e))
+
+        return
 
     def _write_doc(self):
 
@@ -789,6 +932,12 @@ class S3Package(Package):
     def _write_dpj(self):
 
         self.write_to_s3('datapackage.json', json.dumps(convert_to_datapackage(self._doc), indent=4))
+
+    def _write_html(self):
+        old_ref = self._doc._ref
+        self._doc._ref = self.access_url + '/metatab.csv'
+        self.write_to_s3('index.html', self._doc.html)
+        self._doc._ref = old_ref
 
     def _load_resource(self, r, gen, headers):
 
@@ -804,3 +953,13 @@ class S3Package(Package):
         self.prt("Loading data ({} bytes) to '{}' ".format(len(data), r.url))
 
         self.write_to_s3(r.url, data)
+
+    def _load_documentation(self, term, contents, file_name):
+
+        title = term['title'].value
+
+        self.prt("Loading documentation for '{}', '{}' ".format(title, file_name))
+
+        term['url'].value = 'docs/' + file_name
+
+        self.write_to_s3(term['url'].value, contents)

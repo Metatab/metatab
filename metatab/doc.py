@@ -112,7 +112,6 @@ class Resource(Term):
         from rowgenerators import Url
 
         u = Url(self.doc.ref)
-
         nu = u.component_url(self.url)
 
         assert nu
@@ -273,25 +272,26 @@ class Resource(Term):
 
         d['target_format'] = d.get('format')
 
-        rg = RowGenerator(**d)
+        base_rg = RowGenerator(**d, cache = self._doc._cache)
 
         headers = self.headers()
-
-        assert all(bool(h) for h in headers), headers  # Don't allow missing headers
 
         if headers:
             # There are several args for SelectiveRowGenerator, but only
             # start is really important.
-            start = d.get('start', 1)
-
-            rg = islice(rg, start, None)
+            try:
+                start = int(d.get('startline', 1))
+            except ValueError:
+                start = 1
 
             yield headers
 
-        rp_table = self.row_processor_table()
+            rg = RowProcessor(islice(base_rg, start, None),
+                              self.row_processor_table(),
+                              source_headers=headers, env=self.env)
+        else:
+            rg = base_rg
 
-        if rp_table:
-            rg = RowProcessor(rg, rp_table, source_headers=headers, env=self.env)
 
         if six.PY3:
             # Would like to do this, but Python2 can't handle the syntax
@@ -302,9 +302,12 @@ class Resource(Term):
             for row in rg:
                 yield row
 
-        self.errors = rg.errors if rg.errors else {}
+        try:
+            self.errors = rg.errors if rg.errors else {}
+        except AttributeError:
+            self.errors = {}
 
-    def dataframe(self):
+    def dataframe(self, limit = None):
         """Return a pandas datafrome from the resource"""
 
         from .pands import MetatabDataFrame
@@ -322,7 +325,7 @@ class Resource(Term):
             # start is really important.
             start = d.get('start', 1)
 
-            rg = islice(rg, start, None)
+            rg = islice(rg, start, limit)
 
         else:
             headers = next(rg)
@@ -339,8 +342,8 @@ class Resource(Term):
         return df
 
     def _repr_html_(self):
-        return ("<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
-                .format(name=self.name, url=self._resolved_url())) + \
+        return ("<h3><a name=\"resource-{name}\"></a>{name}</h3><p><a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
+                .format(name=self.name, url=self.url)) + \
                "<table>\n" + \
                "<tr><th>Header</th><th>Type</th><th>Description</th></tr>" + \
                '\n'.join(
@@ -546,7 +549,7 @@ class MetatabDoc(object):
 
                 assert t.section or t.join_lc == 'root.root', t
 
-                if (t.join_lc == term.lower()
+                if ( t.term_is(term)
                     and in_section(t, section)
                     and (value is False or value == t.value)):
                     found.append(t)
@@ -571,10 +574,10 @@ class MetatabDoc(object):
         else:
             return term.value
 
-    def resources(self, name=None, term=None):
+    def resources(self, name=None, term=None, section='Resources'):
         """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
 
-        for t in (self['Resources'].terms if term is None else self.find(term, section='resources')):
+        for t in (self['Resources'].terms if term is None else self.find(term, section=section)):
 
             if 'url' in t.properties and t.properties.get('url') and (name is None or t.properties.get('name') == name):
                 yield Resource(t, self.package_url if self.package_url else self._ref)
@@ -653,9 +656,9 @@ class MetatabDoc(object):
 
         self.ensure_identifier()
 
-        identity = self.find_first('Root.Identifier', section=['Identity', 'Root'])
+        identifier = self.find_first('Root.Identifier', section='Root')
 
-        name = self.find_first('Root.Name', section=['Identity', 'Root'])
+        name = self.find_first('Root.Name', section='Root')
 
         try:
             self.update_name()
@@ -664,36 +667,20 @@ class MetatabDoc(object):
             if name and name.value:
                 name.value = slugify(name.value)
             elif name:
-                name.value = slugify(identity.value)
+                name.value = slugify(identifier.value)
             else:
-                try:
-                    self['Identity']['Name'] = slugify(identity.value)
-                except KeyError:
-                    self['Root']['Name'] = slugify(identity.value)
-
-        version = self.find_first('Root.Version', section=['Identity', 'Root'])
-
-        if version and not version.value:
-            version.value = 1
-        elif not version:
-            try:
-                self['Identity']['Version'] = 1
-            except KeyError:
-                self['Root']['Version'] = 1
+                self['Root']['Name'] = slugify(identifier.value)
 
     def ensure_identifier(self):
         from uuid import uuid4
 
-        identity = self.find_first('Root.Identifier', section=['Identity', 'Root'])
+        identifier = self.find_first('Root.Identifier', section= 'Root')
 
-        if not identity:
-            try:
-                self['Identity'].new_term('Root.Identifier', six.text_type(uuid4()))
-            except KeyError:
-                self['Root'].new_term('Root.Identifier', six.text_type(uuid4()))
+        if not identifier:
+            self['Root'].new_term('Root.Identifier', six.text_type(uuid4()))
 
-            identity = self.find_first('Root.Identifier', section=['Identity', 'Root'])
-            assert identity is not None
+            identifier = self.find_first('Root.Identifier', section= 'Root')
+            assert identifier is not None
 
     def update_name(self):
         """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
@@ -702,16 +689,22 @@ class MetatabDoc(object):
 
         self.ensure_identifier()
 
-        orig_name = self.find_first_value('Root.Name', section=['Identity', 'Root'])
-        identifier = self.find_first_value('Root.Identifier', section=['Identity', 'Root'])
-        datasetname = self.find_first_value('Root.DatasetName', section=['Identity', 'Root'])
+        orig_name_t = self.find_first('Root.Name', section= 'Root')
+
+        if not orig_name_t:
+            updates.append("No Root.Name, can't update name")
+            return updates
+
+        orig_name = orig_name_t.value
+        identifier = orig_name_t.find_first_value('Name.Identifier')
+        datasetname = orig_name_t.find_first_value('Name.Dataset')
 
         if datasetname:
 
             name = self._generate_identity_name()
 
             if name != orig_name:
-                self[['Identity', 'Root']].get_or_new_term('Root.Name', name)
+                self[ 'Root'].get_or_new_term('Root.Name', name)
                 updates.append("Changed Name")
             else:
                 updates.append("Name did not change")
@@ -723,7 +716,7 @@ class MetatabDoc(object):
 
             else:
                 updates.append("Setting the name to the identifier")
-                self[['Identity', 'Root']].get_or_new_term('Root.Name', identifier)
+                self[ 'Root'].get_or_new_term('Root.Name', identifier)
 
         elif orig_name == identifier:
             updates.append("Name did not change")
@@ -737,19 +730,21 @@ class MetatabDoc(object):
 
     def _generate_identity_name(self):
 
-        datasetname = self.find_first_value('Root.DatasetName', section='Identity')
-        version = self.find_first_value('Root.Version', section=['Identity', 'Root'])
-        origin = self.find_first_value('Root.Origin', section=['Identity', 'Root'])
-        time = self.find_first_value('Root.Time', section=['Identity', 'Root'])
-        space = self.find_first_value('Root.Space', section=['Identity', 'Root'])
-        grain = self.find_first_value('Root.Grain', section=['Identity', 'Root'])
+        name_t = self.find_first('Root.Name', section='Root')
+
+        name = name_t.value
+
+        datasetname = name_t.find_first_value('Name.Dataset')
+        version = name_t.find_first_value('Name.Version')
+        origin = name_t.find_first_value('Name.Origin')
+        time = name_t.find_first_value('Name.Time')
+        space = name_t.find_first_value('Name.Space')
+        grain = name_t.find_first_value('Name.Grain')
 
         parts = [slugify(e.replace('-', '_')) for e in (origin, datasetname, time, space, grain, version) if
                  e and str(e).strip()]
 
-        name = '-'.join(parts)
-
-        return name
+        return '-'.join(parts)
 
     def as_dict(self):
         """Iterate, link terms and convert to a dict"""
@@ -815,31 +810,44 @@ class MetatabDoc(object):
         with open(u.parts.path, 'wb') as f:
             f.write(self.as_csv())
 
-    def _repr_html_(self):
+    def _repr_html_(self, **kwargs):
+        """Produce HTML for Jupyter Notebook"""
 
-        from itertools import chain
+        from rowgenerators import Url
 
-        def resource_repr(r):
+        def resource_repr(r, anchor=kwargs.get('anchors', False)):
             return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
-                .format(name=r.name, url=r._resolved_url())
+                .format(name='<a href="#resource-{name}">{name}</a>'.format(name=r.name) if anchor else r.name,
+                        url=r.url)
 
         def documentation():
-            doc_term = self.find_first("Root.Documentation")
-            home_term = self.find_first("Root.Homepage")
-            origin_term = self.find_first("Root.Origin")
-            creator_term = self.find_first("Root.Creator")
 
             out = ''
 
             try:
                 for t in self['Documentation']:
-                    out += ("\n<tr><td>{}</td><td>{}</td></td><td>{}</td></tr>"
-                            .format(t.record_term.title(),
-                                    linkify(t.value, t.properties.get('title')),
-                                    t.properties.get('description')
-                                    ))
+
+                    if t.properties.get('url'):
+
+                        out += ("\n<p><strong>{} </strong>{}</p>"
+                                .format(linkify(t.properties.get('url'), t.properties.get('title')),
+                                        t.properties.get('description')
+                                        ))
+
+                    else: # Mostly for notes
+                        out += ("\n<p><strong>{}: </strong>{}</p>"
+                                .format(t.record_term.title(), t.value ))
+
+
             except KeyError:
+                raise
                 pass
+
+            return out
+
+        def contacts():
+
+            out = ''
 
             try:
 
@@ -848,13 +856,12 @@ class MetatabDoc(object):
                     name = p.get('name', 'Name')
                     email = "mailto:" + p.get('email') if p.get('email') else None
 
-                    web = p.get('web')
+                    web = p.get('url')
                     org = p.get('organization', web)
 
-                    out += ("\n<tr><td>{}</td><td>{}</td></td><td>{}</td></tr>"
+                    out += ("\n<p><strong>{}: </strong>{}</p>"
                             .format(t.record_term.title(),
-                                    linkify(email, name) if (name or email) else '',
-                                    linkify(web, org) if (web or org) else ''
+                                    (linkify(email, name) or '')+" "+(linkify(web, org) or '')
                                     ))
 
             except KeyError:
@@ -862,19 +869,36 @@ class MetatabDoc(object):
 
             return out
 
+
+
         return """
 <h1>{title}</h1>
 <p>{name}</p>
 <p>{description}</p>
-<table>{doc}</table>
+<h2>Documentation</h2>
+{doc}
+<h2>Contacts</h2>
+{contact}
 <h2>Resources</h2>
 <ol>
 {resources}
 </ol>
 """.format(
             title=self.find_first_value('Root.Title', section='Root'),
-            name=self.find_first_value('Root.Name', section=['Identity', 'Root']),
+            name=self.find_first_value('Root.Name', section= 'Root'),
             description=self.find_first_value('Root.Description', section='Root'),
             doc=documentation(),
+            contact=contacts(),
             resources='\n'.join(["<li>" + resource_repr(r) + "</li>" for r in self.resources()])
         )
+
+
+    @property
+    def html(self):
+        from .html import html
+        return html(self)
+
+    @property
+    def markdown(self):
+        from .html import markdown
+        return markdown(self)

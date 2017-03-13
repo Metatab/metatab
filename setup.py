@@ -83,7 +83,8 @@ setup(
         'rowgenerators',
         'rowpipe',
         'boto3',
-        'bs4'
+        'bs4',
+        'ckanapi'
     ],
 
     
@@ -91,6 +92,7 @@ setup(
         'console_scripts': [
             'metatab=metatab.cli:metatab',
             'metapack=metatab.cli:metapack',
+            'metakan=metatab.cli:metakan',
         ],
     },
 

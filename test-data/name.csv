@@ -1,0 +1,9 @@
+"Declare","metatab-latest"
+"Title","Registered Voters, By County"
+"Name","this_name_should_be_replaced"
+"Name.Dataset","FooBar"
+"Name.Version",1
+"Name.Origin","example.com"
+"Name.Time",2017
+"Name.Space","CA"
+"Name.Grain","people"

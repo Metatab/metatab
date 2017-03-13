@@ -120,12 +120,12 @@ class MyTestCase(unittest.TestCase):
 
         self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
-        self.assertEquals(234, len(terms.keys()))
+        self.assertEquals(235, len(terms.keys()))
 
         sections = doc.decl_sections
 
         self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
-                           'sources','documentation','data'},
+                           'sources','documentation','data','identity'},
                           set(sections.keys()))
 
         # Use the Declare term
@@ -141,12 +141,12 @@ class MyTestCase(unittest.TestCase):
 
         self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
-        self.assertEquals(234, len(terms.keys()))
+        self.assertEquals(235, len(terms.keys()))
 
         sections = d['sections']
 
         self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
-                           'sources', 'documentation', 'data'},
+                           'sources', 'documentation', 'data','identity'},
                           set(sections.keys()))
 
         self.assertEqual(['Email', 'Organization', 'Tel', 'Url'], sections['contacts']['args'])
@@ -385,7 +385,19 @@ class MyTestCase(unittest.TestCase):
         self.assertEquals('root.parent3', t.qualified_term)
         self.assertEquals('root.parent3', t.join)
 
+    def test_update_name(self):
+        import datapackage
+        from metatab.datapackage import convert_to_datapackage
 
+        doc = MetatabDoc(test_data('name.csv'))
+
+        updates = doc.update_name()
+
+        name = doc.find_first_value("Root.Name")
+
+
+        self.assertEqual('example.com-2017-ca-people-1', name)
+        self.assertEqual(['Changed Name'], updates)
 
 
 if __name__ == '__main__':

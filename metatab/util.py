@@ -3,7 +3,7 @@
 
 """Classes to build a Metatab document
 """
-from os.path import join
+from os.path import join, basename
 
 def declaration_path(name):
     """Return the path to an included declaration"""
@@ -40,15 +40,26 @@ def slugify(value):
     return value
 
 
-def linkify(v, description = None):
+def linkify(v, description = None, cwd_url=None):
+    from rowgenerators import Url
+    from os.path import abspath
+    if not v:
+        return None
 
-    if v and (v.startswith('http') or v.startswith('mailto')):
+    u = Url(v)
 
-        target = 'target="_blank"'
+    target = 'target="_blank"'
+
+    if u.scheme in ('http','https','mailto'):
 
         if description is None:
             description = v
         return '<a href="{url}" {target} >{desc}</a>'.format(url=v, target=target, desc = description)
+
+    elif u.scheme == 'file':
+
+        return '<a href="file:{url}" >{desc}</a>'.format(url=u.parts.path, desc=description)
+
     else:
         return v
 

@@ -160,6 +160,7 @@ class Term(object):
         assert isinstance(child, Term)
         self.children.append(child)
         child.parent = self
+        assert not child.term_is("Datafile.Section")
 
     def new_child(self, term, value, **kwargs):
         """Create a new term and add it to this term as a child. Creates grandchildren from the kwargs.
@@ -170,7 +171,8 @@ class Term(object):
 
         """
 
-        c = Term(term, value, parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
+        c = Term(term, str(value), parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
+        assert not c.term_is("*.Section")
         self.children.append(c)
         return c
 
@@ -192,7 +194,7 @@ class Term(object):
 
         for t in self.children:
             t.parent = self
-            t.section = self.section
+            t._section = self.section
             t.doc = self.doc
             t.set_ownership()
 
@@ -222,13 +224,17 @@ class Term(object):
 
         return None
 
-    def find_value(self, term):
+    def find_first_value(self, term):
         """LIke find_first(), but returns the matching term's value, or None"""
 
         try:
             return self.find_first(term).value
         except AttributeError:
             return None
+
+    # Deprecated
+    def find_value(self, term):
+        return self.find_first_value(term)
 
     def get_or_new_child(self, term, value=None, **kwargs):
         """Find a term, using find_first, and set it's value and properties, if it exists. If
@@ -242,6 +248,7 @@ class Term(object):
 
         if c is None:
             c = Term(term, value, parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
+            assert not c.term_is("Datafile.Section"), (self, c)
             self.children.append(c)
 
         else:
@@ -357,6 +364,8 @@ class Term(object):
             elif v_r == '*' and v_p == self.parent_term_lc:
                 return True
             elif v_p == '*' and v_r == self.record_term_lc:
+                return True
+            elif v_p == '*' and  v_r == '*':
                 return True
             else:
                 return False
@@ -539,7 +548,6 @@ class SectionTerm(Term):
         if t not in self.terms:
             if t.parent_term_lc == 'root':
                 self.terms.append(t)
-                t.section = self
 
                 self.doc.add_term(t, add_section=False)
 
@@ -695,6 +703,8 @@ class TermParser(object):
 
         self._ref = ref
 
+        self._path = None; # Set after running parse, from row generator
+
         self._doc = doc
 
         self._param_map = []  # Current parameter map, the args of the last Section term
@@ -714,10 +724,7 @@ class TermParser(object):
     @property
     def path(self):
         """Return the path from the row generator, if it is avilable"""
-        try:
-            return self._row_gen.path
-        except AttributeError:
-            return None
+        return self._path
 
     @property
     def declared_sections(self):
@@ -881,6 +888,7 @@ class TermParser(object):
                 ref = six.text_type(ref)
 
         last_section = root
+
 
         try:
             for line_n, row in enumerate(row_gen, 1):
