@@ -126,6 +126,7 @@ def metapack():
     # cmd = parser.add_subparsers(title='Plugin Commands', help='Additional command supplied by plugins')
     # load_plugins(cmd)
 
+
     class MetapackCliMemo(object):
         def __init__(self, args):
             self.cwd = getcwd()
@@ -140,6 +141,10 @@ def metapack():
             self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url.rebuild_url(False, False))
 
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
+
+    if m.args.info:
+        metatab_info(m.cache)
+        exit(0)
 
     for handler in (metatab_build_handler, metatab_derived_handler, metatab_query_handler, metatab_admin_handler):
         handler(m)
@@ -317,11 +322,6 @@ def metatab_query_handler(m):
 
 def metatab_admin_handler(m):
 
-
-
-    if m.args.info:
-        metatab_info(m.cache)
-        exit(0)
 
     if m.args.enumerate:
 
