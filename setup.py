@@ -71,7 +71,7 @@ setup(
     version=ps_meta.__version__,
     description='Data format for storing structured data in spreadsheet tables',
     long_description=readme,
-    packages=['metatab', 'test', 'metatab.declarations', 'metatab.templates'],
+    packages=['metatab', 'test', 'metatab.declarations', 'metatab.templates', 'metatab.cli'],
     package_data={'metatab.templates': ['*.csv']},
 
     zip_safe=False,
