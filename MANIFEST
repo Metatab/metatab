@@ -5,11 +5,11 @@ requirements.txt
 setup.py
 metatab/__init__.py
 metatab/_meta.py
-metatab/cli.py
 metatab/datapackage.py
 metatab/doc.py
 metatab/exc.py
 metatab/generate.py
+metatab/html.py
 metatab/package.py
 metatab/pands.py
 metatab/parser.py

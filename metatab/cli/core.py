@@ -8,6 +8,7 @@ from metatab import _meta
 from metatab.util import make_metatab_file
 from rowgenerators import Url
 
+
 def prt(*args, **kwargs):
     print(*args, **kwargs)
 
@@ -30,10 +31,18 @@ def load_plugins(parser):
 
 
 def metatab_info(cache):
-    prt('Version  : {}'.format(_meta.__version__))
-    prt('Cache dir: {}'.format(str(cache.getsyspath('/'))))
+    from tabulate import tabulate
+    from rowgenerators._meta import __version__ as rg_ver
+    from rowpipe._meta import __version__ as rp_ver
 
-    print(__file__)
+    table = [
+        ('Version',_meta.__version__),
+        ('Cache Dir', str(cache.getsyspath('/'))),
+        ('Row Generators', rg_ver),
+        ('Row Pipes', rp_ver)
+    ]
+
+    prt(tabulate(table))
 
 
 def new_metatab_file(mt_file, template):
@@ -65,21 +74,29 @@ def find_files(base_path, types):
 
 
 def get_lib_module_dict(doc):
-    from os.path import dirname, abspath
+    """Load the 'lib' directory as a python module, so it can be used to provide functions
+    for rowpipe transforms"""
+
+    from os.path import dirname, abspath, join, isdir
     from importlib import import_module
     import sys
 
     u = Url(doc.ref)
     if u.proto == 'file':
 
+        doc_dir = dirname(abspath(u.parts.path))
+
         # Add the dir with the metatab file to the system path
-        sys.path.append(dirname(abspath(u.parts.path)))
+        sys.path.append(doc_dir)
+
+        if not isdir(join(doc_dir, 'lib')):
+            return {}
 
         try:
             m = import_module("lib")
             return {k: v for k, v in m.__dict__.items() if k in m.__all__}
-        except ImportError:
-            return {}
+        except ImportError as e:
+            err("Failed to import python module form 'lib' directory: ", str(e))
 
     else:
         return {}
@@ -95,7 +112,7 @@ def dump_resource(doc, name, lines=None):
     import sys
     from itertools import islice
     from tabulate import tabulate
-    from rowpipe.exceptions import CasterExceptionError
+    from rowpipe.exceptions import CasterExceptionError, TooManyCastingErrors
 
     r = doc.resource(name=name, env=get_lib_module_dict(doc))
 
@@ -112,10 +129,20 @@ def dump_resource(doc, name, lines=None):
     except (ValueError, AttributeError):
         gen = islice(r, 1, lines)
 
+    def dump_errors(error_set):
+        for col, errors in error_set.items():
+            warn("Errors in casting column '{}' in resource '{}' ".format(col, r.name))
+            for error in errors:
+                warn("    ", error)
+
 
     try:
         if lines and lines <= 20:
-            print(tabulate(list(gen), list(r.headers())))
+            try:
+                print(tabulate(list(gen), list(r.headers())))
+            except TooManyCastingErrors as e:
+                dump_errors(e.errors)
+                err(e)
 
         else:
 
@@ -130,12 +157,14 @@ def dump_resource(doc, name, lines=None):
                 w.writerow(row)
 
     except CasterExceptionError as e:  # Really bad errors, not just casting problems.
+        raise e
+        err(e)
+    except TooManyCastingErrors as e:
+        dump_errors(e.errors)
         err(e)
 
-    for col, errors in r.errors.items():
-        warn("Errors in casting column '{}' in resource '{}' ".format(col, r.name))
-        for e in errors:
-            warn("    ", e)
+    dump_errors(r.errors)
+
 
 
 def dump_schema(doc, name):

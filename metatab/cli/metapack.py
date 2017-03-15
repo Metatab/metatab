@@ -17,7 +17,7 @@ from uuid import uuid4
 import six
 
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, ConversionError
-from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files
+from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, get_lib_module_dict
 from metatab.util import make_metatab_file
 from rowgenerators import get_cache, RowGenerator, SelectiveRowGenerator, SourceError, Url
 from rowgenerators.util import clean_cache
@@ -225,33 +225,39 @@ def metatab_derived_handler(m, skip_if_exists=False):
     from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage, S3Package, PackageError
 
     create_list = []
+    url = None
+
+    doc = MetatabDoc(m.mt_file)
+    env = get_lib_module_dict(doc)
 
     try:
 
         if m.args.excel is not False:
             update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
-            p = ExcelPackage(m.mt_file, callback=prt, cache=m.cache)
+            p = ExcelPackage(doc, callback=prt, cache=m.cache, env=env )
 
-            if not p.exists() and skip_if_exists:
+            if not p.exists() or not skip_if_exists:
                 url = p.save()
                 prt("Packaged saved to: {}".format(url))
                 created = True
-            else:
+            elif p.exists():
                 prt("Excel Package already exists")
                 created = False
                 url=p.save_path()
+
 
             create_list.append(('xlsx', url, created))
 
 
         if m.args.zip is not False:
             update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
-            p = ZipPackage(m.mt_file, callback=prt, cache=m.cache)
-            if not p.exists() and skip_if_exists:
+            p = ZipPackage(doc, callback=prt, cache=m.cache, env=env)
+
+            if not p.exists() or not skip_if_exists:
                 url = p.save()
                 prt("Packaged saved to: {}".format(url))
                 created = True
-            else:
+            elif p.exists():
                 prt("ZIP Package already exists")
                 created = False
                 url = p.save_path()
@@ -260,12 +266,12 @@ def metatab_derived_handler(m, skip_if_exists=False):
 
         if hasattr(m.args, 'filesystem') and m.args.filesystem is not False:
             update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
-            if not p.exists() and skip_if_exists:
-                p = FileSystemPackage(m.mt_file, callback=prt, cache=m.cache)
+            p = FileSystemPackage(doc, callback=prt, cache=m.cache, env=env)
+            if not p.exists() or not skip_if_exists:
                 url = p.save()
                 prt("Packaged saved to: {}".format(url))
                 created = True
-            else:
+            elif p.exists():
                 prt("Filesystem Package already exists")
                 created = False
                 url = p.save_path()
@@ -274,12 +280,12 @@ def metatab_derived_handler(m, skip_if_exists=False):
 
         if m.args.s3:
             update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
-            p = S3Package(m.mt_file, callback=prt, cache=m.cache)
-            if not p.exists(m.args.s3) and skip_if_exists:
+            p = S3Package(doc, callback=prt, cache=m.cache, env=env)
+            if not p.exists(m.args.s3) or not skip_if_exists:
                 url = p.save(m.args.s3)
                 prt("Packaged saved to: {}".format(url))
                 created = True
-            else:
+            elif p.exists(m.args.s3):
                 prt("S3 Package already exists")
                 created = False
                 url = p.access_url
@@ -310,6 +316,9 @@ def metatab_query_handler(m):
 
 
 def metatab_admin_handler(m):
+
+
+
     if m.args.info:
         metatab_info(m.cache)
         exit(0)
@@ -431,7 +440,7 @@ def process_schemas(mt_file, cache, clean=False):
                           target_segment=e.get('segment'),
                           cache=cache)
 
-        si = SelectiveRowGenerator(islice(rg, 5000),
+        si = SelectiveRowGenerator(islice(rg, 20),
                                    headers=[int(i) for i in e.get('headerlines', '0').split(',')],
                                    start=int(e.get('startline', 1)))
 
@@ -515,6 +524,9 @@ def add_single_resource(doc, ref, cache, seen_names):
     except SourceError as e:
         warn("Source Error: '{}'; {}".format(path, e))
 
+    except Exception as e:
+        warn("Error: '{}'; {}".format(path, e))
+
     if not name:
         from hashlib import sha1
         name = sha1(slugify(path).encode('ascii')).hexdigest()[:12]
@@ -556,9 +568,11 @@ def extract_path_name(ref):
 
 def alt_col_name(name, i):
     import re
+
     if not name:
         return 'col{}'.format(i)
-    return re.sub('_+', '_', re.sub('[^\w_]', '_', name).lower()).rstrip('_')
+
+    return re.sub('_+', '_', re.sub('[^\w_]', '_', str(name)).lower()).rstrip('_')
 
 
 def run_row_intuit(path, cache):

@@ -23,7 +23,7 @@ TableColumn = namedtuple('TableColumn', 'path name start_line header_lines colum
 
 
 class Package(object):
-    def __new__(cls, ref=None, cache=None, callback=None):
+    def __new__(cls, ref=None, cache=None, callback=None, env=None):
 
         if cls == Package:
 
@@ -48,12 +48,13 @@ class Package(object):
         else:
             return super(Package, cls).__new__(cls)
 
-    def __init__(self, ref=None, cache=None, callback=None):
+    def __init__(self, ref=None, cache=None, callback=None, env=None):
 
         self._cache = cache if cache else get_cache('metapack')
         self._ref = ref
         self._doc = None
         self._callback = callback
+        self._env = env if env is not None else {}
 
         self.init_doc()
 
@@ -403,13 +404,16 @@ class Package(object):
                    bool(r.properties.get('encoding')) == bool(r.get('encoding')), \
                 (r.properties.get('encoding'), r.get('encoding'))
 
-            rg = RowGenerator(url=r.resolved_url,
-                              name=r.get('name'),
-                              encoding=r.get('encoding'),
-                              target_format=r.get('format'),
-                              target_file=r.get('file'),
-                              target_segment=r.get('segment'),
-                              cache=self._cache)
+            if False:
+                rg = RowGenerator(url=r.resolved_url,
+                                  name=r.get('name'),
+                                  encoding=r.get('encoding'),
+                                  target_format=r.get('format'),
+                                  target_file=r.get('file'),
+                                  target_segment=r.get('segment'),
+                                  cache=self._cache)
+            else:
+                rg = self.doc.resource(r.name, env = self._env)
 
             start_line = int(r.get('startline')) if r.get('startline') is not None  else 1
 
@@ -477,11 +481,14 @@ class FileSystemPackage(Package):
 
     """A Zip File package"""
 
-    def __init__(self, path=None, callback=None, cache=None):
+    def __init__(self, path=None, callback=None, cache=None, env=None):
 
-        super(FileSystemPackage, self).__init__(path, callback=callback, cache=cache)
+        super(FileSystemPackage, self).__init__(path, callback=callback, cache=cache, env=env)
+        self.package_dir = None
 
-    def exists(self, path):
+    def exists(self, path=None):
+        if self.package_dir is None:
+            self._init_dir(path)
         return exists(self.save_path(path))
 
     def save_path(self, path):
@@ -628,9 +635,9 @@ class CsvPackage(Package):
 class ExcelPackage(Package):
     """An Excel File Package"""
 
-    def __init__(self, path=None, callback=None, cache=None):
+    def __init__(self, path=None, callback=None, cache=None, env=None):
 
-        super(ExcelPackage, self).__init__(path, callback=callback, cache=cache)
+        super(ExcelPackage, self).__init__(path, callback=callback, cache=cache, env=env)
 
     def save_path(self, path=None):
         base = self.doc.find_first_value('Root.Name') + '.xlsx'
@@ -694,9 +701,9 @@ class ExcelPackage(Package):
 class ZipPackage(Package):
     """A Zip File package"""
 
-    def __init__(self, path=None, callback=None, cache=None):
+    def __init__(self, path=None, callback=None, cache=None, env=None):
 
-        super(ZipPackage, self).__init__(path, callback=callback, cache=cache)
+        super(ZipPackage, self).__init__(path, callback=callback, cache=cache, env=env)
 
     def save_path(self, path=None):
         base = self.doc.find_first_value('Root.Name') + '.zip'
@@ -797,9 +804,9 @@ class ZipPackage(Package):
 class S3Package(Package):
     """A Zip File package"""
 
-    def __init__(self, path=None, callback=None, cache=None):
+    def __init__(self, path=None, callback=None, cache=None, env=None):
 
-        super(S3Package, self).__init__(path, callback=callback, cache=cache)
+        super(S3Package, self).__init__(path, callback=callback, cache=cache, env=env)
 
         self._s3 = None
         self._bucket_name = None

@@ -250,13 +250,13 @@ class Resource(Term):
         if table_term:
 
             t = Table(self.properties.get('name'))
-
             for i, c in enumerate(table_term.children):
-                t.add_column(self._name_for_col_term(c, i),
-                             datatype=map_type(c.properties.get('datatype')),
-                             valuetype=map_type(c.properties.get('valuetype')),
-                             transform=c.properties.get('transform')
-                             )
+                if c.term_is('Table.Column'):
+                    t.add_column(self._name_for_col_term(c, i),
+                                 datatype=map_type(c.properties.get('datatype')),
+                                 valuetype=map_type(c.properties.get('valuetype')),
+                                 transform=c.properties.get('transform')
+                                 )
 
             return t
 
@@ -816,8 +816,9 @@ class MetatabDoc(object):
         from rowgenerators import Url
 
         def resource_repr(r, anchor=kwargs.get('anchors', False)):
-            return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
+            return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a> {description}</p>" \
                 .format(name='<a href="#resource-{name}">{name}</a>'.format(name=r.name) if anchor else r.name,
+                        description=r.properties.get('description',''),
                         url=r.url)
 
         def documentation():
@@ -868,7 +869,6 @@ class MetatabDoc(object):
                 pass
 
             return out
-
 
 
         return """
