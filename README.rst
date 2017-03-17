@@ -248,3 +248,45 @@ Note that the data files in a derived package may be different that the ones in 
 
 If the ``Datafile`` term has a ``StartLine`` property, the values will be used in generating the data in derived packages to select the first line for yielding data rows. ( The ``HeaderLines`` property is used to build the schema, from which the header line is generated. )
     
+Publishing Packages
+-------------------
+
+The ``metasync`` program can build multiple package types and upload them to an S3 bucket. Typical usage is: 
+
+.. code-block:: bash
+
+    $ metasync -e -f -z -s s3://library.metatab.org
+    
+With these options, the ``metasync`` program will create an Excel, Zip and Filesystem package and store them in the s3 bucket ``library.metadata.org``. In this case, the "filesystem" package is not created in the local filesystem, but only in S3. ( "Filesystem" packages are basically what you get after unziping a ZIP package. )
+
+Currently, ``metasync`` will only write packages to S3.
+
+One important side effect of the ``metasync`` program is that it will add ``Distribution`` terms to the main ``metadata.csv`` file before creating the packages, so all the packages that the program syncs will include references to the S# location of all packages. For instance, the example invocation above will add these ``Distribution`` terms: 
+
+.. code-block:: 
+
+    Distribution	http://s3.amazonaws.com/library.metatab.org/simple_example-2017-us-1.xlsx
+    Distribution	http://s3.amazonaws.com/library.metatab.org/simple_example-2017-us-1.zip
+    Distribution	http://s3.amazonaws.com/library.metatab.org/simple_example-2017-us-1/metadata.csv
+    
+These ``Distribution`` terms are valuable documentation, but they are also required for the ``metakan`` program to create entries for the package in CKAN. 
+
+Adding Packages to CKAN
++++++++++++++++++++++++
+
+The ``metakan`` program reads a Metatab file, creates a dataset in CKAN, and adss resources to the CKAN entry based on the ``Distribution`` terms in the Metatab data. For instance, with a localhost CKAN server, and the metadata file from the "Publishing Packages" section example: 
+
+.. code-block:: bash
+
+    $ metakan  --ckan http://localhost:32768/ --api f1f45...e9a9
+
+This command would create a CKAN dataset with the metadata in the ``metadata.csv`` file in the current directory, reading the ``Distribution`` terms. It would add resoruces for ``simple_example-2017-us-1.xlsx`` and ``simple_example-2017-us-1.zip.`` For the ``simple_example-2017-us-1/metadata.csv`` it would read the remote ``metadata.csv`` file, resolve the resource URLs, and create a resource entry for the ``metadata.csv`` file and all of the resources referenced in the remote ``metadata.csv`` file. 
+
+Note that because part of the information in the CKAN dataset comes from the loal ``metadata.csv`` file and part of the resources are discovered from the remote file, there is a substantial possibility for these files to become unsynchronized. For this reason, it is important to run the ``metasync`` program to create ``Distribution`` terms before running the ``metakan`` program. 
+
+
+
+
+
+
+
