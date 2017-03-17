@@ -89,14 +89,13 @@ def contacts_block(doc):
 
     return out
 
-
-
-
 def documentation_block(doc):
 
     doc_links = ''
 
     inline = ''
+
+    notes = []
 
     try:
         for t in doc['Documentation']:
@@ -114,7 +113,9 @@ def documentation_block(doc):
                                 t.properties.get('description')
                                 ))
 
-            else:  # Mostly for notes
+            elif t.term_is('Root.Note'):
+                notes.append(t.value)
+            else:
                 doc_links += (dl_templ.format(t.record_term.title(), t.value))
 
 
@@ -123,7 +124,11 @@ def documentation_block(doc):
         pass
 
 
-    return inline+ ("\n\n## Documentation Links\n"+doc_links if doc_links else '')
+
+
+    return inline + \
+           ("\n\n## Notes \n\n" + "\n".join('* '+n for n in notes) ) if notes else '' +\
+           ("\n\n## Documentation Links\n"+doc_links if doc_links else '')
 
 def identity_block(doc):
 
