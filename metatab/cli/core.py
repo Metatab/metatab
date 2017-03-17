@@ -1,10 +1,11 @@
 import sys
 from genericpath import exists
+from os.path import join
 from uuid import uuid4
 
 import six
 
-from metatab import _meta
+from metatab import _meta, MetatabDoc
 from metatab.util import make_metatab_file
 from rowgenerators import Url
 
@@ -37,9 +38,9 @@ def metatab_info(cache):
 
     table = [
         ('Version',_meta.__version__),
-        ('Cache Dir', str(cache.getsyspath('/'))),
         ('Row Generators', rg_ver),
-        ('Row Pipes', rp_ver)
+        ('Row Pipes', rp_ver),
+        ('Cache Dir', str(cache.getsyspath('/'))),
     ]
 
     prt(tabulate(table))
@@ -195,3 +196,150 @@ def get_table(doc, name):
             .format(name, " ".join(table_names)))
 
     return t
+
+
+def make_excel_package(file, cache, env, skip_if_exists):
+    from metatab.package import ExcelPackage
+
+    p = ExcelPackage(file, callback=prt, cache=cache, env=env)
+
+    if not p.exists() or not skip_if_exists:
+        url = p.save()
+        prt("Packaged saved to: {}".format(url))
+        created = True
+    elif p.exists():
+        prt("Excel Package already exists")
+        created = False
+        url = p.save_path()
+
+    return url, created
+
+
+def make_zip_package(file, cache, env, skip_if_exists):
+
+    from metatab.package import ZipPackage
+
+    p = ZipPackage(file, callback=prt, cache=cache, env=env)
+    if not p.exists() or not skip_if_exists:
+        url = p.save()
+        prt("Packaged saved to: {}".format(url))
+        created = True
+    elif p.exists():
+        prt("ZIP Package already exists")
+        created = False
+        url = p.save_path()
+
+    return url, created
+
+
+def make_filesystem_package(file, cache, env, skip_if_exists):
+
+    from metatab.package import FileSystemPackage
+    p = FileSystemPackage(file, callback=prt, cache=cache, env=env)
+    if not p.exists() or not skip_if_exists:
+        url = p.save()
+        prt("Packaged saved to: {}".format(url))
+        created = True
+    elif p.exists():
+        prt("Filesystem Package already exists")
+        created = False
+        url = p.save_path()
+
+    return url, created
+
+
+def make_s3_package(file, url, cache,  env, skip_if_exists):
+    from metatab.package import S3Package
+
+    p = S3Package(file, callback=prt, cache=cache, env=env)
+    if not p.exists(url) or not skip_if_exists:
+        url = p.save(url)
+        prt("Packaged saved to: {}".format(url))
+        created = True
+    elif p.exists(url):
+        prt("S3 Package already exists")
+        created = False
+        url = p.access_url
+
+    return url, created
+
+
+def update_name(mt_file, fail_on_missing=False, report_unchanged=True):
+    if isinstance(mt_file, MetatabDoc):
+        doc = mt_file
+    else:
+        doc = MetatabDoc(mt_file)
+
+    o_name = doc.find_first_value("Root.Name", section=['Identity', 'Root'])
+
+    updates = doc.update_name()
+
+    for u in updates:
+        prt(u)
+
+    prt("Name is: ", doc.find_first_value("Root.Name", section=['Identity', 'Root']))
+
+    if o_name != doc.find_first_value("Root.Name", section=['Identity', 'Root']):
+        doc.write_csv(mt_file)
+
+
+class S3Bucket(object):
+    def __init__(self, url):
+        from rowgenerators import parse_url_to_dict
+        import boto3
+
+        self._s3 = boto3.resource('s3')
+
+        p = parse_url_to_dict(url)
+
+        if p['netloc']:  # The URL didn't have the '//'
+            self._prefix = p['path']
+            bucket_name = p['netloc']
+        else:
+            proto, netpath = url.split(':')
+            bucket_name, self._prefix = netpath.split('/', 1)
+
+        self._bucket_name = bucket_name
+        self._bucket = self._s3.Bucket(bucket_name)
+
+
+    def access_url(self, *paths):
+        import boto3
+
+        key = join(self._prefix, *paths).strip('/')
+
+        s3 = boto3.client('s3')
+
+        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
+
+    def write(self, body, *paths):
+        from botocore.exceptions import ClientError
+        import mimetypes
+
+        if isinstance(body, six.string_types):
+            with open(body,'rb') as f:
+                body = f.read()
+
+        key = join(self._prefix, *paths).strip('/')
+
+        try:
+            o = self._bucket.Object(key)
+            if o.content_length == len(body):
+                prt("File '{}' already in bucket; skipping".format(key))
+                return self.access_url(*paths)
+            else:
+                prt("File '{}' already in bucket, but length is different; re-wirtting".format(key))
+
+        except ClientError as e:
+            if int(e.response['Error']['Code']) != 404:
+                raise
+
+        ct = mimetypes.guess_type(key)[0]
+
+        try:
+            self._bucket.put_object(Key=key, Body=body, ACL='public-read',
+                                           ContentType=ct if ct else 'binary/octet-stream')
+        except Exception as e:
+            self.err("Failed to write '{}': {}".format(key, e))
+
+        return self.access_url(*paths)

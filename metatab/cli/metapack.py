@@ -17,7 +17,8 @@ from uuid import uuid4
 import six
 
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, ConversionError
-from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, get_lib_module_dict
+from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, get_lib_module_dict, \
+    make_excel_package, make_filesystem_package, make_s3_package, update_name
 from metatab.util import make_metatab_file
 from rowgenerators import get_cache, RowGenerator, SelectiveRowGenerator, SourceError, Url
 from rowgenerators.util import clean_cache
@@ -82,7 +83,7 @@ def metapack():
                                help='Create a filesystem archive from a metatab file')
 
     derived_group.add_argument('-s3', '--s3', action='store',
-                               help='Create a s3 archive from a metatab file. Argument is an S3 URL with the bucket name and '
+                               help='Create a filesystem archive in an S3 bucket. Argument is an S3 URL with the bucket name and '
                                     'prefix, such as "s3://devel.metatab.org:/excel/". Uses boto configuration for credentials')
 
     ##
@@ -227,7 +228,7 @@ def metatab_build_handler(m):
 
 
 def metatab_derived_handler(m, skip_if_exists=False):
-    from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage, S3Package, PackageError
+    from metatab.package import PackageError
 
     create_list = []
     url = None
@@ -235,66 +236,26 @@ def metatab_derived_handler(m, skip_if_exists=False):
     doc = MetatabDoc(m.mt_file)
     env = get_lib_module_dict(doc)
 
+    if (m.args.excel is not False or m.args.zip is not False or
+        (hasattr(m.args, 'filesystem') and m.args.filesystem is not False) or m.args.s3):
+        update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+
     try:
 
         if m.args.excel is not False:
-            update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
-            p = ExcelPackage(doc, callback=prt, cache=m.cache, env=env )
-
-            if not p.exists() or not skip_if_exists:
-                url = p.save()
-                prt("Packaged saved to: {}".format(url))
-                created = True
-            elif p.exists():
-                prt("Excel Package already exists")
-                created = False
-                url=p.save_path()
-
-
+            url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
             create_list.append(('xlsx', url, created))
 
-
         if m.args.zip is not False:
-            update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
-            p = ZipPackage(doc, callback=prt, cache=m.cache, env=env)
-
-            if not p.exists() or not skip_if_exists:
-                url = p.save()
-                prt("Packaged saved to: {}".format(url))
-                created = True
-            elif p.exists():
-                prt("ZIP Package already exists")
-                created = False
-                url = p.save_path()
-
+            url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
             create_list.append(('zip', url, created))
 
         if hasattr(m.args, 'filesystem') and m.args.filesystem is not False:
-            update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
-            p = FileSystemPackage(doc, callback=prt, cache=m.cache, env=env)
-            if not p.exists() or not skip_if_exists:
-                url = p.save()
-                prt("Packaged saved to: {}".format(url))
-                created = True
-            elif p.exists():
-                prt("Filesystem Package already exists")
-                created = False
-                url = p.save_path()
-
+            url, created = make_filesystem_package(m.mt_file, m.cache, env, skip_if_exists)
             create_list.append(('fs', url, created))
 
         if m.args.s3:
-            update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
-            p = S3Package(doc, callback=prt, cache=m.cache, env=env)
-            if not p.exists(m.args.s3) or not skip_if_exists:
-                url = p.save(m.args.s3)
-                prt("Packaged saved to: {}".format(url))
-                created = True
-            elif p.exists(m.args.s3):
-                prt("S3 Package already exists")
-                created = False
-                url = p.access_url
-
+            url, created = make_s3_package(m.mt_file, m.args.s3, m.cache, env, skip_if_exists)
             create_list.append(('s3', url, created))
 
     except PackageError as e:
@@ -466,25 +427,6 @@ def process_schemas(mt_file, cache, clean=False):
                             altname=alt_name)
 
     doc.write_csv(mt_file)
-
-
-def update_name(mt_file, fail_on_missing=False, report_unchanged=True):
-    if isinstance(mt_file, MetatabDoc):
-        doc = mt_file
-    else:
-        doc = MetatabDoc(mt_file)
-
-    o_name = doc.find_first_value("Root.Name", section=['Identity', 'Root'])
-
-    updates = doc.update_name()
-
-    for u in updates:
-        prt(u)
-
-    prt("Name is: ", doc.find_first_value("Root.Name", section=['Identity', 'Root']))
-
-    if o_name != doc.find_first_value("Root.Name", section=['Identity', 'Root']):
-        doc.write_csv(mt_file)
 
 
 def add_single_resource(doc, ref, cache, seen_names):

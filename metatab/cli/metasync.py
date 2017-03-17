@@ -5,43 +5,41 @@
 CLI program for storing pacakges in CKAN
 """
 
-import sys
-import six
 import mimetypes
-from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, open_package
-from metatab.cli.core import prt, err
-from .metapack import metatab_derived_handler
-from rowgenerators import get_cache, Url
-from rowgenerators.util import clean_cache
-from os import getenv, getcwd
+import sys
+from os import getcwd
 from os.path import join, basename
 
+import six
 
-def metakan():
+from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
+from metatab import open_package
+from metatab.cli.core import prt, err, get_lib_module_dict, \
+    make_excel_package, make_filesystem_package, make_s3_package, make_zip_package, update_name, metatab_info, S3Bucket
+from rowgenerators import get_cache, Url
+from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage
+
+
+def metasync():
     import argparse
     parser = argparse.ArgumentParser(
-        prog='metakan',
-        description='CKAN management of Metatab packages, version {}'.format(_meta.__version__),
-         )
+        prog='metasync',
+        description='Create packages and store them in s3 buckets, version {}'.format(_meta.__version__),
+    )
 
     parser.add_argument('-i', '--info', default=False, action='store_true',
-                   help="Show configuration information")
+                        help="Show configuration information")
 
-    parser.add_argument('-C', '--ckanurl', help="URL for CKAN instance")
+    parser.add_argument('-s', '--s3', help="URL to S3 where packages will be stored", required=True)
 
-    parser.add_argument('-S3', '--s3url', help="URL to S3 where packages will be stored")
+    parser.add_argument('-e', '--excel', action='store_true', default=False,
+                        help='Create an excel package from a metatab file and copy it to S3. ')
 
-    derived_group = parser.add_argument_group('Derived Packages', 'Generate other types of packages')
+    parser.add_argument('-z', '--zip', action='store_true', default=False,
+                        help='Create a zip package from a metatab file and copy it to S3. ')
 
-    derived_group.add_argument('-e', '--excel', action='store_true', default=False,
-                               help='Create an excel archive from a metatab file')
-
-    derived_group.add_argument('-z', '--zip', action='store_true', default=False,
-                               help='Create a zip archive from a metatab file')
-
-    derived_group.add_argument('-s3', '--s3', action='store_true', default=False,
-                               help='Create a s3 archive from a metatab file. Argument is an S3 URL with the bucket name and '
-                                    'prefix, such as "s3://devel.metatab.org/excel/". Uses boto configuration for credentials')
+    parser.add_argument('-f', '--fs', action='store_true', default=False,
+                        help='Create a Filesystem package. Unlike -e and -f, only writes the package to S3.')
 
     parser.add_argument('metatabfile', nargs='?', default=DEFAULT_METATAB_FILE, help='Path to a Metatab file')
 
@@ -58,195 +56,86 @@ def metakan():
 
             self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url.rebuild_url(False, False))
 
-            if self.args.s3:
-                self.args.s3 = self.args.s3url
-
-            self.api_key = getenv('METAKAN_API_KEY')
-
-            self.ckan_url = self.args.ckanurl or getenv('METAKAN_CKAN_URL')
-
-            self.s3_url = self.args.s3url or getenv('METAKAN_S3_URL')
-
-            if not self.ckan_url:
-                err("Set the --ckanurl option or the  env var METAKAN_CKAN_URL to set the URL of a ckan instance")
-
-            if not self.s3_url:
-                err("Set the --s3url option env var METAKAN_S3_URL to set the URL to an s3 bucket")
-
-            if not self.api_key:
-                err("Set the env var METAKAN_API_KEY with the API key to a CKAN instance")
-
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 
     if m.args.info:
-        prt('Version  : {}'.format(_meta.__version__))
-        prt('Cache dir: {}'.format(str(m.cache.getsyspath('/'))))
+        metatab_info(m.cache)
         exit(0)
 
+    if m.args.excel is not False or m.args.zip is not False or m.args.fs is not False:
+        update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
 
-    created = metatab_derived_handler(m, skip_if_exists=True)
+    distupdated = update_distributions(m)
 
-    send_to_ckan(m, created)
+    created = create_packages(m, skip_if_exists= False if distupdated else True)
 
     exit(0)
 
-class S3Bucket(object):
-    def __init__(self, url):
-        from rowgenerators import parse_url_to_dict
-        import boto3
 
-        self._s3 = boto3.resource('s3')
+def update_distributions(m):
+    """Add a distribution term for each of the distributions the sync is creating. """
+    b = S3Bucket(m.args.s3)
+    doc = MetatabDoc(m.mt_file)
+    updated = False
 
-        p = parse_url_to_dict(url)
+    def update_dist(v):
 
-        if p['netloc']:  # The URL didn't have the '//'
-            self._prefix = p['path']
-            bucket_name = p['netloc']
+        t = doc.find('Root.Distribution', v)
+
+        if not t:
+            doc['Root'].new_term('Root.Distribution', v)
+            return True
         else:
-            proto, netpath = url.split(':')
-            bucket_name, self._prefix = netpath.split('/', 1)
+            return False
 
-        self._bucket_name = bucket_name
-        self._bucket = self._s3.Bucket(bucket_name)
+    if m.args.excel is not False:
+        p = ExcelPackage(m.mt_file)
+        if update_dist(b.access_url(p.save_path())):
+            prt("Added Excel distribution to metadata")
+            updated = True
 
+    if m.args.zip is not False:
+        p = ZipPackage(m.mt_file)
+        if update_dist(b.access_url(p.save_path())):
+            prt("Added ZIP distribution to metadata")
+            updated = True
 
-    def access_url(self, *paths):
-        import boto3
+    if m.args.fs is not False:
+        p = FileSystemPackage(m.mt_file)
+        if update_dist(b.access_url(p.save_path(), DEFAULT_METATAB_FILE)):
+            prt("Added FS distribution to metadata")
+            updated = True
 
-        key = join(self._prefix, *paths).strip('/')
+    doc.write_csv(m.mt_file)
 
-        s3 = boto3.client('s3')
+    return updated
 
-        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
+def create_packages(m, skip_if_exists=False):
+    from metatab.package import PackageError
 
-    def write(self, body, *paths):
-        from botocore.exceptions import ClientError
-        import mimetypes
+    create_list = []
+    url = None
 
-        if isinstance(body, six.string_types):
-            with open(body,'rb') as f:
-                body = f.read()
+    doc = MetatabDoc(m.mt_file)
+    env = get_lib_module_dict(doc)
 
-        key = join(self._prefix, *paths).strip('/')
-
-        try:
-            o = self._bucket.Object(key)
-            if o.content_length == len(body):
-                prt("File '{}' already in bucket; skipping".format(key))
-                return self.access_url(*paths)
-            else:
-                prt("File '{}' already in bucket, but length is different; re-wirtting".format(key))
-
-        except ClientError as e:
-            if int(e.response['Error']['Code']) != 404:
-                raise
-
-        ct = mimetypes.guess_type(key)[0]
-
-        try:
-            self._bucket.put_object(Key=key, Body=body, ACL='public-read',
-                                           ContentType=ct if ct else 'binary/octet-stream')
-        except Exception as e:
-            self.err("Failed to write '{}': {}".format(key, e))
-
-        return self.access_url(*paths)
-
-
-def send_to_ckan(m, created_packages):
-    from ckanapi import RemoteCKAN, NotAuthorized, NotFound
-    from metatab import Package
+    s3 = S3Bucket(m.args.s3)
 
     try:
-        doc = MetatabDoc(m.mt_file, cache=m.cache)
-    except IOError as e:
-        err("Failed to open metatab '{}': {}".format(m.mt_file, e))
 
-    c = RemoteCKAN(m.ckan_url, apikey=m.api_key)
+        if m.args.excel is not False:
+            url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
+            written_url = s3.write(url, basename(url))
 
-    s3 = S3Bucket(m.s3_url)
+        if m.args.zip is not False:
+            url, created = make_zip_package(m.mt_file, m.cache, env, skip_if_exists)
+            written_url = s3.write(url, basename(url))
 
-    identifier = doc.find_first_value('Root.Identitfier')
-    name = doc.find_first('Root.Name')
+        if m.args.fs is not False:
+            url, created = make_s3_package(m.mt_file, m.args.s3, m.cache, env, skip_if_exists)
 
-    ckan_name = name.value.replace('.','-')
+    except PackageError as e:
+        err("Failed to generate package: {}".format(e))
 
-    try:
-        pkg = c.action.package_show(name_or_id=ckan_name)
-    except NotFound:
-        pkg = c.action.package_create(name=ckan_name, package_id=identifier)
-
-    pkg['title'] = doc.find_first_value('Root.Title')
-    pkg['notes'] = doc.markdown #doc.find_first_value('Root.Description')
-    pkg['version'] = name.properties.get('version')
-
-    extras = []
-
-    for t in doc.find('*.*', section='Root'):
-        extras.append({'key':t.qualified_term, 'value':t.value})
-
-    for t in name.children:
-        extras.append({'key': t.qualified_term, 'value': t.value})
-
-    pkg['extras'] = extras
-
-    #import json
-    #print(json.dumps(pkg, indent=4))
-
-    resources = []
-
-    for ptype, path, created in created_packages:
-        print(ptype, path, created)
-
-        if ptype == 'zip':
-            url = s3.write(path, 'zip', basename(path))
-            resources.append(dict(
-                url=url,
-                name=basename(path),
-                format='ZIP',
-                mimetype=mimetypes.guess_type(path)[0],
-                description='ZIP version of package'
-            ))
-
-        elif ptype == 'xlsx':
-            url = s3.write(path, 'zip', basename(path))
-            resources.append(dict(
-                url=url,
-                name=basename(path),
-                format='XLSX',
-                mimetype=mimetypes.guess_type(path)[0],
-                description='Excel version of package'
-            ))
-
-        elif ptype == 's3':
-            resources.append(dict(
-                name='metadata.csv',
-                url=path+'/metadata.csv',
-                format='csv',
-                mimetype='text/csv',
-                description='Package Metadata in Metatab format'
-            ))
-
-            p = open_package(path)
-
-            for r in p.resources():
-                print (r.name, r.description, r.resolved_url)
-
-
-
-                resources.append(dict(
-                    name=r.name,
-                    url=r.resolved_url,
-                    mimetype=mimetypes.guess_type(r.resolved_url)[0],
-                    description=r.description
-                ))
-
-
-
-
-
-
-    pkg['resources'] = resources
-
-    c.action.package_update(**pkg)
 
 
