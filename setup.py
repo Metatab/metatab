@@ -93,6 +93,7 @@ setup(
             'metatab=metatab.cli:metatab',
             'metapack=metatab.cli:metapack',
             'metakan=metatab.cli:metakan',
+            'metasync=metatab.cli:metasync'
         ],
     },
 
