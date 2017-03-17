@@ -15,6 +15,13 @@ metatab/pands.py
 metatab/parser.py
 metatab/serialize.py
 metatab/util.py
+metatab/cli/__init__.py
+metatab/cli/core.py
+metatab/cli/metakan.py
+metatab/cli/metapack.py
+metatab/cli/metasync.py
+metatab/cli/metatab.py
+metatab/cli/old.py
 metatab/declarations/__init__.py
 metatab/declarations/datapackage-0.1.csv
 metatab/declarations/datapackage.csv

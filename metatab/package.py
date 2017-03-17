@@ -491,8 +491,15 @@ class FileSystemPackage(Package):
             self._init_dir(path)
         return exists(self.save_path(path))
 
-    def save_path(self, path):
-        return exists(join(self.package_dir, DEFAULT_METATAB_FILE))
+    def save_path(self, path=None):
+
+        base = self.doc.find_first_value('Root.Name')
+
+        if path and not path.endswith('.zip'):
+            return join(path, base)
+        else:
+            return base
+
 
     def save(self, path=None):
 
@@ -642,7 +649,7 @@ class ExcelPackage(Package):
     def save_path(self, path=None):
         base = self.doc.find_first_value('Root.Name') + '.xlsx'
 
-        if path and isdir(path):
+        if path and not path.endswith('.xlsx'):
             return join(path, base)
         elif path:
             return path
@@ -708,7 +715,7 @@ class ZipPackage(Package):
     def save_path(self, path=None):
         base = self.doc.find_first_value('Root.Name') + '.zip'
 
-        if path and isdir(path):
+        if path and not path.endswith('.zip'):
             return join(path, base)
         elif path:
             return path
