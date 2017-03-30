@@ -107,6 +107,7 @@ setup(
     classifiers=classifiers,
     extras_require={
         'test': ['datapackage'],
+        'geo': ['fiona','shapely','pyproj']
 
     },
 
