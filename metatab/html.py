@@ -139,7 +139,7 @@ def documentation_block(doc):
         pass
 
     return inline + \
-           ( ("\n\n## Notes \n\n" + "\n".join('* '+n for n in notes if n) ) if notes else '') +\
+           (("\n\n## Notes \n\n" + "\n".join('* '+n for n in notes if n) ) if notes else '') +\
            ("\n\n## Documentation Links\n"+doc_links if doc_links else '')
 
 def identity_block(doc):

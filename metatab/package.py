@@ -488,7 +488,9 @@ class Package(object):
 
     def _load_documentation_files(self):
         """Copy all of the Datafile entries into the Excel file"""
-
+        from rowgenerators.generators import get_dflo, download_and_cache
+        from rowgenerators import SourceSpec
+        from os.path import basename, splitext
 
         for doc in self.doc.find('Root.Documentation'):
 

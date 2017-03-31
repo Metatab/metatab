@@ -43,6 +43,7 @@ LiveStats==1.0
 lxml==3.7.3
 MarkupSafe==1.0
 mistune==0.7.4
+markdown
 nbconvert==5.1.1
 nbformat==4.3.0
 notebook==4.4.1
