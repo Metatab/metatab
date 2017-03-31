@@ -1,0 +1,17 @@
+"Declare","metatab-latest",,,
+"Title","Program Source Text",,,
+"Description","Test using a program to generate the data",,,
+"Identifier","6e5cc47a-b712-4868-afc1-76a5797d1e98",,,
+"Name","program_source-1",,,
+"Name.Origin",,,,
+"Name.Space",,,,
+"Name.Time",,,,
+"Name.Dataset","program-source",,,
+"Name.Version",1,,,
+"Name.Grain",,,,
+,,,,
+"Section","Resources","Name","VarName","GeoType"
+"Datafile","program:scripts/dumpvar.py","Obesity","OBESEA","ZCTA"
+,,,,
+,,,,
+"Section","Schema","DataType","AltName","Description"

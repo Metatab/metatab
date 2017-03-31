@@ -17,7 +17,7 @@ from metatab import open_package
 from metatab.cli.core import prt, err, get_lib_module_dict, \
     make_excel_package, make_filesystem_package, make_s3_package, make_zip_package, update_name, metatab_info, S3Bucket
 from rowgenerators import get_cache, Url
-from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage
+from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage, CsvPackage
 
 
 def metasync():
@@ -38,10 +38,13 @@ def metasync():
     parser.add_argument('-z', '--zip', action='store_true', default=False,
                         help='Create a zip package from a metatab file and copy it to S3. ')
 
+    parser.add_argument('-c', '--csv', action='store_true', default=False,
+                        help='Create a csv package from a metatab file and copy it to S3. Requires building a file system package')
+
     parser.add_argument('-f', '--fs', action='store_true', default=False,
                         help='Create a Filesystem package. Unlike -e and -f, only writes the package to S3.')
 
-    parser.add_argument('metatabfile', nargs='?', default=DEFAULT_METATAB_FILE, help='Path to a Metatab file')
+    parser.add_argument('metatabfile', nargs='?', help='Path to a Metatab file')
 
     class MetapackCliMemo(object):
         def __init__(self, args):
@@ -55,6 +58,10 @@ def metasync():
             self.resource = self.mtfile_url.parts.fragment
 
             self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url.rebuild_url(False, False))
+
+            self.args.fs = self.args.csv or self.args.fs
+
+
 
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 
@@ -106,6 +113,13 @@ def update_distributions(m):
             prt("Added FS distribution to metadata")
             updated = True
 
+    if m.args.csv is not False:
+        p = CsvPackage(m.mt_file)
+        url = b.access_url(basename(p.save_path()))
+        if update_dist(url):
+            prt("Added CSV distribution to metadata", url)
+            updated = True
+
     doc.write_csv(m.mt_file)
 
     return updated
@@ -124,15 +138,20 @@ def create_packages(m, skip_if_exists=False):
     try:
 
         if m.args.excel is not False:
-            url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
-            written_url = s3.write(url, basename(url))
+            ex_url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
+            written_url = s3.write(ex_url, basename(ex_url))
 
         if m.args.zip is not False:
-            url, created = make_zip_package(m.mt_file, m.cache, env, skip_if_exists)
-            written_url = s3.write(url, basename(url))
+            zip_url, created = make_zip_package(m.mt_file, m.cache, env, skip_if_exists)
+            written_url = s3.write(zip_url, basename(zip_url))
 
         if m.args.fs is not False:
-            url, created = make_s3_package(m.mt_file, m.args.s3, m.cache, env, skip_if_exists)
+            fs_url, created = make_s3_package(m.mt_file, m.args.s3, m.cache, env, skip_if_exists)
+
+        if m.args.csv is not False:
+            p = CsvPackage(join(fs_url, DEFAULT_METATAB_FILE))
+            csv_url = p.save()
+            written_url = s3.write(csv_url, basename(csv_url))
 
     except PackageError as e:
         err("Failed to generate package: {}".format(e))

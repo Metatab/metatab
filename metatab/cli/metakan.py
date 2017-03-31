@@ -10,7 +10,7 @@ import sys
 from os import getenv, getcwd
 from os.path import join, basename
 
-from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, open_package
+from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, open_package, MetatabError
 from metatab.cli.core import prt, err, S3Bucket, metatab_info
 from rowgenerators import get_cache, Url
 from .metapack import metatab_derived_handler
@@ -71,7 +71,7 @@ def send_to_ckan(m):
 
     try:
         doc = MetatabDoc(m.mt_file, cache=m.cache)
-    except IOError as e:
+    except (IOError, MetatabError) as e:
         err("Failed to open metatab '{}': {}".format(m.mt_file, e))
 
     c = RemoteCKAN(m.ckan_url, apikey=m.api_key)
@@ -108,11 +108,13 @@ def send_to_ckan(m):
 
     resources = []
 
-    for d in doc.find("Root.Distribution"):
+    for dist in doc.find("Root.Distribution"):
 
-        package_url, metadata_url = resolve_package_metadata_url(d.value)
+        package_url, metadata_url = resolve_package_metadata_url(dist.value)
 
-        u = Url(metadata_url)
+        print("!!!", package_url, metadata_url )
+
+        u = Url(package_url)
 
         if u.resource_format == 'zip':
             d = dict(
@@ -123,7 +125,7 @@ def send_to_ckan(m):
                 description='ZIP version of package'
             )
             resources.append(d)
-            prt("Adding ZIP resource ", d['name'])
+            prt("Adding ZIP package ", d['name'])
 
         elif u.resource_format == 'xlsx':
             d = dict(
@@ -134,21 +136,25 @@ def send_to_ckan(m):
                 description='Excel version of package'
             )
             resources.append(d)
-            prt("Adding XLS resource ", d['name'])
+            prt("Adding XLS package ", d['name'])
 
         elif u.resource_format == 'csv':
+
             d=dict(
                 url=package_url,
                 name=basename(package_url),
                 format='csv',
                 mimetype=mimetypes.guess_type(metadata_url)[0],
-                description='Package Metadata in Metatab format'
+                description='CSV Package Metadata in Metatab format'
             )
 
             resources.append(d)
-            prt("Adding {} resource {}".format(d['format'], d['name']))
+            prt("Adding {} package {}".format(d['format'], d['name']))
 
-            p = open_package(package_url)
+            try:
+                p = open_package(package_url)
+            except (IOError, MetatabError) as e:
+                err("Failed to open package '{}' from reference '{}': {}".format(package_url, dist.value, e))
 
             for r in p.resources():
 

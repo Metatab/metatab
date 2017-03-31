@@ -5,6 +5,7 @@
 Create Markdown and HTML of datasets.
 """
 
+import six
 from markdown import markdown as convert_markdown
 from rowgenerators.fetch import download_and_cache
 from rowgenerators import SourceSpec
@@ -24,7 +25,6 @@ def linkify(v, description = None, cwd_url=None):
 
     u = Url(v)
 
-
     if u.scheme in ('http','https','mailto'):
 
         if description is None:
@@ -40,6 +40,7 @@ def linkify(v, description = None, cwd_url=None):
 
 
 def resource(r):
+
     return ("### {name} \n [{url}]({url})\n\n".format(name=r.name, url=r.url)) + \
            "{}\n".format(ns(r.description))+ \
            "<table class=\"table table-striped\">\n" + \
@@ -69,20 +70,35 @@ def contacts_block(doc):
 
     out = ''
 
+    def mklink(url, desc):
+        return '[{desc}]({url})'.format(url=url, desc=desc)
+
+    def ctb(url, desc):
+
+        if url and desc:
+            return mklink(url, desc)
+
+        elif url:
+            return url
+
+        elif desc:
+            return desc
+
+        else:
+            return ''
+
     try:
 
         for t in doc['Contacts']:
             p = t.properties
-            name = p.get('name', 'Name')
+            name = p.get('name')
             email = "mailto:" + p.get('email') if p.get('email') else None
 
             web = p.get('url')
             org = p.get('organization', web)
 
-            out += (dl_templ
-                    .format(t.record_term.title(),
-                            (linkify(email, name) or '') + " " + (linkify(web, org) or '')
-                            ))
+            out += (dl_templ .format(t.record_term.title(),
+                                     ', '.join( e for e in (ctb(email, name),ctb(web, org)) if e )))
 
     except KeyError:
         pass
@@ -123,22 +139,22 @@ def documentation_block(doc):
         pass
 
     return inline + \
-           (("\n\n## Notes \n\n" + "\n".join('* '+n for n in notes) ) if notes else '') +\
+           ( ("\n\n## Notes \n\n" + "\n".join('* '+n for n in notes if n) ) if notes else '') +\
            ("\n\n## Documentation Links\n"+doc_links if doc_links else '')
 
 def identity_block(doc):
 
     from collections import OrderedDict
 
-
     name = doc.find_first('Root.Name')
+
 
     d = OrderedDict(
         name = name.value,
         identifier = doc.find_first_value('Root.Identifier'),
     )
 
-    for k, v in name.as_dict().items():
+    for k, v in name.properties.items():
         d[k] = v
 
     del d['@value']

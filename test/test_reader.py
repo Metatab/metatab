@@ -4,12 +4,10 @@ from metatab.doc import open_package, resolve_package_metadata_url
 from rowgenerators import RowGenerator
 from rowgenerators.util import reparse_url
 
-class MyTestCase(unittest.TestCase):
+class TestPackages(unittest.TestCase):
 
-    def test_something(self):
-        self.assertEqual(True, False)
 
-    def test_resolve_package(self):
+    def test_geo(self):
 
         base='/foo/bar/'
         base_exp = "file:/foo/bar/"

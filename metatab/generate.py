@@ -188,6 +188,7 @@ class GenericRowGenerator(MetatabRowGenerator):
 
         spec = SourceSpec(url=self._url)
 
+
         for row in spec.get_generator(self._cache):
             yield row
 

@@ -17,8 +17,9 @@ from uuid import uuid4
 import six
 
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, ConversionError
-from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, get_lib_module_dict, \
-    make_excel_package, make_filesystem_package, make_s3_package, update_name
+from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, \
+    get_lib_module_dict, \
+    make_excel_package, make_filesystem_package, make_s3_package, make_csv_package, update_name
 from metatab.util import make_metatab_file
 from rowgenerators import get_cache, RowGenerator, SelectiveRowGenerator, SourceError, Url
 from rowgenerators.util import clean_cache
@@ -82,6 +83,9 @@ def metapack():
     derived_group.add_argument('-f', '--filesystem', action='store_true', default=False,
                                help='Create a filesystem archive from a metatab file')
 
+    derived_group.add_argument('-v', '--csv', action='store_true', default=False,
+                               help='Create a CSV archive from a metatab file')
+
     derived_group.add_argument('-s3', '--s3', action='store',
                                help='Create a filesystem archive in an S3 bucket. Argument is an S3 URL with the bucket name and '
                                     'prefix, such as "s3://devel.metatab.org:/excel/". Uses boto configuration for credentials')
@@ -134,12 +138,18 @@ def metapack():
             self.args = args
             self.cache = get_cache('metapack')
 
+            if args.metatabfile and args.metatabfile.startswith('#'):
+                # It's just a fragment, default metatab file
+                args.metatabfile = join(self.cwd, DEFAULT_METATAB_FILE) + args.metatabfile
+
             self.mtfile_arg = args.metatabfile if args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
 
             self.mtfile_url = Url(self.mtfile_arg)
+
             self.resource = self.mtfile_url.parts.fragment
 
             self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url.rebuild_url(False, False))
+
 
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 
@@ -237,7 +247,7 @@ def metatab_derived_handler(m, skip_if_exists=False):
     env = get_lib_module_dict(doc)
 
     if (m.args.excel is not False or m.args.zip is not False or
-        (hasattr(m.args, 'filesystem') and m.args.filesystem is not False) or m.args.s3):
+            (hasattr(m.args, 'filesystem') and m.args.filesystem is not False) or m.args.s3):
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
 
     try:
@@ -250,9 +260,13 @@ def metatab_derived_handler(m, skip_if_exists=False):
             url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
             create_list.append(('zip', url, created))
 
-        if hasattr(m.args, 'filesystem') and m.args.filesystem is not False:
+        if m.args.filesystem is not False:
             url, created = make_filesystem_package(m.mt_file, m.cache, env, skip_if_exists)
             create_list.append(('fs', url, created))
+
+        if m.args.csv is not False:
+            url, created = make_csv_package(m.mt_file, m.cache, env, skip_if_exists)
+            create_list.append(('csv', url, created))
 
         if m.args.s3:
             url, created = make_s3_package(m.mt_file, m.args.s3, m.cache, env, skip_if_exists)
@@ -261,8 +275,8 @@ def metatab_derived_handler(m, skip_if_exists=False):
     except PackageError as e:
         err("Failed to generate package: {}".format(e))
 
-
     return create_list
+
 
 def metatab_query_handler(m):
     if m.args.resource or m.args.head:
@@ -282,8 +296,6 @@ def metatab_query_handler(m):
 
 
 def metatab_admin_handler(m):
-
-
     if m.args.enumerate:
 
         from metatab.util import enumerate_contents
@@ -291,28 +303,27 @@ def metatab_admin_handler(m):
         specs = list(enumerate_contents(m.args.enumerate, m.cache, callback=prt))
 
         for s in specs:
-            print(classify_url(s.url), s.target_format, s.url, s.target_segment)
+            prt(classify_url(s.url), s.target_format, s.url, s.target_segment)
 
     if m.args.html:
         from metatab.html import html
         doc = MetatabDoc(m.mt_file)
 
-        #print(doc.html)
-        print(html(doc))
+        # print(doc.html)
+        prt(html(doc))
 
     if m.args.markdown:
         from metatab.html import markdown
 
         doc = MetatabDoc(m.mt_file)
-        print(markdown(doc))
-
+        prt(markdown(doc))
 
     if m.args.clean_cache:
         clean_cache('metapack')
 
     if m.args.name:
         doc = MetatabDoc(m.mt_file)
-        print(doc.find_first_value("Root.Name"))
+        prt(doc.find_first_value("Root.Name"))
         exit(0)
 
 
@@ -383,10 +394,15 @@ def process_schemas(mt_file, cache, clean=False):
 
         e = {k: v for k, v in t.properties.items() if v}
 
-        schema_term = doc.find_first(term='Table', value=e['name'], section='Schema')
+        if 'schema' in e:
+            schema_name = e['schema']
+        else:
+            schema_name = e['name']
+
+        schema_term = doc.find_first(term='Table', value=schema_name, section='Schema')
 
         if schema_term:
-            prt("Found table for '{}'; skipping".format(e['name']))
+            prt("Found table for '{}'; skipping".format(schema_name))
             continue
 
         path, name = extract_path_name(t.value)
@@ -394,12 +410,15 @@ def process_schemas(mt_file, cache, clean=False):
         prt("Processing {}".format(t.value))
 
         rg = RowGenerator(url=path,
-                          name=e.get('name'),
+                          name=e['name'],
                           encoding=e.get('encoding', 'utf8'),
                           target_format=e.get('format'),
                           target_file=e.get('file'),
                           target_segment=e.get('segment'),
-                          cache=cache)
+                          cache=cache,
+                          working_dir=doc.doc_dir,
+                          generator_args=dict(t.properties.items())
+                          )
 
         si = SelectiveRowGenerator(islice(rg, 20),
                                    headers=[int(i) for i in e.get('headerlines', '0').split(',')],
@@ -414,9 +433,9 @@ def process_schemas(mt_file, cache, clean=False):
             warn("Failed to download '{}'; {}".format(path, e))
             continue
 
-        table = doc['Schema'].new_term('Table', e['name'])
+        table = doc['Schema'].new_term('Table', schema_name)
 
-        prt("Adding table '{}' ".format(e['name']))
+        prt("Adding table '{}' ".format(schema_name))
 
         for i, c in enumerate(ti.to_rows()):
             raw_alt_name = alt_col_name(c['header'], i)
@@ -442,6 +461,8 @@ def add_single_resource(doc, ref, cache, seen_names):
 
     path, name = extract_path_name(ref)
 
+    # If the name already exists, try to create a new one.
+    # 20 attempts ought to be enough.
     if name in seen_names:
         base_name = re.sub(r'-?\d+$', '', name)
 
@@ -525,7 +546,10 @@ def run_row_intuit(path, cache):
 
     for encoding in ('ascii', 'utf8', 'latin1'):
         try:
-            rows = list(islice(RowGenerator(url=path, encoding=encoding, cache=cache), 5000))
+            rows = list(islice(RowGenerator(url=path,
+                                            encoding=encoding,
+                                            cache=cache,
+                                            ), 5000))
             return encoding, RowIntuiter().run(list(rows))
         except (TextEncodingError, UnicodeEncodeError) as e:
             pass

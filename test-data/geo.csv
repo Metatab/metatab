@@ -1,0 +1,33 @@
+Declare,metatab-latest
+Title,US States
+Description,US States
+Identifier,11585edd-20f4-4b15-a0da-9b5197b5ecc5
+Name,us_states-1
+Name.Time,
+Name.Version,1
+Name.Dataset,us-states
+Name.Origin,
+Name.Grain,
+Name.Space,
+
+Section,Resources,Name,Description,
+Datafile,shape+http://s3.amazonaws.com/test.library.civicknowledge.com/census/tl_2016_us_state.geojson.zip,us_states,,
+
+Section,Schema,DataType,AltName,Description
+Table,us_states,,,
+Table.Column,id,integer,,
+Table.Column,REGION,integer,region,
+Table.Column,DIVISION,integer,division,
+Table.Column,STATEFP,integer,statefp,
+Table.Column,STATENS,integer,statens,
+Table.Column,GEOID,integer,geoid,
+Table.Column,STUSPS,text,stusps,
+Table.Column,NAME,text,name,
+Table.Column,LSAD,integer,lsad,
+Table.Column,MTFCC,text,mtfcc,
+Table.Column,FUNCSTAT,text,funcstat,
+Table.Column,ALAND,integer,aland,
+Table.Column,AWATER,integer,awater,
+Table.Column,INTPTLAT,number,intptlat,
+Table.Column,INTPTLON,number,intptlon,
+Table.Column,geometry,text,,

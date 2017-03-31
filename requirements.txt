@@ -82,6 +82,6 @@ webencodings==0.5
 widgetsnbextension==2.0.0
 xlrd==1.0.0
 https://github.com/CivicKnowledge/geoid/archive/v1.0.4.zip
-https://github.com/CivicKnowledge/metatab-py/archive/v0.3.1.zip
+https://github.com/CivicKnowledge/metatab-py/archive/v0.3.2.zip
 https://github.com/CivicKnowledge/rowgenerators/archive/v0.1.6.zip
 https://github.com/CivicKnowledge/rowpipe/archive/v0.1.1.zip

@@ -18,6 +18,7 @@ from metatab import (TermParser, SectionTerm, Term, generateRows, MetatabError,
 from metatab.util import linkify, slugify
 from .exc import PackageError
 from rowgenerators import RowGenerator
+from rowgenerators.exceptions import SourceError
 from rowpipe import RowProcessor
 
 DEFAULT_METATAB_FILE = 'metadata.csv'
@@ -49,9 +50,12 @@ def resolve_package_metadata_url(ref):
         package_url = reparse_url(ref, fragment=False)
         metadata_url = reparse_url(ref, fragment='meta')
 
-    elif du.target_format == 'csv':
+    elif du.resource_file == DEFAULT_METATAB_FILE:
         metadata_url = reparse_url(ref)
         package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']))
+
+    elif du.target_format == 'csv':
+        package_url = metadata_url = reparse_url(ref)
 
     elif du.proto == 'file':
         p = parse_url_to_dict(ref)
@@ -272,7 +276,8 @@ class Resource(Term):
 
         d['target_format'] = d.get('format')
 
-        base_rg = RowGenerator(**d, cache = self._doc._cache)
+        base_rg = RowGenerator(**d, cache = self._doc._cache, working_dir=self._doc.doc_dir,
+                               generator_args=dict(self.properties.items()))
 
         headers = self.headers()
 
@@ -307,6 +312,19 @@ class Resource(Term):
         except AttributeError:
             self.errors = {}
 
+    @property
+    def iterdict(self):
+
+        headers = None
+
+        for row in self:
+
+            if headers is None:
+                headers = row
+                continue
+
+            yield dict(zip(headers, row))
+
     def dataframe(self, limit = None):
         """Return a pandas datafrome from the resource"""
 
@@ -316,7 +334,7 @@ class Resource(Term):
 
         d['url'] = self.resolved_url
 
-        rg = RowGenerator(**d)
+        rg = RowGenerator(**d, working_dir=self._doc.doc_dir)
 
         headers = self.headers()
 
@@ -378,7 +396,11 @@ class MetatabDoc(object):
             self._ref = ref
             self.root = None
             self._term_parser = TermParser(self._ref, doc=self)
-            self.load_terms(self._term_parser)
+            try:
+                self.load_terms(self._term_parser)
+            except SourceError as e:
+                raise MetatabError("Failed to load terms for document '{}': {}".format(self._ref, e))
+
         else:
             self._ref = None
             self._term_parser = None
@@ -389,6 +411,14 @@ class MetatabDoc(object):
     @property
     def ref(self):
         return self._ref
+
+    @property
+    def doc_dir(self):
+        from rowgenerators import Url
+        from os.path import dirname
+
+        u = Url(self.ref)
+        return dirname(u.parts.path)
 
     def load_declarations(self, decls):
 
@@ -724,7 +754,7 @@ class MetatabDoc(object):
         else:
             # There is no DatasetName, so we can't gneerate name, and the Root.Name is not empty, so we should
             # not set it to the identity.
-            updates.append("No Root.DatasetName, so can't update the name")
+            updates.append("No Root.Dataset, so can't update the name")
 
         return updates
 
@@ -797,6 +827,7 @@ class MetatabDoc(object):
 
     def write_csv(self, path=None):
         from rowgenerators import Url
+
         self.cleanse()
 
         if path is None:

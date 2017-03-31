@@ -4,23 +4,85 @@
 """Class for writing Metapack packages"""
 
 import json
+import shutil
 from collections import namedtuple
 from io import BytesIO
-from os import makedirs, remove
-from os.path import isdir, join, dirname, exists
+from itertools import islice
+from os import getcwd,makedirs, remove
+from os.path import basename, abspath,dirname, exists,isdir,join, splitext
 
 import unicodecsv as csv
 from six import string_types, text_type
 
 from metatab import TermParser, MetatabDoc, DEFAULT_METATAB_FILE, Resource
-from rowgenerators import Url
-from rowgenerators.util import get_cache, slugify
-from .exc import PackageError
-from .util import Bunch
 from metatab.datapackage import convert_to_datapackage
+from metatab.util import slugify, Bunch
+from rowgenerators import RowGenerator,SourceSpec,TextEncodingError,Url,enumerate_contents
+from rowgenerators.fetch import download_and_cache
+from rowgenerators.generators import get_dflo
+from rowgenerators.util import get_cache
+from tableintuit import RowIntuiter
+from .exc import PackageError
 
 TableColumn = namedtuple('TableColumn', 'path name start_line header_lines columns')
 
+
+def write_csv(path_or_flo, headers, gen):
+    try:
+        f = open(path_or_flo, "wb")
+
+    except TypeError:
+        f = path_or_flo # Assume that it's already a file-like-object
+
+    try:
+        w = csv.writer(f)
+        w.writerow(headers)
+        w.writerows(gen)
+
+        try:
+            return f.getvalue()
+        except AttributeError:
+            return None
+
+    finally:
+        f.close()
+
+def write_geojson(path_or_flo, columns, gen):
+    import fiona
+    from fiona.crs import from_epsg
+    from collections import OrderedDict
+
+    type_map = {
+        'number': 'float'
+    }
+
+    schema = {
+        'geometry': 'Unknown',
+        'properties': OrderedDict(
+            [ (c['header'],type_map.get(c['datatype'], c['datatype'])) for c in columns ]
+        )
+    }
+
+    try:
+        f = fiona.open(path_or_flo,
+                       driver='GeoJSON',
+                       crs=from_epsg(4326),
+                       schema=schema)
+    except TypeError:
+        f = path_or_flo # Assume that it's already a file-like-object
+
+    try:
+        w = csv.writer(f)
+        w.writerow(headers)
+        w.writerows(gen)
+
+        try:
+            return f.getvalue()
+        except AttributeError:
+            return None
+
+    finally:
+        f.close()
 
 class Package(object):
     def __new__(cls, ref=None, cache=None, callback=None, env=None):
@@ -190,7 +252,7 @@ class Package(object):
 
     @staticmethod
     def extract_path_name(ref):
-        from os.path import splitext, basename, abspath
+
 
         du = Url(ref)
 
@@ -216,7 +278,7 @@ class Package(object):
 
     @staticmethod
     def classify_url(url):
-        from rowgenerators import SourceSpec
+
 
         ss = SourceSpec(url=url)
 
@@ -231,10 +293,7 @@ class Package(object):
 
     @staticmethod
     def run_row_intuit(path, cache):
-        from rowgenerators import RowGenerator
-        from tableintuit import RowIntuiter
-        from itertools import islice
-        from rowgenerators import TextEncodingError
+
 
         for encoding in ('ascii', 'utf8', 'latin1'):
             try:
@@ -248,7 +307,6 @@ class Package(object):
     @staticmethod
     def find_files(base_path, types):
         from os import walk
-        from os.path import join, splitext
 
         for root, dirs, files in walk(base_path):
             if '_metapack' in root:
@@ -283,7 +341,6 @@ class Package(object):
         :param ref:
         :return:
         """
-        from metatab.util import slugify
 
         t = self.doc.find_first('Root.Datafile', value=ref)
 
@@ -327,8 +384,7 @@ class Package(object):
     def add_resource(self, ref, **properties):
         """Add one or more resources entities, from a url and property values,
         possibly adding multiple entries for an excel spreadsheet or ZIP file"""
-        from rowgenerators import enumerate_contents
-        from os.path import isdir
+
 
         raise NotImplementedError("Still uses decompose_url")
 
@@ -365,6 +421,9 @@ class Package(object):
 
         schema = self.doc['Schema']
 
+        ## FIXME! This is probably dangerous, because the section args are changing, but the children
+        ## are not, so when these two are combined in the Term.properties() acessor, the values are off.
+        ## Because of this, _clean_doc should be run immediately before writing the doc.
         for arg in ['altname', 'transform']:
             for e in list(schema.args):
                 if e.lower() == arg:
@@ -382,8 +441,6 @@ class Package(object):
 
     def _load_resources(self):
         """Copy all of the Datafile entries into the Excel file"""
-        from itertools import islice
-        from rowgenerators import RowGenerator
 
         for r in self.datafiles:
 
@@ -431,9 +488,7 @@ class Package(object):
 
     def _load_documentation_files(self):
         """Copy all of the Datafile entries into the Excel file"""
-        from rowgenerators.fetch import get_dflo, download_and_cache
-        from rowgenerators import SourceSpec
-        from os.path import basename, splitext
+
 
         for doc in self.doc.find('Root.Documentation'):
 
@@ -520,18 +575,18 @@ class FileSystemPackage(Package):
 
         self._load_resources()
 
-        self._clean_doc()
-
-        doc_file = self._write_doc()
-
         self._write_dpj()
 
         self._write_html()
 
+        self._clean_doc()
+
+        doc_file = self._write_doc()
+
+
         return doc_file
 
     def _init_dir(self, path=None):
-        from os import getcwd
 
         if path is None:
             path = getcwd()
@@ -541,7 +596,7 @@ class FileSystemPackage(Package):
         np = join(path, name)
 
         if isdir(np):
-            import shutil
+
             shutil.rmtree(np)
 
         makedirs(np)
@@ -576,10 +631,7 @@ class FileSystemPackage(Package):
         if exists(path):
             remove(path)
 
-        with open(path, 'wb') as f:
-            w = csv.writer(f)
-            w.writerow(headers)
-            w.writerows(gen)
+        write_csv(path, headers, gen)
 
     def _load_documentation(self, term, contents, file_name):
 
@@ -615,28 +667,40 @@ class CkanPackage(Package):
 class CsvPackage(Package):
     """"""
 
+    def save_path(self, path=None):
+        base = self.doc.find_first_value('Root.Name') + '.csv'
+
+        if path is None:
+            path = getcwd()
+
+        if path and not path.endswith('.csv'):
+            return join(path, base)
+        elif path:
+            return path
+        else:
+            return base
+
+    def _load_resource(self, r, gen, headers):
+
+        r.url = r.resolved_url
+
     def save(self, path=None):
 
         self.check_is_ready()
 
-        self.doc.cleanse()
-
         self.load_declares()
 
-        if path and isdir(path):
-            _path = join(self.path, self.doc.find_first_value('Root.Name') + ".csv")
+        self.doc.cleanse()
 
-        elif path:
-            _path = path
-
-        else:
-            _path = self.doc.find_first_value('Root.Name') + ".csv"
-
-        assert _path
+        self._load_resources()
 
         self._clean_doc()
 
+        _path = self.save_path(path)
+
         self.doc.write_csv(_path)
+
+        return _path
 
 
 class ExcelPackage(Package):
@@ -658,7 +722,6 @@ class ExcelPackage(Package):
 
     def save(self, path=None):
         from openpyxl import Workbook
-        from os.path import isdir, join
 
         self.check_is_ready()
 
@@ -695,9 +758,6 @@ class ExcelPackage(Package):
         ws = self.wb.create_sheet(r.name)
 
         r.url = r.name
-
-        # table = self.doc.find_first('Root.Table', r.name)
-        # ws.append([ c.value for c in table.children if c.term_is('table.column')])
 
         ws.append(headers)
 
@@ -739,13 +799,13 @@ class ZipPackage(Package):
 
         self._load_resources()
 
-        self._clean_doc()
-
-        self._write_doc()
-
         self._write_dpj()
 
         self._write_html()
+
+        self._clean_doc()
+
+        self._write_doc()
 
         self.close()
 
@@ -789,14 +849,13 @@ class ZipPackage(Package):
 
         self.prt("Loading data for '{}'  from '{}'".format(r.name, r.resolved_url))
 
-        bio = BytesIO()
-        writer = csv.writer(bio)
-        writer.writerow(headers)
-        writer.writerows(gen)
-
         r.url = 'data/' + r.name + '.csv'
 
-        self.zf.writestr(self.package_name + '/' + r.url, bio.getvalue())
+        bio = BytesIO()
+
+        v = write_csv(bio, headers, gen)
+
+        self.zf.writestr(self.package_name + '/' + r.url, v)
 
     def _load_documentation(self, term, contents, file_name):
         title = term['title'].value
@@ -955,14 +1014,11 @@ class S3Package(Package):
 
     def _load_resource(self, r, gen, headers):
 
-        bio = BytesIO()
-        writer = csv.writer(bio)
-        writer.writerow(headers)
-        writer.writerows(gen)
-
         r.url = 'data/' + r.name + '.csv'
 
-        data = bio.getvalue()
+        bio = BytesIO()
+
+        data = write_csv(bio, path, gen)
 
         self.prt("Loading data ({} bytes) to '{}' ".format(len(data), r.url))
 

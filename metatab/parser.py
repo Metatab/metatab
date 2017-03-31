@@ -15,7 +15,7 @@ METATAB_ASSETS_URL = 'http://assets.metatab.org/'
 
 import six
 
-from .exc import IncludeError, DeclarationError, GenerateError
+from .exc import IncludeError, DeclarationError, GenerateError, ParserError
 from .generate import generateRows, CsvPathRowGenerator, MetatabRowGenerator
 from os.path import dirname, join, split, exists
 from .util import declaration_path, linkify
@@ -1051,7 +1051,11 @@ class TermParser(object):
                         last_term_map[ELIDED_TERM] = t
                         last_term_map[t.record_term] = t
 
-                        last_term_map[t.parent_term].add_child(t)
+                        try:
+                            last_term_map[t.parent_term].add_child(t)
+                        except KeyError:
+                            raise ParserError("No parent term for '{}' in term '{}', row = {}"
+                                              .format(t.parent_term, t.term, t.row))
 
                     if t.parent_term_lc == 'root':
                         last_section.add_term(t)

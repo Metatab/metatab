@@ -105,7 +105,7 @@ def get_lib_module_dict(doc):
 
 def dump_resources(doc):
     for r in doc.resources():
-        print(r.name, r.resolved_url)
+        prt(r.name, r.resolved_url)
 
 
 def dump_resource(doc, name, lines=None):
@@ -140,7 +140,7 @@ def dump_resource(doc, name, lines=None):
     try:
         if lines and lines <= 20:
             try:
-                print(tabulate(list(gen), list(r.headers())))
+                prt(tabulate(list(gen), list(r.headers())))
             except TooManyCastingErrors as e:
                 dump_errors(e.errors)
                 err(e)
@@ -247,6 +247,22 @@ def make_filesystem_package(file, cache, env, skip_if_exists):
 
     return url, created
 
+
+def make_csv_package(file, cache, env, skip_if_exists):
+
+    from metatab.package import CsvPackage
+
+    p = CsvPackage(file, callback=prt, cache=cache, env=env)
+    if not p.exists() or not skip_if_exists:
+        url = p.save()
+        prt("Packaged saved to: {}".format(url))
+        created = True
+    elif p.exists():
+        prt("CSV Package already exists")
+        created = False
+        url = p.save_path()
+
+    return url, created
 
 def make_s3_package(file, url, cache,  env, skip_if_exists):
     from metatab.package import S3Package
