@@ -31,6 +31,12 @@ def load_plugins(parser):
         p(parser)
 
 
+def datetime_now():
+    import datetime
+
+    return datetime.datetime.utcnow().replace(microsecond=0).isoformat()
+
+
 def metatab_info(cache):
     from tabulate import tabulate
     from rowgenerators._meta import __version__ as rg_ver
@@ -296,8 +302,7 @@ def update_name(mt_file, fail_on_missing=False, report_unchanged=True):
     prt("Name is: ", doc.find_first_value("Root.Name", section=['Identity', 'Root']))
 
     if o_name != doc.find_first_value("Root.Name", section=['Identity', 'Root']):
-        doc.write_csv(mt_file)
-
+        write_doc(doc, mt_file)
 
 class S3Bucket(object):
     def __init__(self, url):
@@ -359,3 +364,15 @@ class S3Bucket(object):
             self.err("Failed to write '{}': {}".format(key, e))
 
         return self.access_url(*paths)
+
+def write_doc(doc, mt_file):
+    """
+    Write a Metatab doc to a CSV file, and update the Modified time
+    :param doc:
+    :param mt_file:
+    :return:
+    """
+    from datetime import datetime
+
+    doc['Root']['Modified'] = datetime_now()
+    doc.write_csv(mt_file)

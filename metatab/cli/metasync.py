@@ -14,11 +14,11 @@ import six
 
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
 from metatab import open_package
-from metatab.cli.core import prt, err, get_lib_module_dict, \
+from metatab.cli.core import prt, err, get_lib_module_dict, write_doc, datetime_now, \
     make_excel_package, make_filesystem_package, make_s3_package, make_zip_package, update_name, metatab_info, S3Bucket
 from rowgenerators import get_cache, Url
 from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage, CsvPackage
-
+from datetime import datetime
 
 def metasync():
     import argparse
@@ -79,48 +79,49 @@ def metasync():
     exit(0)
 
 
+def update_dist(doc, v):
+    t = doc.find('Root.Distribution', v)
+
+    if not t:
+        doc['Root'].new_term('Root.Distribution', v)
+        return True
+    else:
+        return False
+
 def update_distributions(m):
-    """Add a distribution term for each of the distributions the sync is creating. """
+    """Add a distribution term for each of the distributions the sync is creating. Also updates the 'Issued' time"""
     b = S3Bucket(m.args.s3)
     doc = MetatabDoc(m.mt_file)
     updated = False
 
-    def update_dist(v):
-
-        t = doc.find('Root.Distribution', v)
-
-        if not t:
-            doc['Root'].new_term('Root.Distribution', v)
-            return True
-        else:
-            return False
-
     if m.args.excel is not False:
         p = ExcelPackage(m.mt_file)
-        if update_dist(b.access_url(p.save_path())):
+        if update_dist(doc, b.access_url(p.save_path())):
             prt("Added Excel distribution to metadata")
             updated = True
 
     if m.args.zip is not False:
         p = ZipPackage(m.mt_file)
-        if update_dist(b.access_url(p.save_path())):
+        if update_dist(doc, b.access_url(p.save_path())):
             prt("Added ZIP distribution to metadata")
             updated = True
 
     if m.args.fs is not False:
         p = FileSystemPackage(m.mt_file)
-        if update_dist(b.access_url(p.save_path(), DEFAULT_METATAB_FILE)):
+        if update_dist(doc, b.access_url(p.save_path(), DEFAULT_METATAB_FILE)):
             prt("Added FS distribution to metadata")
             updated = True
 
     if m.args.csv is not False:
         p = CsvPackage(m.mt_file)
         url = b.access_url(basename(p.save_path()))
-        if update_dist(url):
+        if update_dist(doc, url):
             prt("Added CSV distribution to metadata", url)
             updated = True
 
-    doc.write_csv(m.mt_file)
+    doc['Root']['Issued'] = datetime_now()
+
+    write_doc(doc, m.mt_file)
 
     return updated
 

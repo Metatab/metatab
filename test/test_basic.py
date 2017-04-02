@@ -396,7 +396,7 @@ class MyTestCase(unittest.TestCase):
         name = doc.find_first_value("Root.Name")
 
 
-        self.assertEqual('example.com-2017-ca-people-1', name)
+        self.assertEqual('example.com-foobar-2017-ca-people-1', name)
         self.assertEqual(['Changed Name'], updates)
 
 

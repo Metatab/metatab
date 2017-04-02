@@ -64,8 +64,6 @@ class sdist(sdist_module.sdist):
 # Setup a directory for a fake package for importing plugins
 
 
-
-
 setup(
     name='metatab',
     version=ps_meta.__version__,
@@ -93,7 +91,8 @@ setup(
             'metatab=metatab.cli:metatab',
             'metapack=metatab.cli:metapack',
             'metakan=metatab.cli:metakan',
-            'metasync=metatab.cli:metasync'
+            'metasync=metatab.cli:metasync',
+            'metaworld=metatab.cli:metaworld'
         ],
     },
 

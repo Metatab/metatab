@@ -225,7 +225,7 @@ class Term(object):
         return None
 
     def find_first_value(self, term):
-        """LIke find_first(), but returns the matching term's value, or None"""
+        """Like find_first(), but returns the matching term's value, or None"""
 
         try:
             return self.find_first(term).value
@@ -258,9 +258,10 @@ class Term(object):
             for k, v in kwargs.items():
                 c.get_or_new_child(k, v)
 
-        # Check that ther term was inserted and can be found.
+        # Check that the term was inserted and can be found.
         assert self.find_first(rt)
         assert self.find_first(rt) == c
+
 
         return c
 
@@ -276,7 +277,23 @@ class Term(object):
             c = self.find_first(item)
             if c is None:
                 raise KeyError
+
             return c
+
+    def get(self, item, default = None):
+        try:
+            return self[item]
+        except KeyError:
+
+            return default
+
+    def get_value(self, item, default=None):
+
+        try:
+            return self[item].value
+        except (AttributeError, KeyError) as e:
+            return default
+
 
     def __setitem__(self, item, value):
         """Set the term's value or one of it's properties. If the item name is a property, and the value
@@ -286,6 +303,7 @@ class Term(object):
             self.value = value
 
             return self
+
         elif value is None:
             child = self.find_first(item)
             if child:
@@ -294,6 +312,8 @@ class Term(object):
         else:
 
             c = self.get_or_new_child(item, value)
+
+            assert self[item].value == value
 
             return c
 
@@ -396,6 +416,7 @@ class Term(object):
         """Return the value and scalar properties as a dictionary"""
 
         d = dict(zip([str(e).lower() for e in self.section.property_names], self.args))
+
         #print({ c.record_term_lc:c.value for c in self.children})
         d[self.term_value_name.lower()] = self.value
 
@@ -574,6 +595,16 @@ class SectionTerm(Term):
         """Synonym for find_first, restructed to this section"""
         return self.doc.find_first(term, section=self.name)
 
+    def find_first(self, term, value=False):
+        """Synonym for find_first, restructed to this section"""
+        return self.doc.find_first(term, value=value, section=self.name)
+
+    def find(self, term, value=False):
+        return self.doc.find(term, value=value, section=self.name)
+
+    def find_first_value(self, term, value=False):
+        return self.doc.find_first_value(term, value=value, section=self.name)
+
     def get_or_new_term(self, term, value=None, **kwargs):
 
         t = self.get_term(term)
@@ -586,6 +617,8 @@ class SectionTerm(Term):
 
             for k, v in kwargs.items():
                 t.get_or_new_child(k, v)
+
+        return t
 
     def remove_term(self, term):
         """Remove a term from the terms. Must be the identical term, the same object"""

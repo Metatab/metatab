@@ -457,22 +457,11 @@ class Package(object):
 
             self.prt("Reading resource {} from {} ".format(r.name, r.resolved_url))
 
-            assert r.properties.get('encoding') == r.get('encoding') or \
-                   bool(r.properties.get('encoding')) == bool(r.get('encoding')), \
-                (r.properties.get('encoding'), r.get('encoding'))
+            rg = self.doc.resource(r.name, env = self._env)
 
-            if False:
-                rg = RowGenerator(url=r.resolved_url,
-                                  name=r.get('name'),
-                                  encoding=r.get('encoding'),
-                                  target_format=r.get('format'),
-                                  target_file=r.get('file'),
-                                  target_segment=r.get('segment'),
-                                  cache=self._cache)
-            else:
-                rg = self.doc.resource(r.name, env = self._env)
+            assert rg is not None
 
-            start_line = int(r.get('startline')) if r.get('startline') is not None  else 1
+            start_line = int(r.get_value('startline')) if r.get_value('startline') is not None  else 1
 
             gen = islice(rg, start_line, None)
 
@@ -514,7 +503,7 @@ class Package(object):
             # of many data releases, like annual datasets, documentation files may all have the same name,
             # but the titles should be different.
             real_name_base, ext = splitext(real_name)
-            name = doc.properties.get('title') if doc.properties.get('title') else real_name_base
+            name = doc.get_value('title') if doc.get_value('title') else real_name_base
 
             real_name = slugify(name) + ext
 
@@ -752,6 +741,17 @@ class ExcelPackage(Package):
         self.wb.save(self.save_path(path))
 
         return self.save_path(path)
+
+    def _load_resources(self):
+        """Remove the geography from the files, since it isn't particularly useful in Excel"""
+
+        for t in self.doc.find('Root.Table'):
+            for c in t.find('Table.Column'):
+                if c.get_value('datatype')  == 'geometry':
+                    c['transform'] = '^empty_str'
+                    c['datatype'] = 'text'
+
+        return super()._load_resources()
 
     def _load_resource(self, r, gen, headers):
 
@@ -1020,7 +1020,7 @@ class S3Package(Package):
 
         bio = BytesIO()
 
-        data = write_csv(bio, path, gen)
+        data = write_csv(bio, headers, gen)
 
         self.prt("Loading data ({} bytes) to '{}' ".format(len(data), r.url))
 

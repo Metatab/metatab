@@ -13,13 +13,14 @@ from itertools import islice
 from os import getcwd
 from os.path import join, dirname, abspath
 from uuid import uuid4
+from datetime import datetime
 
 import six
 
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, ConversionError
 from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, \
-    get_lib_module_dict, \
-    make_excel_package, make_filesystem_package, make_s3_package, make_csv_package, update_name
+    get_lib_module_dict, write_doc, datetime_now, \
+    make_excel_package, make_filesystem_package, make_s3_package, make_csv_package, make_zip_package, update_name
 from metatab.util import make_metatab_file
 from rowgenerators import get_cache, RowGenerator, SelectiveRowGenerator, SourceError, Url
 from rowgenerators.util import clean_cache
@@ -172,9 +173,11 @@ def metatab_build_handler(m):
 
             doc = make_metatab_file(template)
 
-            doc[('Identity', 'Root')]['Identifier'] = six.text_type(uuid4())
+            doc['Root']['Identifier'] = six.text_type(uuid4())
 
-            doc.write_csv(m.mt_file)
+            doc['Root']['Created'] = datetime_now()
+
+            write_doc(doc, m.mt_file)
 
             prt('Created', m.mt_file)
         else:
@@ -206,7 +209,7 @@ def metatab_build_handler(m):
             else:
                 warn("Entry '{}' on row {} is missing a url; skipping".format(t.join, t.row))
 
-        doc.write_csv(m.mt_file)
+        write_doc(doc, m.mt_file)
 
     if m.args.schemas:
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
@@ -257,7 +260,7 @@ def metatab_derived_handler(m, skip_if_exists=False):
             create_list.append(('xlsx', url, created))
 
         if m.args.zip is not False:
-            url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
+            url, created = make_zip_package(m.mt_file, m.cache, env, skip_if_exists)
             create_list.append(('zip', url, created))
 
         if m.args.filesystem is not False:
@@ -369,7 +372,7 @@ def add_resource(mt_file, ref, cache):
         for c in enumerate_contents(ref, cache=cache, callback=prt):
             add_single_resource(doc, c.rebuild_url(), cache=cache, seen_names=seen_names)
 
-    doc.write_csv(mt_file)
+    write_doc(doc, mt_file)
 
 
 def process_schemas(mt_file, cache, clean=False):
@@ -445,7 +448,7 @@ def process_schemas(mt_file, cache, clean=False):
                             datatype=type_map.get(c['resolved_type'], c['resolved_type']),
                             altname=alt_name)
 
-    doc.write_csv(mt_file)
+    write_doc(doc, mt_file)
 
 
 def add_single_resource(doc, ref, cache, seen_names):

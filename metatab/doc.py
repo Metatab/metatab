@@ -177,8 +177,8 @@ class Resource(Term):
 
     def _name_for_col_term(self, c, i):
 
-        altname = c.properties.get('altname')
-        name = c.properties.get('name')
+        altname = c.get_value('altname')
+        name = c.get_value('name')
         default = "col{}".format(i)
 
         for n in [altname, name, default]:
@@ -187,11 +187,12 @@ class Resource(Term):
 
     @property
     def schema_table(self):
-        t = self.doc.find_first('Root.Table', value=self.properties.get('name'))
+
+        t = self.doc.find_first('Root.Table', value=self.get_value('name'))
         frm = 'name'
 
         if not t:
-            t = self.doc.find_first('Root.Table', value=self.properties.get('schema'))
+            t = self.doc.find_first('Root.Table', value=self.get_value('schema'))
             frm = 'schema'
 
         if not t:
@@ -214,10 +215,10 @@ class Resource(Term):
 
     def columns(self):
 
-        t = self.doc.find_first('Root.Table', value=self.properties.get('name'))
+        t = self.doc.find_first('Root.Table', value=self.get_value('name'))
 
         if not t:
-            t = self.doc.find_first('Root.Table', value=self.properties.get('schema'))
+            t = self.doc.find_first('Root.Table', value=self.get_value('schema'))
 
         if not t:
             return
@@ -246,21 +247,22 @@ class Resource(Term):
 
         doc = self.doc
 
-        table_term = doc.find_first('Root.Table', value=self.properties.get('name'))
+        table_term = doc.find_first('Root.Table', value=self.get_value('name'))
 
         if not table_term:
-            table_term = doc.find_first('Root.Table', value=self.properties.get('schema'))
+            table_term = doc.find_first('Root.Table', value=self.get_value('schema'))
 
         if table_term:
 
-            t = Table(self.properties.get('name'))
+            t = Table(self.get_value('name'))
             for i, c in enumerate(table_term.children):
                 if c.term_is('Table.Column'):
                     t.add_column(self._name_for_col_term(c, i),
-                                 datatype=map_type(c.properties.get('datatype')),
-                                 valuetype=map_type(c.properties.get('valuetype')),
-                                 transform=c.properties.get('transform')
+                                 datatype=map_type(c.get_value('datatype')),
+                                 valuetype=map_type(c.get_value('valuetype')),
+                                 transform=c.get_value('transform')
                                  )
+
 
             return t
 
@@ -544,9 +546,8 @@ class MetatabDoc(object):
             found_terms = []
 
             for t in terms:
-                tp = t.properties
 
-                if all(tp.get(k) == v for k, v in kwargs.items()):
+                if all(t.get(k) == v for k, v in kwargs.items()):
                     found_terms.append(t)
 
             return found_terms
@@ -566,11 +567,13 @@ class MetatabDoc(object):
             return list(itertools.chain(*[self.find(e, value=value, section=section) for e in term]))
 
         else:
+            term = term.lower()
 
             found = []
 
             if not '.' in term:
                 term = 'root.' + term
+
 
             for t in self.terms:
 
@@ -609,7 +612,7 @@ class MetatabDoc(object):
 
         for t in (self['Resources'].terms if term is None else self.find(term, section=section)):
 
-            if 'url' in t.properties and t.properties.get('url') and (name is None or t.properties.get('name') == name):
+            if 'url' in t.properties and t.get_value('url') and (name is None or t.get_value('name') == name):
                 yield Resource(t, self.package_url if self.package_url else self._ref)
 
     def resource(self, name=None, term=None, env=None):
@@ -849,7 +852,7 @@ class MetatabDoc(object):
         def resource_repr(r, anchor=kwargs.get('anchors', False)):
             return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a> {description}</p>" \
                 .format(name='<a href="#resource-{name}">{name}</a>'.format(name=r.name) if anchor else r.name,
-                        description=r.properties.get('description',''),
+                        description=r.get_value('description',''),
                         url=r.url)
 
         def documentation():
@@ -859,11 +862,11 @@ class MetatabDoc(object):
             try:
                 for t in self['Documentation']:
 
-                    if t.properties.get('url'):
+                    if t.get_value('url'):
 
                         out += ("\n<p><strong>{} </strong>{}</p>"
-                                .format(linkify(t.properties.get('url'), t.properties.get('title')),
-                                        t.properties.get('description')
+                                .format(linkify(t.get_value('url'), t.get_value('title')),
+                                        t.get_value('description')
                                         ))
 
                     else: # Mostly for notes
@@ -884,12 +887,12 @@ class MetatabDoc(object):
             try:
 
                 for t in self['Contacts']:
-                    p = t.properties
-                    name = p.get('name', 'Name')
-                    email = "mailto:" + p.get('email') if p.get('email') else None
 
-                    web = p.get('url')
-                    org = p.get('organization', web)
+                    name = t.get_value('name', 'Name')
+                    email = "mailto:" + t.get_value('email') if t.get_value('email') else None
+
+                    web = t.get_value('url')
+                    org = t.get_value('organization', web)
 
                     out += ("\n<p><strong>{}: </strong>{}</p>"
                             .format(t.record_term.title(),

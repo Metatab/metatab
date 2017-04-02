@@ -255,7 +255,7 @@ The ``metasync`` program can build multiple package types and upload them to an 
 
 .. code-block:: bash
 
-    $ metasync -e -f -z -s s3://library.metatab.org
+    $ metasync -c -e -f -z -s s3://library.metatab.org
     
 With these options, the ``metasync`` program will create an Excel, Zip and Filesystem package and store them in the s3 bucket ``library.metadata.org``. In this case, the "filesystem" package is not created in the local filesystem, but only in S3. ( "Filesystem" packages are basically what you get after unziping a ZIP package. )
 

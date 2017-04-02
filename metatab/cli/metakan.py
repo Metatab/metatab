@@ -11,9 +11,10 @@ from os import getenv, getcwd
 from os.path import join, basename
 
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, open_package, MetatabError
-from metatab.cli.core import prt, err, S3Bucket, metatab_info
+from metatab.cli.core import err, metatab_info
 from rowgenerators import get_cache, Url
-from .metapack import metatab_derived_handler
+from .core import prt, warn
+from .metasync import update_dist
 
 
 def metakan():
@@ -29,6 +30,7 @@ def metakan():
     parser.add_argument('-c', '--ckan', help="URL for CKAN instance")
 
     parser.add_argument('-a', '--api', help="CKAN API Key")
+
 
     parser.add_argument('metatabfile', nargs='?', default=DEFAULT_METATAB_FILE, help='Path to a Metatab file')
 
@@ -68,7 +70,6 @@ def metakan():
 
 def send_to_ckan(m):
     from ckanapi import RemoteCKAN, NotFound
-
     try:
         doc = MetatabDoc(m.mt_file, cache=m.cache)
     except (IOError, MetatabError) as e:
@@ -92,16 +93,26 @@ def send_to_ckan(m):
     pkg['notes'] = doc.markdown #doc.find_first_value('Root.Description')
     pkg['version'] = name.properties.get('version')
 
-    extras = []
+    pkg['groups'] = [ {'name': g.value } for g in doc['Root'].find('Root.Group')]
+
+    try:
+        ckan_org = doc['Root'].find_first_value('Root.CkanOrg')
+        pkg['owner_org'] = c.action.organization_show(id=ckan_org).get('id')
+    except NotFound:
+        warn("Didn't find org for '{}'; not setting organization ".format(ckan_org))
+
+
+    extras = {}
 
     for t in doc.find('*.*', section='Root'):
         if not t.term_is('Root.Distribution'):
-            extras.append({'key':t.qualified_term, 'value':t.value})
+            extras[t.qualified_term] = t.value
 
     for t in name.children:
-        extras.append({'key': t.qualified_term, 'value': t.value})
+        extras[t.qualified_term] = t.value
 
-    pkg['extras'] = extras
+    pkg['extras'] = [ {'key':k, 'value':v} for k, v in extras.items() ]
+
 
     #import json
     #print(json.dumps(pkg, indent=4))
@@ -111,8 +122,6 @@ def send_to_ckan(m):
     for dist in doc.find("Root.Distribution"):
 
         package_url, metadata_url = resolve_package_metadata_url(dist.value)
-
-        print("!!!", package_url, metadata_url )
 
         u = Url(package_url)
 
@@ -176,10 +185,30 @@ def send_to_ckan(m):
                 resources.append(d)
                 prt("Adding {} resource {}".format(d['format'], d['name']))
 
-
-
     pkg['resources'] = resources
 
     c.action.package_update(**pkg)
 
+    pkg = c.action.package_show(name_or_id=ckan_name)
+
+
+    update_dist(doc, join(m.ckan_url, 'dataset',ckan_name))
+
+    ##
+    ## Add a term with CKAN info.
+
+    doc['Root'].get_or_new_term('CkanId', pkg['id'])
+    doc['Root'].get_or_new_term('CkanOrg', pkg.get('organization',{}).get('name'))
+
+    groups = doc['Root'].find('Group')
+    for g in groups:
+        doc.remove_term(g)
+
+    for group in pkg.get('groups', []):
+        doc['Root'].new_term('Group', group['name'])
+
+    doc.write_csv()
+
+    import json
+    prt(json.dumps(pkg, indent=4))
 

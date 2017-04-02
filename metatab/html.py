@@ -39,20 +39,45 @@ def linkify(v, description = None, cwd_url=None):
         return v
 
 
-def resource(r):
+def resource(r, fields = None):
+
+    from operator import itemgetter
+
+    fields = fields or (
+        ('Header', 'header'),
+        ('Datatype','datatype'),
+        ('Description', 'description')
+    )
+
+    headers = [ f[0] for f in fields]
+    ig = itemgetter(* [f[1] for f in fields])
+
+    rows = [''.join(["<td>{}</td>".format(e.replace("\n","<br/>\n")) for e in ig(c)]) for c in r.columns()]
 
     return ("### {name} \n [{url}]({url})\n\n".format(name=r.name, url=r.url)) + \
            "{}\n".format(ns(r.description))+ \
            "<table class=\"table table-striped\">\n" + \
-           "<tr><th>Header</th><th>Type</th><th>Description</th></tr>" + \
-           '\n'.join(
-               "<tr><td>{}</td><td>{}</td><td>{}</td></tr> ".format(c['header'], c['datatype'], c['description'])
-               for c in r.columns()) + \
+           ("<tr>{}</tr>".format(''.join("<th>{}</th>".format(e) for e in headers)) ) + \
+           "\n".join("<tr>{}</tr>".format(row) for row in rows)+ \
            '</table>\n'
 
-def resource_block(doc):
+def resource_block(doc, fields=None):
 
-    return "".join(resource(r) for r in doc.resources())
+    import sys
+
+    if fields is None:
+        fields = [
+            ('Header', 'header'),
+            ('Datatype', 'datatype'),
+            ('Description', 'description')
+        ]
+
+        for h in doc['Schema'].args:
+
+            if h.lower() in ('note', 'notes','coding'):
+                fields.append( (h, h.lower()))
+
+    return "".join(resource(r, fields) for r in doc.resources())
 
 def resource_ref(r):
 
