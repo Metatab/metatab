@@ -82,6 +82,7 @@ setup(
         'rowpipe',
         'boto3',
         'bs4',
+        'markdown',
         'ckanapi'
     ],
 

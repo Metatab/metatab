@@ -1,3 +1,3 @@
 
 https://github.com/CivicKnowledge/rowgenerators/archive/v0.1.7.zip
-https://github.com/CivicKnowledge/metatab-py/archive/v0.3.4.zip
+https://github.com/CivicKnowledge/metatab-py/archive/v0.3.5.zip

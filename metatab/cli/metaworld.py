@@ -123,6 +123,8 @@ def get_resource_urls(doc):
                 # '.csv': Data>world currently get the format from the name, not the URL
                 resources[r.name+'.csv'] = r.resolved_url
                 prt("Adding CSV resource {}".format( r.name))
+        else:
+            prt('Skipping {}'.format(package_url))
 
 
     return resources
