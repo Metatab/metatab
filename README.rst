@@ -291,7 +291,7 @@ Adding Packages to Data.World
 
 The ``metaworld`` program will publish the package to `Data.World <http://data.world>`_.  Only Excel and CSV packages will be published, because ZIP packages will be disaggregated, conflicting with CSV packages. The program is a bit buggy, and when creating a new package, the server may return a 500 error. If it does, just re-run the program.
 
-The ``metaworld`` program takes no options. To use it, you must install the ``datadotworld python package <https://github.com/datadotworld/data.world-py>`_ and configure it, which will store your username and password.
+The ``metaworld`` program takes no options. To use it, you must install the `datadotworld python package <https://github.com/datadotworld/data.world-py>`_ and configure it, which will store your username and password.
 
 
 .. code-block:: bash
