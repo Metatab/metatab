@@ -88,11 +88,11 @@ setup(
     
     entry_points={
         'console_scripts': [
-            'metatab=metatab.cli:metatab',
-            'metapack=metatab.cli:metapack',
-            'metakan=metatab.cli:metakan',
-            'metasync=metatab.cli:metasync',
-            'metaworld=metatab.cli:metaworld'
+            'metatab=metatab.cli.metatab:metatab',
+            'metapack=metatab.cli.metapack:metapack',
+            'metakan=metatab.cli.metakan:metakan',
+            'metasync=metatab.cli.metasync:metasync',
+            'metaworld=metatab.cli.metaworld:metaworld'
         ],
     },
 

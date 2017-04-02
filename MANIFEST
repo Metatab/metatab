@@ -21,6 +21,7 @@ metatab/cli/metakan.py
 metatab/cli/metapack.py
 metatab/cli/metasync.py
 metatab/cli/metatab.py
+metatab/cli/metaworld.py
 metatab/cli/old.py
 metatab/declarations/__init__.py
 metatab/declarations/datapackage-0.1.csv
@@ -35,5 +36,6 @@ test/__init__.py
 test/test_basic.py
 test/test_builder.py
 test/test_generate.py
+test/test_packages.py
 test/test_pandas.py
 test/test_reader.py
