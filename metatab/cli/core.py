@@ -312,8 +312,8 @@ class S3Bucket(object):
         import boto3
 
         self._s3 = boto3.resource('s3',
-                                  aws_access_key_id=self._access,
-                                  aws_secret_access_key=self._secret)
+                                  aws_access_key_id=access,
+                                  aws_secret_access_key=secret)
 
         p = parse_url_to_dict(url)
 

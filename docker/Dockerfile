@@ -7,4 +7,4 @@ VOLUME /opt/metatab
 
 RUN apk add --update --no-cache g++ gcc libxslt-dev==1.1.29-r0 bash
 
-RUN pip install https://github.com/CivicKnowledge/metatab-py/archive/master.zip # 2
+RUN pip install https://github.com/CivicKnowledge/metatab-py/archive/master.zip # 3
