@@ -404,5 +404,7 @@ def write_doc(doc, mt_file):
 
     if u.scheme == 'file':
         doc.write_csv(mt_file)
+        return True
     else:
-        warn("Not writing back to url ", mt_file)
+        return False
+        #warn("Not writing back to url ", mt_file)

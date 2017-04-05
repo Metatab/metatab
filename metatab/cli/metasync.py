@@ -5,20 +5,18 @@
 CLI program for storing pacakges in CKAN
 """
 
-import mimetypes
 import sys
-from os import getcwd, getenv
-from os.path import join, basename
-
-import six
-
+from os import getcwd, makedirs
+from os.path import join, basename, exists, dirname
+from tabulate import tabulate
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
-from metatab import open_package
 from metatab.cli.core import prt, err, get_lib_module_dict, write_doc, datetime_now, \
-    make_excel_package, make_filesystem_package, make_s3_package, make_zip_package, update_name, metatab_info, S3Bucket
-from rowgenerators import get_cache, Url
+    make_excel_package, make_s3_package, make_zip_package, update_name, metatab_info, \
+    S3Bucket, PACKAGE_PREFIX
 from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage, CsvPackage
-from datetime import datetime
+from rowgenerators import  Url, get_cache
+from rowgenerators.util import clean_cache
+
 
 def metasync():
     import argparse
@@ -52,9 +50,6 @@ def metasync():
     parser.add_argument('-D', '--docker', help="Re-run the metasync command through docker",
                         action='store_true', default=False)
 
-    #parser.add_argument('-a' '--access', help="S3 access key", default=None)
-    #parser.add_argument('-k' '--secret', help="S3 secret ", default=None)
-
     parser.add_argument('metatabfile', nargs='?', help='Path to a Metatab file')
 
     class MetapackCliMemo(object):
@@ -67,6 +62,11 @@ def metasync():
             self.args = parser.parse_args(self.raw_args[1:])
 
             self.cache = get_cache('metapack')
+
+            # This one is for loading packages that have just been
+            # written to S3.
+            self.tmp_cache = get_cache('temp')
+            clean_cache(self.tmp_cache)
 
             if not self.args.all_s3 and not self.args.s3:
                 err("Must specify either -S or -s")
@@ -99,9 +99,15 @@ def metasync():
     if m.args.excel is not False or m.args.zip is not False or m.args.fs is not False:
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
 
-    distupdated = update_distributions(m)
+    second_stage_mtfile, distupdated = update_distributions(m)
 
-    created = create_packages(m, skip_if_exists= False if distupdated else True)
+    if second_stage_mtfile != m.mt_file:
+        prt("Building packages from: ", second_stage_mtfile)
+
+    created = create_packages(m, second_stage_mtfile, skip_if_exists= False if distupdated else True)
+
+    prt("Synchronized these Package Urls")
+    prt(tabulate(created))
 
     exit(0)
 
@@ -128,7 +134,9 @@ def run_docker(m):
     args.extend(m.raw_args[1:])
 
     if m.args.verbose:
-        prt("Running: ", ' '.join(args))
+        prt("Running Docker Command: ", ' '.join(args))
+    else:
+        prt("Running In Docker")
 
     process = Popen(args, stdout=PIPE, stderr=STDOUT)
     with process.stdout:
@@ -140,7 +148,18 @@ def run_docker(m):
     exit(exitcode)
 
 
-def update_dist(doc, v):
+def update_dist(doc, old_dists, v):
+
+    # This isn't quite correct, because it will try to remove the .csv format
+    # Distributions twice, since both <name>.csv and <name>/metadata.csv have the same format.
+    # (That's why theres a try/except ) But, it is effective
+    for d in old_dists:
+        if Url(d.value).resource_format == Url(v).resource_format:
+            try:
+                doc.remove_term(d)
+            except ValueError:
+                pass
+
     t = doc.find('Root.Distribution', v)
 
     if not t:
@@ -155,70 +174,94 @@ def update_distributions(m):
     doc = MetatabDoc(m.mt_file)
     updated = False
 
+    old_dists = list(doc.find('Root.Distribution'))
+
     if m.args.excel is not False:
         p = ExcelPackage(m.mt_file)
-        if update_dist(doc, b.access_url(p.save_path())):
+
+        if update_dist(doc, old_dists, b.access_url(p.save_path())):
             prt("Added Excel distribution to metadata")
             updated = True
 
     if m.args.zip is not False:
         p = ZipPackage(m.mt_file)
-        if update_dist(doc, b.access_url(p.save_path())):
+        if update_dist(doc, old_dists, b.access_url(p.save_path())):
             prt("Added ZIP distribution to metadata")
             updated = True
 
     if m.args.fs is not False:
         p = FileSystemPackage(m.mt_file)
-        if update_dist(doc, b.access_url(p.save_path(), DEFAULT_METATAB_FILE)):
+        if update_dist(doc, old_dists, b.access_url(p.save_path(), DEFAULT_METATAB_FILE)):
             prt("Added FS distribution to metadata")
             updated = True
 
     if m.args.csv is not False:
         p = CsvPackage(m.mt_file)
         url = b.access_url(basename(p.save_path()))
-        if update_dist(doc, url):
+        if update_dist(doc, old_dists, url):
             prt("Added CSV distribution to metadata", url)
             updated = True
 
     doc['Root']['Issued'] = datetime_now()
 
-    write_doc(doc, m.mt_file)
+    for d in doc.find('Root.Distribution'):
+        print("XXX", d)
 
-    return updated
+
+    if not write_doc(doc, m.mt_file):
+        # The mt_file is probably a URL, so we can't write back to it,
+        # but we need the updated distributions, so write it elsewhere, then
+        # reload it in the next stage.
+        second_stage_file = join(PACKAGE_PREFIX, DEFAULT_METATAB_FILE)
+
+        if not exists(dirname(second_stage_file)):
+            makedirs(dirname(second_stage_file))
+
+        assert write_doc(doc, second_stage_file)
+
+    else:
+        second_stage_file = m.mt_file
+
+    return second_stage_file, updated
 
 from .core import PACKAGE_PREFIX
 
-def create_packages(m, skip_if_exists=False):
+def create_packages(m, second_stage_mtfile, skip_if_exists=False):
     from metatab.package import PackageError
 
     create_list = []
     url = None
 
-    doc = MetatabDoc(m.mt_file)
+    doc = MetatabDoc(second_stage_mtfile)
     env = get_lib_module_dict(doc)
 
     s3 = S3Bucket(m.args.s3)
 
+    urls = []
+
     try:
 
         if m.args.excel is not False:
-            ex_url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
-            written_url = s3.write(ex_url, basename(ex_url))
+            ex_url, created = make_excel_package(second_stage_mtfile, m.cache, env, skip_if_exists)
+            urls.append(('excel',s3.write(ex_url, basename(ex_url))))
 
         if m.args.zip is not False:
-            zip_url, created = make_zip_package(m.mt_file, m.cache, env, skip_if_exists)
-            written_url = s3.write(zip_url, basename(zip_url))
+            zip_url, created = make_zip_package(second_stage_mtfile, m.cache, env, skip_if_exists)
+            urls.append(('zip',s3.write(zip_url, basename(zip_url))))
 
         if m.args.fs is not False:
-            fs_url, created = make_s3_package(m.mt_file, m.args.s3, m.cache, env, skip_if_exists)
+            fs_url, created = make_s3_package(second_stage_mtfile, m.args.s3, m.cache, env, skip_if_exists)
+            urls.append(('fs',fs_url))
 
         if m.args.csv is not False:
-            p = CsvPackage(join(fs_url, DEFAULT_METATAB_FILE))
+            p = CsvPackage(join(fs_url, DEFAULT_METATAB_FILE), cache=m.tmp_cache)
             csv_url = p.save(PACKAGE_PREFIX)
-            written_url = s3.write(csv_url, basename(csv_url))
+            urls.append(('csv',s3.write(csv_url, basename(csv_url))))
 
     except PackageError as e:
         err("Failed to generate package: {}".format(e))
+
+    return urls
 
 
 
