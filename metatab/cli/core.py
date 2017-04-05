@@ -355,8 +355,7 @@ class S3Bucket(object):
 
         except ClientError as e:
             if int(e.response['Error']['Code']) != 404:
-
-                raise
+                err("S# Access failed for '{}:{}': {}".format(self._bucket_name, key, e))
 
         ct = mimetypes.guess_type(key)[0]
 
