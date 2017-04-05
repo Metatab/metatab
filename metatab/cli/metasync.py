@@ -204,10 +204,6 @@ def update_distributions(m):
 
     doc['Root']['Issued'] = datetime_now()
 
-    for d in doc.find('Root.Distribution'):
-        print("XXX", d)
-
-
     if not write_doc(doc, m.mt_file):
         # The mt_file is probably a URL, so we can't write back to it,
         # but we need the updated distributions, so write it elsewhere, then
