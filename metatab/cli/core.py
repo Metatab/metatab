@@ -307,11 +307,13 @@ def update_name(mt_file, fail_on_missing=False, report_unchanged=True, force=Fal
         write_doc(doc, mt_file)
 
 class S3Bucket(object):
-    def __init__(self, url):
+    def __init__(self, url, access=None, secret=None):
         from rowgenerators import parse_url_to_dict
         import boto3
 
-        self._s3 = boto3.resource('s3')
+        self._s3 = boto3.resource('s3',
+                                  aws_access_key_id=self._access,
+                                  aws_secret_access_key=self._secret)
 
         p = parse_url_to_dict(url)
 
@@ -325,13 +327,17 @@ class S3Bucket(object):
         self._bucket_name = bucket_name
         self._bucket = self._s3.Bucket(bucket_name)
 
+        self._access = access
+        self._secret = secret
 
     def access_url(self, *paths):
         import boto3
 
         key = join(self._prefix, *paths).strip('/')
 
-        s3 = boto3.client('s3')
+        s3 = boto3.client('s3',
+                          aws_access_key_id = self._access,
+                          aws_secret_access_key = self._secret)
 
         return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
 

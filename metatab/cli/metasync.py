@@ -7,7 +7,7 @@ CLI program for storing pacakges in CKAN
 
 import mimetypes
 import sys
-from os import getcwd
+from os import getcwd, getenv
 from os.path import join, basename
 
 import six
@@ -30,6 +30,9 @@ def metasync():
     parser.add_argument('-i', '--info', default=False, action='store_true',
                         help="Show configuration information")
 
+    parser.add_argument('-v', '--verbose', default=False, action='store_true',
+                        help="For some command, be more verbose")
+
     parser.add_argument('-s', '--s3', help="URL to S3 where packages will be stored", required=False)
 
     parser.add_argument('-S', '--all-s3', help="Synonym for `metasync -c -e -f -z -s <url>`", required=False)
@@ -46,14 +49,23 @@ def metasync():
     parser.add_argument('-f', '--fs', action='store_true', default=False,
                         help='Create a Filesystem package. Unlike -e and -f, only writes the package to S3.')
 
+    parser.add_argument('-D', '--docker', help="Re-run the metasync command through docker",
+                        action='store_true', default=False)
 
+    #parser.add_argument('-a' '--access', help="S3 access key", default=None)
+    #parser.add_argument('-k' '--secret', help="S3 secret ", default=None)
 
     parser.add_argument('metatabfile', nargs='?', help='Path to a Metatab file')
 
     class MetapackCliMemo(object):
-        def __init__(self, args):
+        def __init__(self, raw_args):
+
             self.cwd = getcwd()
-            self.args = args
+
+            self.raw_args = raw_args
+
+            self.args = parser.parse_args(self.raw_args[1:])
+
             self.cache = get_cache('metapack')
 
             if not self.args.all_s3 and not self.args.s3:
@@ -66,7 +78,7 @@ def metasync():
                 self.args.csv = True
                 self.args.fs = True
 
-            self.mtfile_arg = args.metatabfile if args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
+            self.mtfile_arg = self.args.metatabfile if self.args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
 
             self.mtfile_url = Url(self.mtfile_arg)
             self.resource = self.mtfile_url.parts.fragment
@@ -75,9 +87,10 @@ def metasync():
 
             self.args.fs = self.args.csv or self.args.fs
 
+    m = MetapackCliMemo(sys.argv)
 
-
-    m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
+    if m.args.docker:
+        run_docker(m)
 
     if m.args.info:
         metatab_info(m.cache)
@@ -91,6 +104,40 @@ def metasync():
     created = create_packages(m, skip_if_exists= False if distupdated else True)
 
     exit(0)
+
+def run_docker(m):
+    """Re-run the metasync command in docker. """
+
+    import botocore.session
+    from subprocess import Popen, PIPE, STDOUT
+
+    session = botocore.session.get_session()
+
+    args = ['docker', 'run','--rm','-t','-i',
+            '-eAWS_ACCESS_KEY_ID={}'.format(session.get_credentials().access_key),
+            '-eAWS_SECRET_ACCESS_KEY={}'.format(session.get_credentials().secret_key),
+            'civicknowledge/metatab',
+            'metasync']
+
+    for a in ('-D', '--docker'):
+        try:
+            m.raw_args.remove(a)
+        except ValueError:
+            pass
+
+    args.extend(m.raw_args[1:])
+
+    if m.args.verbose:
+        prt("Running: ", ' '.join(args))
+
+    process = Popen(args, stdout=PIPE, stderr=STDOUT)
+    with process.stdout:
+        for line in iter(process.stdout.readline, b''):
+            prt(line.decode('ascii'), end='')
+
+    exitcode = process.wait()  # 0 means success
+
+    exit(exitcode)
 
 
 def update_dist(doc, v):
