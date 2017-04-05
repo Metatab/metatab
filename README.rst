@@ -259,6 +259,14 @@ The ``metasync`` program can build multiple package types and upload them to an 
     
 With these options, the ``metasync`` program will create an Excel, Zip and Filesystem package and store them in the s3 bucket ``library.metadata.org``. In this case, the "filesystem" package is not created in the local filesystem, but only in S3. ( "Filesystem" packages are basically what you get after unziping a ZIP package. )
 
+Because generating all of the packages and uploading to S3 is common, the `metasync -S` option is a synonym for generating all package types and uploading:
+
+.. code-block:: bash
+
+    $ metasync -S s3://library.metatab.org
+
+
+
 Currently, ``metasync`` will only write packages to S3. For S3 ``metasync`` uses boto3, so refer to the `boto3 credentials documentation <http://boto3.readthedocs.io/en/latest/guide/configuration.html>`_ for instructions on how to set your S3 access key and secret. 
 
 One important side effect of the ``metasync`` program is that it will add ``Distribution`` terms to the main ``metadata.csv`` file before creating the packages, so all the packages that the program syncs will include references to the S3 location of all packages. For instance, the example invocation above will add these ``Distribution`` terms: 

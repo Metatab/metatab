@@ -715,7 +715,7 @@ class MetatabDoc(object):
             identifier = self.find_first('Root.Identifier', section= 'Root')
             assert identifier is not None
 
-    def update_name(self):
+    def update_name(self, force=False):
         """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
 
         updates = []
@@ -736,7 +736,7 @@ class MetatabDoc(object):
 
             name = self._generate_identity_name()
 
-            if name != orig_name:
+            if name != orig_name or force:
                 self[ 'Root'].get_or_new_term('Root.Name', name)
                 updates.append("Changed Name")
             else:

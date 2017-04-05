@@ -30,7 +30,9 @@ def metasync():
     parser.add_argument('-i', '--info', default=False, action='store_true',
                         help="Show configuration information")
 
-    parser.add_argument('-s', '--s3', help="URL to S3 where packages will be stored", required=True)
+    parser.add_argument('-s', '--s3', help="URL to S3 where packages will be stored", required=False)
+
+    parser.add_argument('-S', '--all-s3', help="Synonym for `metasync -c -e -f -z -s <url>`", required=False)
 
     parser.add_argument('-e', '--excel', action='store_true', default=False,
                         help='Create an excel package from a metatab file and copy it to S3. ')
@@ -44,6 +46,8 @@ def metasync():
     parser.add_argument('-f', '--fs', action='store_true', default=False,
                         help='Create a Filesystem package. Unlike -e and -f, only writes the package to S3.')
 
+
+
     parser.add_argument('metatabfile', nargs='?', help='Path to a Metatab file')
 
     class MetapackCliMemo(object):
@@ -51,6 +55,16 @@ def metasync():
             self.cwd = getcwd()
             self.args = args
             self.cache = get_cache('metapack')
+
+            if not self.args.all_s3 and not self.args.s3:
+                err("Must specify either -S or -s")
+
+            if self.args.all_s3:
+                self.args.s3 = self.args.all_s3
+                self.args.excel = True
+                self.args.zip = True
+                self.args.csv = True
+                self.args.fs = True
 
             self.mtfile_arg = args.metatabfile if args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
 
@@ -125,6 +139,8 @@ def update_distributions(m):
 
     return updated
 
+from .core import PACKAGE_PREFIX
+
 def create_packages(m, skip_if_exists=False):
     from metatab.package import PackageError
 
@@ -151,7 +167,7 @@ def create_packages(m, skip_if_exists=False):
 
         if m.args.csv is not False:
             p = CsvPackage(join(fs_url, DEFAULT_METATAB_FILE))
-            csv_url = p.save()
+            csv_url = p.save(PACKAGE_PREFIX)
             written_url = s3.write(csv_url, basename(csv_url))
 
     except PackageError as e:

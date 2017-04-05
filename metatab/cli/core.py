@@ -203,20 +203,21 @@ def get_table(doc, name):
 
     return t
 
+PACKAGE_PREFIX = '_packages'
 
 def make_excel_package(file, cache, env, skip_if_exists):
     from metatab.package import ExcelPackage
 
     p = ExcelPackage(file, callback=prt, cache=cache, env=env)
 
-    if not p.exists() or not skip_if_exists:
-        url = p.save()
+    if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
+        url = p.save(PACKAGE_PREFIX)
         prt("Packaged saved to: {}".format(url))
         created = True
-    elif p.exists():
+    elif p.exists(PACKAGE_PREFIX):
         prt("Excel Package already exists")
         created = False
-        url = p.save_path()
+        url = p.save_path(PACKAGE_PREFIX)
 
     return url, created
 
@@ -226,14 +227,14 @@ def make_zip_package(file, cache, env, skip_if_exists):
     from metatab.package import ZipPackage
 
     p = ZipPackage(file, callback=prt, cache=cache, env=env)
-    if not p.exists() or not skip_if_exists:
-        url = p.save()
+    if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
+        url = p.save(PACKAGE_PREFIX)
         prt("Packaged saved to: {}".format(url))
         created = True
-    elif p.exists():
+    elif p.exists(PACKAGE_PREFIX):
         prt("ZIP Package already exists")
         created = False
-        url = p.save_path()
+        url = p.save_path(PACKAGE_PREFIX)
 
     return url, created
 
@@ -242,14 +243,14 @@ def make_filesystem_package(file, cache, env, skip_if_exists):
 
     from metatab.package import FileSystemPackage
     p = FileSystemPackage(file, callback=prt, cache=cache, env=env)
-    if not p.exists() or not skip_if_exists:
-        url = p.save()
+    if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
+        url = p.save(PACKAGE_PREFIX)
         prt("Packaged saved to: {}".format(url))
         created = True
-    elif p.exists():
+    elif p.exists(PACKAGE_PREFIX):
         prt("Filesystem Package already exists")
         created = False
-        url = p.save_path()
+        url = p.save_path(PACKAGE_PREFIX)
 
     return url, created
 
@@ -259,14 +260,14 @@ def make_csv_package(file, cache, env, skip_if_exists):
     from metatab.package import CsvPackage
 
     p = CsvPackage(file, callback=prt, cache=cache, env=env)
-    if not p.exists() or not skip_if_exists:
-        url = p.save()
+    if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
+        url = p.save(PACKAGE_PREFIX)
         prt("Packaged saved to: {}".format(url))
         created = True
     elif p.exists():
         prt("CSV Package already exists")
         created = False
-        url = p.save_path()
+        url = p.save_path(PACKAGE_PREFIX)
 
     return url, created
 
@@ -286,7 +287,8 @@ def make_s3_package(file, url, cache,  env, skip_if_exists):
     return url, created
 
 
-def update_name(mt_file, fail_on_missing=False, report_unchanged=True):
+def update_name(mt_file, fail_on_missing=False, report_unchanged=True, force=False):
+
     if isinstance(mt_file, MetatabDoc):
         doc = mt_file
     else:
@@ -294,14 +296,14 @@ def update_name(mt_file, fail_on_missing=False, report_unchanged=True):
 
     o_name = doc.find_first_value("Root.Name", section=['Identity', 'Root'])
 
-    updates = doc.update_name()
+    updates = doc.update_name(force=force)
 
     for u in updates:
         prt(u)
 
     prt("Name is: ", doc.find_first_value("Root.Name", section=['Identity', 'Root']))
 
-    if o_name != doc.find_first_value("Root.Name", section=['Identity', 'Root']):
+    if o_name != doc.find_first_value("Root.Name", section=['Identity', 'Root']) or force:
         write_doc(doc, mt_file)
 
 class S3Bucket(object):
@@ -375,4 +377,21 @@ def write_doc(doc, mt_file):
     from datetime import datetime
 
     doc['Root']['Modified'] = datetime_now()
+
+    doc['Root'].sort_by_term(order = [
+        'Root.Declare',
+        'Root.Title',
+        'Root.Description',
+        'Root.Identifier',
+        'Root.Name',
+        'Root.Group',
+        'Root.Tag',
+        'Root.Keyword'
+        'Root.Subject'
+        'Root.Created',
+        'Root.Modified',
+        'Root.Issued',
+        'Root.Distribution'
+    ])
+
     doc.write_csv(mt_file)

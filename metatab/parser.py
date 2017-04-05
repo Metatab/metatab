@@ -633,8 +633,32 @@ class SectionTerm(Term):
             self.doc.remove_term(t)
 
     def sort_by_term(self, order=None):
+        """
+        Sort the terms in the section.
+        :param order: If specified, a list of qualified, lowercased term names. These names will appear
+        first in the section, and the remaining terms will be sorted alphabetically. If not specified, all terms are
+        alphabetized.
+        :return:
+        """
 
-        self.terms = sorted(self.terms, key=lambda e: e.join_lc)
+        if order is None:
+            self.terms = sorted(self.terms, key=lambda e: e.join_lc)
+        else:
+
+            all_terms = list(self.terms)
+            sorted_terms = []
+
+            for tn in order:
+                for t in list(all_terms):
+                    if t.join_lc == tn.lower():
+                        all_terms.remove(t)
+                        sorted_terms.append(t)
+
+            sorted_terms.extend(sorted(all_terms, key=lambda e: e.join_lc))
+
+            self.terms = sorted_terms
+
+
 
     def __getitem__(self, item):
         """Synonym for get_term()"""

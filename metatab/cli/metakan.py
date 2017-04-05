@@ -95,11 +95,32 @@ def send_to_ckan(m):
 
     pkg['groups'] = [ {'name': g.value } for g in doc['Root'].find('Root.Group')]
 
-    try:
-        ckan_org = doc['Root'].find_first_value('Root.CkanOrg')
-        pkg['owner_org'] = c.action.organization_show(id=ckan_org).get('id')
-    except NotFound:
-        warn("Didn't find org for '{}'; not setting organization ".format(ckan_org))
+    pkg['tags'] = [{'name': g.value} for g in doc['Root'].find('Root.Tag')]
+
+    def get_org(name):
+
+        if not name:
+            return None
+
+        try:
+            return
+        except NotFound:
+            return None
+
+    org_name = name.get('Origin',
+                        doc['Root'].find_first_value('Root.CkanOrg'))
+
+    if org_name:
+        org_name_slug = org_name.value.replace('.','-')
+        try:
+
+            owner_org = c.action.organization_show(id=org_name_slug).get('id')
+            pkg['owner_org'] = owner_org
+        except NotFound:
+            warn("Didn't find org for '{}'; not setting organization ".format(org_name_slug))
+            org_name_slug = None
+    else:
+        org_name_slug = None
 
 
     extras = {}
@@ -113,9 +134,6 @@ def send_to_ckan(m):
 
     pkg['extras'] = [ {'key':k, 'value':v} for k, v in extras.items() ]
 
-
-    #import json
-    #print(json.dumps(pkg, indent=4))
 
     resources = []
 
@@ -191,14 +209,15 @@ def send_to_ckan(m):
 
     pkg = c.action.package_show(name_or_id=ckan_name)
 
-
     update_dist(doc, join(m.ckan_url, 'dataset',ckan_name))
 
     ##
     ## Add a term with CKAN info.
 
     doc['Root'].get_or_new_term('CkanId', pkg['id'])
-    doc['Root'].get_or_new_term('CkanOrg', pkg.get('organization',{}).get('name'))
+
+    if org_name_slug is None and pkg.get('organization'):
+        doc['Root'].get_or_new_term('CkanOrg', (pkg.get('organization') or {}).get('name'))
 
     groups = doc['Root'].find('Group')
     for g in groups:
@@ -209,6 +228,6 @@ def send_to_ckan(m):
 
     doc.write_csv()
 
-    import json
-    prt(json.dumps(pkg, indent=4))
+    #import json
+    #prt(json.dumps(pkg, indent=4))
 

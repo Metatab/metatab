@@ -70,6 +70,9 @@ def metapack():
     build_group.add_argument('-u', '--update', action='store_true', default=False,
                              help="Update the Name from the Datasetname, Origin and Version terms")
 
+    build_group.add_argument('-F', '--force', action='store_true', default=False,
+                               help='Force some operations, like updating the name')
+
     ##
     ## Derived Package Group
 
@@ -237,7 +240,7 @@ def metatab_build_handler(m):
             err(e)
 
     if m.mtfile_url.scheme == 'file' and m.args.update:
-        update_name(m.mt_file, fail_on_missing=True)
+        update_name(m.mt_file, fail_on_missing=True, force=m.args.force)
 
 
 def metatab_derived_handler(m, skip_if_exists=False):

@@ -27,6 +27,15 @@ from .exc import PackageError
 TableColumn = namedtuple('TableColumn', 'path name start_line header_lines columns')
 
 
+def ensure_exists(d):
+
+    from os import makedirs
+    from os.path import exists
+
+    if not exists(d):
+        makedirs(d)
+
+
 def write_csv(path_or_flo, headers, gen):
     try:
         f = open(path_or_flo, "wb")
@@ -562,6 +571,8 @@ class FileSystemPackage(Package):
 
         self._init_dir(path)
 
+        ensure_exists(dirname(self.save_path(path)))
+
         self._load_documentation_files()
 
         self._load_resources()
@@ -689,6 +700,8 @@ class CsvPackage(Package):
 
         _path = self.save_path(path)
 
+        ensure_exists(dirname(_path))
+
         self.doc.write_csv(_path)
 
         return _path
@@ -737,6 +750,8 @@ class ExcelPackage(Package):
 
         for row in self.doc.rows:
             meta_ws.append(row)
+
+        ensure_exists(dirname(self.save_path(path)))
 
         self.wb.save(self.save_path(path))
 
@@ -797,7 +812,10 @@ class ZipPackage(Package):
 
         self.doc.cleanse()
 
+        ensure_exists(dirname(self.save_path(path)))
+
         self._init_zf(path)
+
 
         self._load_resources()
 
