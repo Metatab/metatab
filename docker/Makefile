@@ -10,17 +10,18 @@ NAME = metatab
 
 DOCKER ?= docker
 
-PORTS =  -p 80
+PORTS =
 
 VOLUMES= -v /data
 
-ENV =  -eVIRTUAL_HOST=$(NAME).docker1.civicknowledge.com
+ENV =
 
 
 .PHONY: build push shell run start stop restart reload rm rmf release test
 
 build:
 	$(DOCKER) build -t $(NS)/$(REPO):$(VERSION) .
+
 
 push:
 	$(DOCKER) push $(NS)/$(REPO):$(VERSION)

@@ -394,4 +394,9 @@ def write_doc(doc, mt_file):
         'Root.Distribution'
     ])
 
-    doc.write_csv(mt_file)
+    u = Url(mt_file)
+
+    if u.scheme == 'file':
+        doc.write_csv(mt_file)
+    else:
+        warn("Not writing back to url ", mt_file)
