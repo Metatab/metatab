@@ -5,4 +5,4 @@ MAINTAINER Eric Busboom "eric@civicknowledge.com"
 
 VOLUME /opt/metatab
 
-RUN pip install git+https://github.com/CivicKnowledge/metatab-server.git
+RUN pip install git+https://github.com/CivicKnowledge/metatab-py.git
