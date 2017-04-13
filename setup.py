@@ -78,12 +78,15 @@ setup(
         'unicodecsv',
         'pyyaml',
         'datapackage',
-        'rowgenerators',
-        'rowpipe',
-        'boto3',
         'bs4',
         'markdown',
-        'ckanapi'
+        'ckanapi',
+        'boto3',
+        'rowgenerators>=0.1.8',
+        'rowpipe>=0.1.2',
+        'tableintuit>=0.0.6',
+        'geoid>=1.0.4'
+
     ],
 
     

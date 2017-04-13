@@ -8,8 +8,8 @@ import shutil
 from collections import namedtuple
 from io import BytesIO
 from itertools import islice
-from os import getcwd,makedirs, remove
-from os.path import basename, abspath,dirname, exists,isdir,join, splitext
+from os import getcwd, makedirs, remove
+from os.path import basename, abspath, dirname, exists, isdir, join, splitext
 
 import unicodecsv as csv
 from six import string_types, text_type
@@ -17,7 +17,7 @@ from six import string_types, text_type
 from metatab import TermParser, MetatabDoc, DEFAULT_METATAB_FILE, Resource
 from metatab.datapackage import convert_to_datapackage
 from metatab.util import slugify, Bunch
-from rowgenerators import RowGenerator,SourceSpec,TextEncodingError,Url,enumerate_contents
+from rowgenerators import RowGenerator, SourceSpec, TextEncodingError, Url, enumerate_contents
 from rowgenerators.fetch import download_and_cache
 from rowgenerators.generators import get_dflo
 from rowgenerators.util import get_cache
@@ -28,7 +28,6 @@ TableColumn = namedtuple('TableColumn', 'path name start_line header_lines colum
 
 
 def ensure_exists(d):
-
     from os import makedirs
     from os.path import exists
 
@@ -41,7 +40,7 @@ def write_csv(path_or_flo, headers, gen):
         f = open(path_or_flo, "wb")
 
     except TypeError:
-        f = path_or_flo # Assume that it's already a file-like-object
+        f = path_or_flo  # Assume that it's already a file-like-object
 
     try:
         w = csv.writer(f)
@@ -55,6 +54,7 @@ def write_csv(path_or_flo, headers, gen):
 
     finally:
         f.close()
+
 
 def write_geojson(path_or_flo, columns, gen):
     import fiona
@@ -68,7 +68,7 @@ def write_geojson(path_or_flo, columns, gen):
     schema = {
         'geometry': 'Unknown',
         'properties': OrderedDict(
-            [ (c['header'],type_map.get(c['datatype'], c['datatype'])) for c in columns ]
+            [(c['header'], type_map.get(c['datatype'], c['datatype'])) for c in columns]
         )
     }
 
@@ -78,7 +78,7 @@ def write_geojson(path_or_flo, columns, gen):
                        crs=from_epsg(4326),
                        schema=schema)
     except TypeError:
-        f = path_or_flo # Assume that it's already a file-like-object
+        f = path_or_flo  # Assume that it's already a file-like-object
 
     try:
         w = csv.writer(f)
@@ -92,6 +92,7 @@ def write_geojson(path_or_flo, columns, gen):
 
     finally:
         f.close()
+
 
 class Package(object):
     def __new__(cls, ref=None, cache=None, callback=None, env=None):
@@ -262,7 +263,6 @@ class Package(object):
     @staticmethod
     def extract_path_name(ref):
 
-
         du = Url(ref)
 
         if du.proto == 'file':
@@ -288,7 +288,6 @@ class Package(object):
     @staticmethod
     def classify_url(url):
 
-
         ss = SourceSpec(url=url)
 
         if ss.format in ('xls', 'xlsx', 'tsv', 'csv'):
@@ -302,7 +301,6 @@ class Package(object):
 
     @staticmethod
     def run_row_intuit(path, cache):
-
 
         for encoding in ('ascii', 'utf8', 'latin1'):
             try:
@@ -394,7 +392,6 @@ class Package(object):
         """Add one or more resources entities, from a url and property values,
         possibly adding multiple entries for an excel spreadsheet or ZIP file"""
 
-
         raise NotImplementedError("Still uses decompose_url")
 
         du = Bunch(decompose_url(ref))
@@ -449,7 +446,7 @@ class Package(object):
                 col['transform'] = None
 
     def _load_resources(self):
-        """Copy all of the Datafile entries into the Excel file"""
+        """Copy all of the Datafile entries into the package"""
 
         for r in self.datafiles:
 
@@ -466,7 +463,7 @@ class Package(object):
 
             self.prt("Reading resource {} from {} ".format(r.name, r.resolved_url))
 
-            rg = self.doc.resource(r.name, env = self._env)
+            rg = self.doc.resource(r.name, env=self._env)
 
             assert rg is not None
 
@@ -555,7 +552,6 @@ class FileSystemPackage(Package):
         else:
             return base
 
-
     def save(self, path=None):
 
         self.check_is_ready()
@@ -585,7 +581,6 @@ class FileSystemPackage(Package):
 
         doc_file = self._write_doc()
 
-
         return doc_file
 
     def _init_dir(self, path=None):
@@ -598,7 +593,6 @@ class FileSystemPackage(Package):
         np = join(path, name)
 
         if isdir(np):
-
             shutil.rmtree(np)
 
         makedirs(np)
@@ -688,6 +682,10 @@ class CsvPackage(Package):
 
     def save(self, path=None):
 
+        # HACK ...
+        if not self.doc.ref:
+            self.doc._ref = self.save_path(path)  # Really should not do this but ...
+
         self.check_is_ready()
 
         self.load_declares()
@@ -762,7 +760,7 @@ class ExcelPackage(Package):
 
         for t in self.doc.find('Root.Table'):
             for c in t.find('Table.Column'):
-                if c.get_value('datatype')  == 'geometry':
+                if c.get_value('datatype') == 'geometry':
                     c['transform'] = '^empty_str'
                     c['datatype'] = 'text'
 
@@ -815,7 +813,6 @@ class ZipPackage(Package):
         ensure_exists(dirname(self.save_path(path)))
 
         self._init_zf(path)
-
 
         self._load_resources()
 

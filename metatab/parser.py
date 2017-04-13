@@ -213,9 +213,9 @@ class Term(object):
     def find_first(self, term, value = None):
         """Like find(), but returns only the first matching term"""
 
-        if '.' in  term:
+        if '.' in term:
             parent, term = term.split('.')
-            assert parent.lower() == self.record_term_lc, (parent.lower(),self.record_term_lc)
+            assert parent.lower() == self.record_term_lc, (term, parent.lower(),self.record_term_lc)
 
         for c in self.children:
             if c.record_term_lc == term.lower():
@@ -499,6 +499,16 @@ class Term(object):
             if not c.is_terminal:
                 for row in c.rows:
                     yield row
+
+    @property
+    def descendents(self):
+        """Iterate over all descendent terms"""
+
+        for c in self.children:
+            yield c
+
+            for d in c.descendents:
+                yield d
 
     def __repr__(self):
         return "<Term: {}{}.{} {} {}>".format(self.file_ref(), self.parent_term,

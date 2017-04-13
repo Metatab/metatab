@@ -50,9 +50,11 @@ def resource(r, fields = None):
     )
 
     headers = [ f[0] for f in fields]
-    ig = itemgetter(* [f[1] for f in fields])
+    keys = [f[1] for f in fields]
 
-    rows = [''.join(["<td>{}</td>".format(e.replace("\n","<br/>\n")) for e in ig(c)]) for c in r.columns()]
+
+    rows = [''.join(["<td>{}</td>".format(e.replace("\n","<br/>\n")) for e in [c.get(k,'') for k in keys] ])
+            for c in r.columns()]
 
     return ("### {name} \n [{url}]({url})\n\n".format(name=r.name, url=r.url)) + \
            "{}\n".format(ns(r.description))+ \

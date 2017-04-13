@@ -8,7 +8,8 @@ import six
 from metatab import _meta, MetatabDoc
 from metatab.util import make_metatab_file
 from rowgenerators import Url
-
+from rowgenerators import parse_url_to_dict
+import boto3
 
 def prt(*args, **kwargs):
     print(*args, **kwargs)
@@ -307,9 +308,8 @@ def update_name(mt_file, fail_on_missing=False, report_unchanged=True, force=Fal
         write_doc(doc, mt_file)
 
 class S3Bucket(object):
+
     def __init__(self, url):
-        from rowgenerators import parse_url_to_dict
-        import boto3
 
         self._s3 = boto3.resource('s3')
 
@@ -325,15 +325,28 @@ class S3Bucket(object):
         self._bucket_name = bucket_name
         self._bucket = self._s3.Bucket(bucket_name)
 
-
     def access_url(self, *paths):
-        import boto3
+
 
         key = join(self._prefix, *paths).strip('/')
 
         s3 = boto3.client('s3')
 
         return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
+
+    def list(self):
+
+        s3 = boto3.client('s3')
+
+        # Create a reusable Paginator
+        paginator = s3.get_paginator('list_objects')
+
+        # Create a PageIterator from the Paginator
+        page_iterator = paginator.paginate(Bucket=self._bucket_name)
+
+        for page in page_iterator:
+            for c in page['Contents']:
+                yield c
 
     def write(self, body, *paths):
         from botocore.exceptions import ClientError
@@ -354,8 +367,11 @@ class S3Bucket(object):
                 prt("File '{}' already in bucket, but length is different; re-wirtting".format(key))
 
         except ClientError as e:
-            if int(e.response['Error']['Code']) != 404:
-                err("S# Access failed for '{}:{}': {}".format(self._bucket_name, key, e))
+            if int(e.response['Error']['Code']) in (403, 405):
+                err("S3 Access failed for '{}:{}': {}\nNOTE: With Docker, this error is often the result of container clock drift. Check your container clock. "
+                    .format(self._bucket_name, key, e))
+            elif int(e.response['Error']['Code']) != 404:
+                err("S3 Access failed for '{}:{}': {}".format(self._bucket_name, key, e))
 
         ct = mimetypes.guess_type(key)[0]
 

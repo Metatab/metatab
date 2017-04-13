@@ -455,7 +455,9 @@ class MetatabDoc(object):
 
     def remove_term(self, t):
         """Only removes top-level terms. CHild terms can be removed at the parent. """
+
         self.terms.remove(t)
+
 
         if t.section and t.parent_term_lc == 'root':
             t.section = self.add_section(t.section)
@@ -557,6 +559,9 @@ class MetatabDoc(object):
             if section is None:
                 return True
 
+            if term.section is None:
+                return False
+
             if isinstance(section, (list, tuple)):
                 return any(in_section(t, e) for e in section)
             else:
@@ -574,13 +579,17 @@ class MetatabDoc(object):
             if not '.' in term:
                 term = 'root.' + term
 
+            if term.startswith('Root.'):
+                term_gen = self.terms
+            else:
+                term_gen = self.all_terms
 
-            for t in self.terms:
+            for t in term_gen:
 
                 if t.join_lc == 'root.root':
                     continue
 
-                assert t.section or t.join_lc == 'root.root', t
+                assert t.section or t.join_lc == 'root.root' or t.join_lc == 'root.section', t
 
                 if ( t.term_is(term)
                     and in_section(t, section)
@@ -606,6 +615,15 @@ class MetatabDoc(object):
             return None
         else:
             return term.value
+
+    def get_value(self, term, default = None):
+        term = self.find_first(term, value=False)
+
+        if term is None:
+            return default
+        else:
+            return term.value
+
 
     def resources(self, name=None, term=None, section='Resources'):
         """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
@@ -729,8 +747,9 @@ class MetatabDoc(object):
             return updates
 
         orig_name = orig_name_t.value
-        identifier = orig_name_t.find_first_value('Name.Identifier')
-        datasetname = orig_name_t.find_first_value('Name.Dataset')
+        identifier = self.get_value('Root.Identifier')
+
+        datasetname = orig_name_t.get_value('Name.Dataset', self.get_value('Root.Dataset'))
 
         if datasetname:
 
@@ -767,12 +786,12 @@ class MetatabDoc(object):
 
         name = name_t.value
 
-        datasetname = name_t.find_first_value('Name.Dataset')
-        version = name_t.find_first_value('Name.Version')
-        origin = name_t.find_first_value('Name.Origin')
-        time = name_t.find_first_value('Name.Time')
-        space = name_t.find_first_value('Name.Space')
-        grain = name_t.find_first_value('Name.Grain')
+        datasetname = name_t.get_value('Name.Dataset', self.get_value('Root.Dataset'))
+        version = name_t.get_value('Name.Version', self.get_value('Root.Version'))
+        origin = name_t.get_value('Name.Origin', self.get_value('Root.Origin'))
+        time = name_t.get_value('Name.Time', self.get_value('Root.Time'))
+        space = name_t.get_value('Name.Space', self.get_value('Root.Space'))
+        grain = name_t.get_value('Name.Grain', self.get_value('Root.Grain'))
 
         parts = [slugify(e.replace('-', '_')) for e in (origin, datasetname, time, space, grain, version) if
                  e and str(e).strip()]
@@ -815,6 +834,23 @@ class MetatabDoc(object):
                     yield [term] + value
                 except:
                     yield [term] + [value]
+
+    @property
+    def all_terms(self):
+        """Iterate over all of the terms. The self.terms property has only root level terms. This iterator
+        iterates over all terms"""
+
+        for s_name, s in self.sections.items():
+
+            # Yield the section header
+            if s.name != 'Root':
+                yield s
+
+            # Yield all of the rows for terms in the section
+            for rterm in s:
+                yield rterm
+                for d in rterm.descendents:
+                    yield d
 
     def as_csv(self):
         """Return a CSV representation as a string"""

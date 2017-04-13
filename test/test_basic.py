@@ -101,7 +101,7 @@ class MyTestCase(unittest.TestCase):
 
         d = {k: v for k, v in doc.decl_terms.items() if 'homepage' in k}
 
-        self.assertEqual(16, len(d))
+        self.assertEqual(17, len(d))
 
         self.assertIn("homepage.mediatype", d.keys())
         self.assertIn("homepage.hash", d.keys())
@@ -120,12 +120,12 @@ class MyTestCase(unittest.TestCase):
 
         self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
-        self.assertEquals(235, len(terms.keys()))
+        self.assertEquals(247, len(terms.keys()))
 
         sections = doc.decl_sections
 
         self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
-                           'sources','documentation','data','identity'},
+                           'sources','documentation','data'},
                           set(sections.keys()))
 
         # Use the Declare term
@@ -141,12 +141,12 @@ class MyTestCase(unittest.TestCase):
 
         self.assertIn('root.homepage', terms.keys())
         self.assertIn('documentation.description', terms.keys())
-        self.assertEquals(235, len(terms.keys()))
+        self.assertEquals(247, len(terms.keys()))
 
         sections = d['sections']
 
         self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
-                           'sources', 'documentation', 'data','identity'},
+                           'sources', 'documentation', 'data'},
                           set(sections.keys()))
 
         self.assertEqual(['Email', 'Organization', 'Tel', 'Url'], sections['contacts']['args'])
@@ -389,15 +389,47 @@ class MyTestCase(unittest.TestCase):
         import datapackage
         from metatab.datapackage import convert_to_datapackage
 
-        doc = MetatabDoc(test_data('name.csv'))
+        for fn in ('name.csv','name2.csv'):
 
-        updates = doc.update_name()
+            doc = MetatabDoc(test_data(fn))
 
-        name = doc.find_first_value("Root.Name")
+            updates = doc.update_name()
 
+            name = doc.find_first_value("Root.Name")
 
-        self.assertEqual('example.com-foobar-2017-ca-people-1', name)
-        self.assertEqual(['Changed Name'], updates)
+            self.assertEqual('example.com-foobar-2017-ca-people-1', name)
+            self.assertEqual(['Changed Name'], updates)
+
+            try:
+                doc.remove_term(doc.find_first('Root.Dataset'))
+            except ValueError:
+                nv = doc.find_first('Root.Name')
+                nv.remove_child(nv.find_first('Name.Dataset'))
+
+            updates = doc.update_name()
+
+            self.assertIn("No Root.Dataset, so can't update the name", updates)
+
+            doc.find_first('Root.Name').value = None
+
+            updates = doc.update_name()
+
+            self.assertIn('Setting the name to the identifier', updates)
+
+            doc.find_first('Root.Name').value = None
+            doc.find_first('Root.Identifier').value = None
+
+            updates = doc.update_name()
+
+            self.assertIn('Failed to find DatasetName term or Identity term. Giving up', updates)
+
+            self.assertIsNone(doc.get_value('Root.Name'))
+
+    def test_descendents(self):
+
+        doc = MetatabDoc(test_data('example1.csv'))
+
+        self.assertEquals(144, (len(list(doc.all_terms))))
 
 
 if __name__ == '__main__':
