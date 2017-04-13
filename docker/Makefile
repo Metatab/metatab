@@ -17,11 +17,13 @@ VOLUMES= -v /data
 ENV =
 
 
-.PHONY: build push shell run start stop restart reload rm rmf release test
+.PHONY: build rebuild push shell run start stop restart reload rm rmf release test
 
 build:
 	$(DOCKER) build -t $(NS)/$(REPO):$(VERSION) .
 
+rebuild:
+	$(DOCKER) build --no-cache=true -t $(NS)/$(REPO):$(VERSION) .
 
 push:
 	$(DOCKER) push $(NS)/$(REPO):$(VERSION)

@@ -5,6 +5,6 @@ MAINTAINER Eric Busboom "eric@civicknowledge.com"
 
 VOLUME /opt/metatab
 
-RUN apk add --update --no-cache g++ gcc libxslt-dev==1.1.29-r0 bash
+RUN apk add --update --no-cache g++ gcc python-dev py-lxml libxslt-dev==1.1.29-r0 bash git
 
-RUN pip install https://github.com/CivicKnowledge/metatab-py/archive/master.zip # 7
+RUN pip install https://github.com/CivicKnowledge/metatab-py/archive/master.zip # 9
