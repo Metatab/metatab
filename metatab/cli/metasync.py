@@ -50,6 +50,10 @@ def metasync():
     parser.add_argument('-D', '--docker', help="Re-run the metasync command through docker",
                         action='store_true', default=False)
 
+    parser.add_argument('-C', '--credentials', help="Show S3 Credentials and exit. "
+                                                    "Eval this string to setup credentials in other shells.",
+                          action='store_true', default=False)
+
     parser.add_argument('metatabfile', nargs='?', help='Path to a Metatab file')
 
     class MetapackCliMemo(object):
@@ -68,8 +72,7 @@ def metasync():
             self.tmp_cache = get_cache('temp')
             clean_cache(self.tmp_cache)
 
-            if not self.args.all_s3 and not self.args.s3:
-                err("Must specify either -S or -s")
+
 
             if self.args.all_s3:
                 self.args.s3 = self.args.all_s3
@@ -89,12 +92,19 @@ def metasync():
 
     m = MetapackCliMemo(sys.argv)
 
+    if m.args.credentials:
+        show_credentials()
+        exit(0)
+
     if m.args.docker:
         run_docker(m)
 
     if m.args.info:
         metatab_info(m.cache)
         exit(0)
+
+    if not m.args.all_s3 and not m.args.s3:
+        err("Must specify either -S or -s")
 
     if m.args.excel is not False or m.args.zip is not False or m.args.fs is not False:
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
@@ -110,6 +120,14 @@ def metasync():
     prt(tabulate(created))
 
     exit(0)
+
+def show_credentials():
+    import botocore.session
+    session = botocore.session.get_session()
+
+    prt("export AWS_ACCESS_KEY_ID={} ".format(session.get_credentials().access_key))
+    prt("export AWS_SECRET_ACCESS_KEY={}".format(session.get_credentials().secret_key))
+    prt("# Run 'eval $(metasync -C)' to configure credentials in a shell")
 
 def run_docker(m):
     """Re-run the metasync command in docker. """
