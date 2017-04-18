@@ -18,8 +18,6 @@ from metatab import TermParser, MetatabDoc, DEFAULT_METATAB_FILE, Resource
 from metatab.datapackage import convert_to_datapackage
 from metatab.util import slugify, Bunch
 from rowgenerators import RowGenerator, SourceSpec, TextEncodingError, Url, enumerate_contents
-from rowgenerators.fetch import download_and_cache
-from rowgenerators.generators import get_dflo
 from rowgenerators.util import get_cache
 from tableintuit import RowIntuiter
 from .exc import PackageError
@@ -45,7 +43,15 @@ def write_csv(path_or_flo, headers, gen):
     try:
         w = csv.writer(f)
         w.writerow(headers)
-        w.writerows(gen)
+
+        row = None
+        try:
+            for row in gen:
+                w.writerow(row)
+        except:
+            import sys
+            print("write_csv: ERROR IN ROW", row, file=sys.stderr)
+            raise
 
         try:
             return f.getvalue()

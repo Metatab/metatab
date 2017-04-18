@@ -4,21 +4,20 @@
 """
 Generate rows from a variety of paths, references or other input
 """
+import collections
 from collections import OrderedDict, MutableSequence
 from itertools import islice
-from os.path import join
+from os.path import isfile, dirname, join
 
 import six
-import collections
 import unicodecsv as csv
-from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
 
 from metatab import (TermParser, SectionTerm, Term, generateRows, MetatabError,
                      CsvPathRowGenerator, RootSectionTerm)
 from metatab.util import linkify, slugify
-from .exc import PackageError
-from rowgenerators import RowGenerator
+from rowgenerators import RowGenerator, Url, SelectiveRowGenerator
 from rowgenerators.exceptions import SourceError
+from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
 from rowpipe import RowProcessor
 
 DEFAULT_METATAB_FILE = 'metadata.csv'
@@ -37,8 +36,7 @@ def get_cache(clean=False):
 def resolve_package_metadata_url(ref):
     """Re-write a url to a resource to include the likely refernce to the
     internal Metatab metadata"""
-    from rowgenerators import Url
-    from os.path import isfile, dirname, join
+
 
     du = Url(ref)
 
@@ -107,16 +105,32 @@ class Resource(Term):
 
         self.__initialised = True
 
-        assert self.url, term.properties
+
+    @property
+    def _self_url(self):
+        try:
+            if self.url:
+                return self.url
+        finally:
+            return self.value
+
 
     def _resolved_url(self):
-        """Return a URL that propery combines the base_url and a possibly relative
+        """Return a URL that properly combines the base_url and a possibly relative
         resource url"""
 
-        from rowgenerators import Url
+        from rowgenerators.generators import PROTO_TO_SOURCE_MAP
 
-        u = Url(self.doc.ref)
-        nu = u.component_url(self.url)
+        u = Url(self.base_url) #Url(self.doc.ref)
+
+        if not self._self_url:
+            return None
+
+        nu = u.component_url(self._self_url)
+
+        su = Url(self._self_url)
+        if su.proto in PROTO_TO_SOURCE_MAP().keys():
+            nu = reparse_url(nu, scheme_extension=su.proto)
 
         assert nu
         return nu
@@ -269,17 +283,30 @@ class Resource(Term):
         else:
             return None
 
-    def __iter__(self):
-        """Iterate over the resource's rows"""
-
+    @property
+    def row_generator(self):
         d = self.properties
 
         d['url'] = self.resolved_url
-
         d['target_format'] = d.get('format')
+        d['target_segment'] = d.get('segment')
+        d['target_file'] = d.get('file')
+        d['engoding'] = d.get('encoding', 'utf8'),
 
-        base_rg = RowGenerator(**d, cache = self._doc._cache, working_dir=self._doc.doc_dir,
-                               generator_args=dict(self.properties.items()))
+        generator_args = dict(d.items())
+
+        generator_args['working_dir'] = self._doc.doc_dir
+        generator_args['metatab_doc'] = self._doc.ref
+        generator_args['metatab_package'] = str(self._doc.package_url)
+
+        return RowGenerator(**d,
+                           cache=self._doc._cache,
+                           working_dir=self._doc.doc_dir,
+                           generator_args=generator_args)
+
+
+    def __iter__(self):
+        """Iterate over the resource's rows"""
 
         headers = self.headers()
 
@@ -287,18 +314,17 @@ class Resource(Term):
             # There are several args for SelectiveRowGenerator, but only
             # start is really important.
             try:
-                start = int(d.get('startline', 1))
+                start = int(self.get_value('startline', 1))
             except ValueError:
                 start = 1
 
             yield headers
 
-            rg = RowProcessor(islice(base_rg, start, None),
+            rg = RowProcessor(islice(self.row_generator, start, None),
                               self.row_processor_table(),
                               source_headers=headers, env=self.env)
         else:
-            rg = base_rg
-
+            rg = self.row_generator
 
         if six.PY3:
             # Would like to do this, but Python2 can't handle the syntax
@@ -316,6 +342,7 @@ class Resource(Term):
 
     @property
     def iterdict(self):
+        """Iterate over the resource in dict records"""
 
         headers = None
 
@@ -363,7 +390,7 @@ class Resource(Term):
 
     def _repr_html_(self):
         return ("<h3><a name=\"resource-{name}\"></a>{name}</h3><p><a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
-                .format(name=self.name, url=self.url)) + \
+                .format(name=self.name, url=self._self_url)) + \
                "<table>\n" + \
                "<tr><th>Header</th><th>Type</th><th>Description</th></tr>" + \
                '\n'.join(
@@ -450,6 +477,18 @@ class MetatabDoc(object):
         if add_section and t.section and t.parent_term_lc == 'root':
             t.section = self.add_section(t.section)
             t.section.add_term(t)
+
+        if False:
+            # Not quite sure about this ...
+            if not t.child_property_type:
+                t.child_property_type = self.decl_terms \
+                    .get(t.join, {}) \
+                    .get('childpropertytype', 'any')
+
+            if not t.term_value_name:
+                t.term_value_name = self.decl_terms \
+                    .get(t.join, {}) \
+                    .get('termvaluename', t.section.default_term_value_name)
 
         assert t.section or t.join_lc == 'root.root', t
 
@@ -542,14 +581,15 @@ class MetatabDoc(object):
         """
 
         import itertools
+        import sys
         if kwargs:  # Look for terms with particular property values
+
             terms = self.find(term, value, section)
 
             found_terms = []
 
             for t in terms:
-
-                if all(t.get(k) == v for k, v in kwargs.items()):
+                if all(t.get_value(k) == v for k, v in kwargs.items()):
                     found_terms.append(t)
 
             return found_terms
@@ -624,16 +664,26 @@ class MetatabDoc(object):
         else:
             return term.value
 
-
-    def resources(self, name=None, term=None, section='Resources'):
+    def resources(self, name=None, term='Root.Datafile', section='Resources'):
         """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
 
-        for t in (self['Resources'].terms if term is None else self.find(term, section=section)):
+        base_url = self.package_url if self.package_url else self._ref
 
-            if 'url' in t.properties and t.get_value('url') and (name is None or t.get_value('name') == name):
-                yield Resource(t, self.package_url if self.package_url else self._ref)
+        for t in self['Resources'].terms:
 
-    def resource(self, name=None, term=None, env=None):
+            if term and not t.term_is(term):
+                continue
+
+            if name and t.get_value('name') != name:
+                continue
+
+            if not 'url' in t.properties:
+                pass
+
+
+            yield Resource(t, base_url)
+
+    def resource(self, name=None, term='Root.Datafile', env=None):
         """
 
         :param name:
@@ -882,8 +932,6 @@ class MetatabDoc(object):
 
     def _repr_html_(self, **kwargs):
         """Produce HTML for Jupyter Notebook"""
-
-        from rowgenerators import Url
 
         def resource_repr(r, anchor=kwargs.get('anchors', False)):
             return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a> {description}</p>" \

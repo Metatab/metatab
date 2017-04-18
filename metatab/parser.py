@@ -110,7 +110,6 @@ class Term(object):
             self._doc = v.doc
 
 
-
     @classmethod
     def split_term(cls, term):
         """
@@ -543,6 +542,7 @@ class SectionTerm(Term):
 
         self.doc = doc
 
+        self.default_term_value_name = '@value'
         section_args = term_args if term_args else self.doc.section_args(name) if self.doc else []
 
         self.terms = []  # Seperate from children. Sections have contained terms, but no children.
@@ -1070,7 +1070,7 @@ class TermParser(object):
                     self._param_map = munge_param_map(t)
                     default_term_value_name = t.value.lower()
                     last_section.header_args = t.args
-
+                    last_section.default_term_value_name = default_term_value_name
                     continue
 
                 elif t.term_is('root.section'):

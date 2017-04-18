@@ -431,6 +431,28 @@ class MyTestCase(unittest.TestCase):
 
         self.assertEquals(144, (len(list(doc.all_terms))))
 
+    def test_resolved_url(self):
+
+        from metatab.doc import Resource
+
+        import csv
+        from os.path import dirname
+
+        with open(test_data('resolve_urls.csv')) as f:
+            for row in csv.DictReader(f):
+                doc = MetatabDoc(test_data(row['doc']))
+                base = dirname(doc._ref)
+                rs = doc['Resources']
+
+                t = rs.new_term('Root.Datafile', row['resource_url'])
+                t.term_value_name = 'url'
+
+                if row['base_url']:
+                    r = Resource(t, row['base_url'])
+                else:
+                    r = Resource(t, doc.package_url if doc.package_url else doc._ref)
+
+                self.assertEquals(r.resolved_url.replace(base, '<base>'), row['url'])
 
 if __name__ == '__main__':
     unittest.main()

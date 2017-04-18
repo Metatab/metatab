@@ -393,17 +393,9 @@ def process_schemas(mt_file, cache, clean=False):
     except KeyError:
         doc.new_section('Schema', ['DataType', 'Altname', 'Description'])
 
-    for t in doc['Resources']:
+    for r in doc.resources():
 
-        if not t.term_is('root.datafile'):
-            continue
-
-        e = {k: v for k, v in t.properties.items() if v}
-
-        if 'schema' in e:
-            schema_name = e['schema']
-        else:
-            schema_name = e['name']
+        schema_name = r.get_value('schema', r.get_value('name'))
 
         schema_term = doc.find_first(term='Table', value=schema_name, section='Schema')
 
@@ -411,24 +403,13 @@ def process_schemas(mt_file, cache, clean=False):
             prt("Found table for '{}'; skipping".format(schema_name))
             continue
 
-        path, name = extract_path_name(t.value)
+        path, name = extract_path_name(r.url)
 
-        prt("Processing {}".format(t.value))
+        prt("Processing {}".format(r.url))
 
-        rg = RowGenerator(url=path,
-                          name=e['name'],
-                          encoding=e.get('encoding', 'utf8'),
-                          target_format=e.get('format'),
-                          target_file=e.get('file'),
-                          target_segment=e.get('segment'),
-                          cache=cache,
-                          working_dir=doc.doc_dir,
-                          generator_args=dict(t.properties.items())
-                          )
-
-        si = SelectiveRowGenerator(islice(rg, 20),
-                                   headers=[int(i) for i in e.get('headerlines', '0').split(',')],
-                                   start=int(e.get('startline', 1)))
+        si = SelectiveRowGenerator(islice(r.row_generator, 100),
+                                   headers=[int(i) for i in r.get_value('headerlines', '0').split(',')],
+                                   start=int(r.get_value('startline', 1)))
 
         try:
             ti = TypeIntuiter().run(si)

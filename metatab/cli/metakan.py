@@ -31,6 +31,9 @@ def metakan():
 
     parser.add_argument('-a', '--api', help="CKAN API Key")
 
+    parser.add_argument('-p', '--packages', action='store_true',
+                        help="The file argument is a text file with a list of package URLs to load")
+
     parser.add_argument('metatabfile', nargs='?', default=DEFAULT_METATAB_FILE,
                         help='Path to a Metatab file, or an s3 link to a bucket with Metatab files. ')
 
@@ -86,6 +89,18 @@ def metakan():
                 url = b.access_url(key)
                 prt("Processing", url)
                 send_to_ckan(m.update_mt_arg(url))
+
+    elif m.args.packages:
+
+        with open(m.mtfile_arg) as f:
+            for line in f.readlines():
+                url = line.strip()
+                prt("Processing", url)
+                try:
+                    send_to_ckan(m.update_mt_arg(url))
+                except Exception as e:
+                    warn("Failed to process {}: {}".format(line, e))
+
 
     else:
 
