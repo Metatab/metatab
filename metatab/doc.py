@@ -37,7 +37,6 @@ def resolve_package_metadata_url(ref):
     """Re-write a url to a resource to include the likely refernce to the
     internal Metatab metadata"""
 
-
     du = Url(ref)
 
     if du.resource_format == 'zip':
@@ -50,25 +49,25 @@ def resolve_package_metadata_url(ref):
 
     elif du.resource_file == DEFAULT_METATAB_FILE:
         metadata_url = reparse_url(ref)
-        package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']))
+        package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']), fragment=False)+'/'
 
     elif du.target_format == 'csv':
-        package_url = metadata_url = reparse_url(ref)
-
+        package_url  = reparse_url(ref, fragment=False)
+        metadata_url = reparse_url(ref)
     elif du.proto == 'file':
         p = parse_url_to_dict(ref)
 
         if isfile(p['path']):
             metadata_url = reparse_url(ref)
-            package_url = reparse_url(ref, path=dirname(p['path']))
+            package_url = reparse_url(ref, path=dirname(p['path']), fragment=False)
         else:
             p['path'] = join(p['path'], DEFAULT_METATAB_FILE)
-            package_url = reparse_url(ref)
+            package_url = reparse_url(ref, fragment=False)
             metadata_url = unparse_url_dict(p)
 
     else:
         metadata_url = join(ref, DEFAULT_METATAB_FILE)
-        package_url = reparse_url(ref)
+        package_url = reparse_url(ref, fragment=False)
 
     # raise PackageError("Can't determine package URLs for '{}'".format(ref))
 
@@ -121,7 +120,7 @@ class Resource(Term):
 
         from rowgenerators.generators import PROTO_TO_SOURCE_MAP
 
-        u = Url(self.base_url) #Url(self.doc.ref)
+        u = Url(self.doc.package_url) #Url(self.doc.ref)
 
         if not self._self_url:
             return None
@@ -299,11 +298,11 @@ class Resource(Term):
         generator_args['metatab_doc'] = self._doc.ref
         generator_args['metatab_package'] = str(self._doc.package_url)
 
-        return RowGenerator(**d,
-                           cache=self._doc._cache,
-                           working_dir=self._doc.doc_dir,
-                           generator_args=generator_args)
+        d['cache'] = self._doc._cache
+        d['working_dir'] = self._doc.doc_dir
+        d['generator_args'] = generator_args
 
+        return RowGenerator(**d)
 
     def __iter__(self):
         """Iterate over the resource's rows"""
@@ -362,8 +361,9 @@ class Resource(Term):
         d = self.properties
 
         d['url'] = self.resolved_url
+        d['working_dir'] = self._doc.doc_dir
 
-        rg = RowGenerator(**d, working_dir=self._doc.doc_dir)
+        rg = RowGenerator(**d)
 
         headers = self.headers()
 
