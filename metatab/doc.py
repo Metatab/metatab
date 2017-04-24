@@ -299,10 +299,11 @@ class Resource(Term):
         generator_args['metatab_doc'] = self._doc.ref
         generator_args['metatab_package'] = str(self._doc.package_url)
 
-        return RowGenerator(**d,
-                           cache=self._doc._cache,
-                           working_dir=self._doc.doc_dir,
-                           generator_args=generator_args)
+        d['cache']=self._doc._cache
+        d['working_dir']=self._doc.doc_dir
+        d['generator_args']=generator_args
+
+        return RowGenerator(**d)
 
 
     def __iter__(self):
@@ -362,8 +363,9 @@ class Resource(Term):
         d = self.properties
 
         d['url'] = self.resolved_url
+        d['working_dir']
 
-        rg = RowGenerator(**d, working_dir=self._doc.doc_dir)
+        rg = RowGenerator(**d)
 
         headers = self.headers()
 
