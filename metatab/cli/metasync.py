@@ -6,7 +6,7 @@ CLI program for storing pacakges in CKAN
 """
 
 import sys
-from os import getcwd, makedirs
+from os import getcwd, makedirs, getenv
 from os.path import join, basename, exists, dirname
 from tabulate import tabulate
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
@@ -16,6 +16,8 @@ from metatab.cli.core import prt, err, get_lib_module_dict, write_doc, datetime_
 from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage, CsvPackage
 from rowgenerators import  Url, get_cache
 from rowgenerators.util import clean_cache
+from metatab.package import PackageError
+from botocore.exceptions import NoCredentialsError
 
 
 def metasync():
@@ -71,7 +73,6 @@ def metasync():
             # written to S3.
             self.tmp_cache = get_cache('temp')
             clean_cache(self.tmp_cache)
-
 
 
             if self.args.all_s3:
@@ -241,7 +242,7 @@ def update_distributions(m):
 from .core import PACKAGE_PREFIX
 
 def create_packages(m, second_stage_mtfile, skip_if_exists=False):
-    from metatab.package import PackageError
+
 
     create_list = []
     url = None
@@ -264,7 +265,12 @@ def create_packages(m, second_stage_mtfile, skip_if_exists=False):
             urls.append(('zip',s3.write(zip_url, basename(zip_url))))
 
         if m.args.fs is not False:
-            fs_url, created = make_s3_package(second_stage_mtfile, m.args.s3, m.cache, env, skip_if_exists)
+            try:
+                fs_url, created = make_s3_package(second_stage_mtfile, m.args.s3, m.cache, env, skip_if_exists)
+            except NoCredentialsError:
+                print(getenv('AWS_SECRET_ACCESS_KEY'))
+                err("Failed to find boto credentials for S3. See http://boto3.readthedocs.io/en/latest/guide/configuration.html ")
+
             urls.append(('fs',fs_url))
 
         if m.args.csv is not False:

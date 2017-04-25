@@ -108,11 +108,13 @@ def make_dir_structure(base_dir):
 
 def make_metatab_file(template='metatab'):
 
-    from os.path import join, dirname
+    from os.path import  dirname
+    from rowgenerators.util import fs_join as join
     import metatab.templates
     from metatab.doc import MetatabDoc
 
     template_path = join(dirname(metatab.templates.__file__),template+'.csv')
+
 
     doc = MetatabDoc(template_path)
 

@@ -11,7 +11,7 @@ import sys
 from genericpath import exists, isdir
 from itertools import islice
 from os import getcwd
-from os.path import join, dirname, abspath
+from os.path import  dirname, abspath
 from uuid import uuid4
 from datetime import datetime
 
@@ -24,6 +24,7 @@ from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, meta
 from metatab.util import make_metatab_file
 from rowgenerators import get_cache, RowGenerator, SelectiveRowGenerator, SourceError, Url
 from rowgenerators.util import clean_cache
+from rowgenerators.util import fs_join as join
 from tableintuit import TypeIntuiter, RowIntuitError
 
 
@@ -250,6 +251,7 @@ def metatab_derived_handler(m, skip_if_exists=False):
     url = None
 
     doc = MetatabDoc(m.mt_file)
+
     env = get_lib_module_dict(doc)
 
     if (m.args.excel is not False or m.args.zip is not False or

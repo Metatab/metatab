@@ -1000,7 +1000,7 @@ class TermParser(object):
                         e.term = t
                         raise
 
-                    except (FileNotFoundError, SourceError) as e:
+                    except (OSError, FileNotFoundError, SourceError) as e:
                         e = IncludeError("Failed to Include; {}".format(e))
                         e.term = t
                         raise e
