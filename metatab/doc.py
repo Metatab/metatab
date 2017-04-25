@@ -120,7 +120,10 @@ class Resource(Term):
 
         from rowgenerators.generators import PROTO_TO_SOURCE_MAP
 
-        u = Url(self.doc.package_url) #Url(self.doc.ref)
+        if self.base_url:
+            u = Url(self.base_url)
+        else:
+            u = Url(self.doc.package_url) #Url(self.doc.ref)
 
         if not self._self_url:
             return None
