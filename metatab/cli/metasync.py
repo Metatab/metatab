@@ -12,7 +12,8 @@ from tabulate import tabulate
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
 from metatab.cli.core import prt, err, get_lib_module_dict, write_doc, datetime_now, \
     make_excel_package, make_s3_package, make_zip_package, update_name, metatab_info, \
-    S3Bucket, PACKAGE_PREFIX
+    PACKAGE_PREFIX
+from metatab.s3 import S3Bucket
 from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage, CsvPackage
 from rowgenerators import  Url, get_cache
 from rowgenerators.util import clean_cache
@@ -258,11 +259,13 @@ def create_packages(m, second_stage_mtfile, skip_if_exists=False):
 
         if m.args.excel is not False:
             ex_url, created = make_excel_package(second_stage_mtfile, m.cache, env, skip_if_exists)
-            urls.append(('excel',s3.write(ex_url, basename(ex_url))))
+            with open(ex_url, mode='rb') as f:
+                urls.append(('excel',s3.write(f.read(), basename(ex_url))))
 
         if m.args.zip is not False:
             zip_url, created = make_zip_package(second_stage_mtfile, m.cache, env, skip_if_exists)
-            urls.append(('zip',s3.write(zip_url, basename(zip_url))))
+            with open(zip_url, mode='rb') as f:
+                urls.append(('zip',s3.write(f.read(), basename(zip_url))))
 
         if m.args.fs is not False:
             try:
@@ -276,7 +279,8 @@ def create_packages(m, second_stage_mtfile, skip_if_exists=False):
         if m.args.csv is not False:
             p = CsvPackage(join(fs_url, DEFAULT_METATAB_FILE), cache=m.tmp_cache)
             csv_url = p.save(PACKAGE_PREFIX)
-            urls.append(('csv',s3.write(csv_url, basename(csv_url))))
+            with open(csv_url, mode='rb') as f:
+                urls.append(('csv',s3.write(f.read(), basename(csv_url))))
 
     except PackageError as e:
         err("Failed to generate package: {}".format(e))

@@ -977,6 +977,10 @@ class TermParser(object):
                              col=1,
                              file_name=ref, file_type=file_type, doc=doc)
 
+
+                if t.value and t.value.startswith('#'): # COmments are ignored
+                    continue
+
                 if t.term_is('include') or t.term_is('declare'):
 
                     if t.term_is('include'):

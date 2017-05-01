@@ -360,6 +360,11 @@ def add_resource(mt_file, ref, cache):
     else:
         doc = MetatabDoc(mt_file)
 
+    if not 'Resources' in doc:
+        doc.new_section('Resources')
+
+    doc['Resources'].args = [e for e in set(doc['Resources'].args + ['Name', 'StartLine', 'HeaderLines','Encoding']) if e]
+
     seen_names = set()
 
     if isdir(ref):

@@ -15,10 +15,13 @@ import unicodecsv as csv
 from metatab import (TermParser, SectionTerm, Term, generateRows, MetatabError,
                      CsvPathRowGenerator, RootSectionTerm)
 from metatab.util import linkify, slugify
+from metatab.exc import MetatabError
 from rowgenerators import RowGenerator, Url, SelectiveRowGenerator
 from rowgenerators.exceptions import SourceError
 from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
 from rowpipe import RowProcessor
+from rowgenerators import Url
+from os.path import dirname, abspath, isdir
 
 DEFAULT_METATAB_FILE = 'metadata.csv'
 
@@ -26,12 +29,13 @@ DEFAULT_METATAB_FILE = 'metadata.csv'
 def get_cache(clean=False):
     from rowgenerators.util import get_cache, clean_cache
 
-    cache =  get_cache('metapack')
+    cache = get_cache('metapack')
 
     if clean:
         clean_cache(cache)
 
     return cache
+
 
 def resolve_package_metadata_url(ref):
     """Re-write a url to a resource to include the likely refernce to the
@@ -49,21 +53,27 @@ def resolve_package_metadata_url(ref):
 
     elif du.resource_file == DEFAULT_METATAB_FILE:
         metadata_url = reparse_url(ref)
-        package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']), fragment=False)+'/'
+        package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']), fragment=False) + '/'
 
     elif du.target_format == 'csv':
-        package_url  = reparse_url(ref, fragment=False)
+        package_url = reparse_url(ref, fragment=False)
         metadata_url = reparse_url(ref)
+
     elif du.proto == 'file':
         p = parse_url_to_dict(ref)
 
         if isfile(p['path']):
-            metadata_url = reparse_url(ref)
+            metadata_url = reparse_url(ref )
             package_url = reparse_url(ref, path=dirname(p['path']), fragment=False)
         else:
+
             p['path'] = join(p['path'], DEFAULT_METATAB_FILE)
-            package_url = reparse_url(ref, fragment=False)
+            package_url = reparse_url(ref, fragment=False, path = p['path'].rstrip('/')+'/')
             metadata_url = unparse_url_dict(p)
+
+        # Make all of the paths absolute. Saves a lot of headaches later.
+        package_url = reparse_url(package_url, path=abspath(parse_url_to_dict(package_url)['path']))
+        metadata_url = reparse_url(metadata_url, path=abspath(parse_url_to_dict(metadata_url)['path']))
 
     else:
         metadata_url = join(ref, DEFAULT_METATAB_FILE)
@@ -75,10 +85,12 @@ def resolve_package_metadata_url(ref):
 
 
 def open_package(ref, clean_cache=False, cache=None):
-
     package_url, metadata_url = resolve_package_metadata_url(ref)
 
     return MetatabDoc(metadata_url, package_url=package_url, cache=get_cache(clean_cache))
+
+
+EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination table but not in the source
 
 
 class Resource(Term):
@@ -95,6 +107,7 @@ class Resource(Term):
         self.base_url = base_url
         self.package = package
 
+        self._parent_term = term
         self.term_value_name = term.term_value_name
         self.children = term.children
 
@@ -104,7 +117,6 @@ class Resource(Term):
 
         self.__initialised = True
 
-
     @property
     def _self_url(self):
         try:
@@ -112,7 +124,6 @@ class Resource(Term):
                 return self.url
         finally:
             return self.value
-
 
     def _resolved_url(self):
         """Return a URL that properly combines the base_url and a possibly relative
@@ -123,7 +134,7 @@ class Resource(Term):
         if self.base_url:
             u = Url(self.base_url)
         else:
-            u = Url(self.doc.package_url) #Url(self.doc.ref)
+            u = Url(self.doc.package_url)  # Url(self.doc.ref)
 
         if not self._self_url:
             return None
@@ -194,7 +205,7 @@ class Resource(Term):
     def _name_for_col_term(self, c, i):
 
         altname = c.get_value('altname')
-        name = c.get_value('name')
+        name = c.get_value('name') if c.get_value('name') != EMPTY_SOURCE_HEADER else None
         default = "col{}".format(i)
 
         for n in [altname, name, default]:
@@ -216,16 +227,33 @@ class Resource(Term):
 
         return t, frm
 
+    @property
     def headers(self):
-        """Return the headers for the resource"""
-
-        doc = self.doc
+        """Return the headers for the resource. Returns the AltName, if specified; if not, then the
+        Name, and if that is empty, a name based on the column position. These headers
+        are specifically applicable to the output table, and may not apply to the resource source. FOr those headers,
+        use source_headers"""
 
         t, _ = self.schema_table
 
         if t:
             return [self._name_for_col_term(c, i)
-                    for i, c in enumerate(t.children) if c.term_is("Table.Column")]
+                    for i, c in enumerate(t.children, 1) if c.term_is("Table.Column")]
+        else:
+            return None
+
+    @property
+    def source_headers(self):
+        """"Returns the headers for the resource source. Specifically, does not include any header that is
+        the EMPTY_SOURCE_HEADER value of _NONE_"""
+
+        t, _ = self.schema_table
+
+        if t:
+            return [self._name_for_col_term(c, i)
+                    for i, c in enumerate(t.children, 1) if c.term_is("Table.Column")
+                    and c.get_value('name') != EMPTY_SOURCE_HEADER
+                    ]
         else:
             return None
 
@@ -271,14 +299,17 @@ class Resource(Term):
         if table_term:
 
             t = Table(self.get_value('name'))
-            for i, c in enumerate(table_term.children):
+
+            col_n = 0
+
+            for c in table_term.children:
                 if c.term_is('Table.Column'):
-                    t.add_column(self._name_for_col_term(c, i),
+                    t.add_column(self._name_for_col_term(c, col_n),
                                  datatype=map_type(c.get_value('datatype')),
                                  valuetype=map_type(c.get_value('valuetype')),
                                  transform=c.get_value('transform')
                                  )
-
+                    col_n += 1
 
             return t
 
@@ -296,10 +327,14 @@ class Resource(Term):
         d['engoding'] = d.get('encoding', 'utf8'),
 
         generator_args = dict(d.items())
-
+        # For ProgramSource generator, These become values in a JSON encoded dict in the PROPERTIE env var
         generator_args['working_dir'] = self._doc.doc_dir
         generator_args['metatab_doc'] = self._doc.ref
         generator_args['metatab_package'] = str(self._doc.package_url)
+
+        # These become their own env vars.
+        generator_args['METATAB_DOC'] = self._doc.ref
+        generator_args['METATAB_PACKAGE'] = str(self._doc.package_url)
 
         d['cache'] = self._doc._cache
         d['working_dir'] = self._doc.doc_dir
@@ -310,21 +345,22 @@ class Resource(Term):
     def __iter__(self):
         """Iterate over the resource's rows"""
 
-        headers = self.headers()
+        headers = self.headers
 
         if headers:
             # There are several args for SelectiveRowGenerator, but only
             # start is really important.
             try:
                 start = int(self.get_value('startline', 1))
-            except ValueError:
+            except ValueError as e:
                 start = 1
 
             yield headers
 
             rg = RowProcessor(islice(self.row_generator, start, None),
                               self.row_processor_table(),
-                              source_headers=headers, env=self.env)
+                              source_headers=self.source_headers, env=self.env)
+
         else:
             rg = self.row_generator
 
@@ -356,7 +392,7 @@ class Resource(Term):
 
             yield dict(zip(headers, row))
 
-    def dataframe(self, limit = None):
+    def dataframe(self, limit=None):
         """Return a pandas datafrome from the resource"""
 
         from .pands import MetatabDataFrame
@@ -368,7 +404,7 @@ class Resource(Term):
 
         rg = RowGenerator(**d)
 
-        headers = self.headers()
+        headers = self.headers
 
         if headers:
             # There are several args for SelectiveRowGenerator, but only
@@ -378,7 +414,7 @@ class Resource(Term):
             rg = islice(rg, start, limit)
 
         else:
-            headers = next(rg)
+            headers = next(rg)  # Get the headers from the first row of the file
 
         rp_table = self.row_processor_table()
 
@@ -415,6 +451,10 @@ class MetatabDoc(object):
         self.errors = []
         self.package_url = package_url
 
+        #if Url(self.package_url).proto == 'file':
+        #    path = abspath(parse_url_to_dict(self.package_url)['path'])
+        #    self.package_url = reparse_url(self.package_url, path = path)
+
         if decl is None:
             self.decls = []
         elif not isinstance(decl, MutableSequence):
@@ -444,13 +484,50 @@ class MetatabDoc(object):
     def ref(self):
         return self._ref
 
+    def as_version(self, ver):
+        """Return a copy of the document, with a different version"""
+
+        doc = self.__class__(self.ref)
+
+        name_t = doc.find_first('Root.Name', section='Root')
+
+        if not name_t:
+            raise MetatabError("Document must have a Root.Name Term")
+
+        verterm = name_t.find_first('Name.Version')
+
+        if not verterm:
+            verterm = doc.find_first('Root.Version')
+
+        if not verterm:
+            raise MetatabError("Document must have a Name.Version or Root.Version Term")
+
+        if isinstance(ver, six.string_types) and (ver[0] == '+' or ver[0] == '-'):
+            try:
+                int(verterm.value)
+            except ValueError:
+                raise MetatabError(
+                    "When specifying version math, version value in {} term must be an integer".format(verterm.term))
+
+            if ver[0] == '+':
+                verterm.value = six.text_type(int(verterm.value) + int(ver[1:]))
+            else:
+                verterm.value = six.text_type(int(verterm.value) - int(ver[1:]))
+
+        else:
+            verterm.value = ver
+
+        doc.update_name(force=True)
+
+        return doc
+
     @property
     def doc_dir(self):
-        from rowgenerators import Url
-        from os.path import dirname
+
+        from os.path import abspath
 
         u = Url(self.ref)
-        return dirname(u.parts.path)
+        return abspath(dirname(u.parts.path))
 
     def load_declarations(self, decls):
 
@@ -500,7 +577,6 @@ class MetatabDoc(object):
 
         self.terms.remove(t)
 
-
         if t.section and t.parent_term_lc == 'root':
             t.section = self.add_section(t.section)
             t.section.remove_term(t)
@@ -509,6 +585,7 @@ class MetatabDoc(object):
             t.parent.remove_child(t)
 
     def add_section(self, s):
+
         s.doc = self
 
         assert isinstance(s, SectionTerm), str(s)
@@ -634,7 +711,7 @@ class MetatabDoc(object):
 
                 assert t.section or t.join_lc == 'root.root' or t.join_lc == 'root.section', t
 
-                if ( t.term_is(term)
+                if (t.term_is(term)
                     and in_section(t, section)
                     and (value is False or value == t.value)):
                     found.append(t)
@@ -659,7 +736,7 @@ class MetatabDoc(object):
         else:
             return term.value
 
-    def get_value(self, term, default = None):
+    def get_value(self, term, default=None):
         term = self.find_first(term, value=False)
 
         if term is None:
@@ -682,7 +759,6 @@ class MetatabDoc(object):
 
             if not 'url' in t.properties:
                 pass
-
 
             yield Resource(t, base_url)
 
@@ -778,12 +854,12 @@ class MetatabDoc(object):
     def ensure_identifier(self):
         from uuid import uuid4
 
-        identifier = self.find_first('Root.Identifier', section= 'Root')
+        identifier = self.find_first('Root.Identifier', section='Root')
 
         if not identifier:
             self['Root'].new_term('Root.Identifier', six.text_type(uuid4()))
 
-            identifier = self.find_first('Root.Identifier', section= 'Root')
+            identifier = self.find_first('Root.Identifier', section='Root')
             assert identifier is not None
 
     def update_name(self, force=False):
@@ -793,7 +869,7 @@ class MetatabDoc(object):
 
         self.ensure_identifier()
 
-        orig_name_t = self.find_first('Root.Name', section= 'Root')
+        orig_name_t = self.find_first('Root.Name', section='Root')
 
         if not orig_name_t:
             updates.append("No Root.Name, can't update name")
@@ -809,7 +885,7 @@ class MetatabDoc(object):
             name = self._generate_identity_name()
 
             if name != orig_name or force:
-                self[ 'Root'].get_or_new_term('Root.Name', name)
+                self['Root'].get_or_new_term('Root.Name', name)
                 updates.append("Changed Name")
             else:
                 updates.append("Name did not change")
@@ -821,7 +897,7 @@ class MetatabDoc(object):
 
             else:
                 updates.append("Setting the name to the identifier")
-                self[ 'Root'].get_or_new_term('Root.Name', identifier)
+                self['Root'].get_or_new_term('Root.Name', identifier)
 
         elif orig_name == identifier:
             updates.append("Name did not change")
@@ -939,12 +1015,17 @@ class MetatabDoc(object):
         def resource_repr(r, anchor=kwargs.get('anchors', False)):
             return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a> {description}</p>" \
                 .format(name='<a href="#resource-{name}">{name}</a>'.format(name=r.name) if anchor else r.name,
-                        description=r.get_value('description',''),
+                        description=r.get_value('description', ''),
                         url=r.url)
 
         def documentation():
 
             out = ''
+
+            try:
+                self['Documentation']
+            except KeyError:
+                return ''
 
             try:
                 for t in self['Documentation']:
@@ -956,9 +1037,9 @@ class MetatabDoc(object):
                                         t.get_value('description')
                                         ))
 
-                    else: # Mostly for notes
+                    else:  # Mostly for notes
                         out += ("\n<p><strong>{}: </strong>{}</p>"
-                                .format(t.record_term.title(), t.value ))
+                                .format(t.record_term.title(), t.value))
 
 
             except KeyError:
@@ -972,9 +1053,13 @@ class MetatabDoc(object):
             out = ''
 
             try:
+                self['Contacts']
+            except KeyError:
+                return ''
+
+            try:
 
                 for t in self['Contacts']:
-
                     name = t.get_value('name', 'Name')
                     email = "mailto:" + t.get_value('email') if t.get_value('email') else None
 
@@ -983,14 +1068,13 @@ class MetatabDoc(object):
 
                     out += ("\n<p><strong>{}: </strong>{}</p>"
                             .format(t.record_term.title(),
-                                    (linkify(email, name) or '')+" "+(linkify(web, org) or '')
+                                    (linkify(email, name) or '') + " " + (linkify(web, org) or '')
                                     ))
 
             except KeyError:
                 pass
 
             return out
-
 
         return """
 <h1>{title}</h1>
@@ -1006,13 +1090,12 @@ class MetatabDoc(object):
 </ol>
 """.format(
             title=self.find_first_value('Root.Title', section='Root'),
-            name=self.find_first_value('Root.Name', section= 'Root'),
+            name=self.find_first_value('Root.Name', section='Root'),
             description=self.find_first_value('Root.Description', section='Root'),
             doc=documentation(),
             contact=contacts(),
             resources='\n'.join(["<li>" + resource_repr(r) + "</li>" for r in self.resources()])
         )
-
 
     @property
     def html(self):

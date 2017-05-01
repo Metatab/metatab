@@ -52,8 +52,8 @@ class sdist(sdist_module.sdist):
         src_dir = join(dirname(dirname(abspath(__file__))),'metatab','declarations')
 
         if not isdir(src_dir):
-            raise IOError("Can't build without metatab package at same level as this module\n "
-                          "https://github.com/CivicKnowledge/metatab.git")
+            raise IOError("Can't build without metatab package at same level as this module. Clone  \n "
+                          "https://github.com/CivicKnowledge/metatab.git parallel to metatab-py")
 
         for fn in glob.glob(join(src_dir,'*.csv')):
             print("Copying {} to {}".format(fn, dest_dir))

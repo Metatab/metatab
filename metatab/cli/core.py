@@ -1,15 +1,12 @@
 import sys
-from genericpath import exists
-from os.path import join
 from uuid import uuid4
 
 import six
-
+from genericpath import exists
 from metatab import _meta, MetatabDoc
 from metatab.util import make_metatab_file
 from rowgenerators import Url
-from rowgenerators import parse_url_to_dict
-import boto3
+
 
 def prt(*args, **kwargs):
     print(*args, **kwargs)
@@ -131,11 +128,7 @@ def dump_resource(doc, name, lines=None):
     # option because the errors are tansfered from the row pipe to the resource after the
     # iterator is exhausted
 
-
-    try:
-        gen = islice(r, int(r.startline), lines)
-    except (ValueError, AttributeError):
-        gen = islice(r, 1, lines)
+    gen = islice(r, 1, lines)
 
     def dump_errors(error_set):
         for col, errors in error_set.items():
@@ -147,7 +140,7 @@ def dump_resource(doc, name, lines=None):
     try:
         if lines and lines <= 20:
             try:
-                prt(tabulate(list(gen), list(r.headers())))
+                prt(tabulate(list(gen), list(r.headers)))
             except TooManyCastingErrors as e:
                 dump_errors(e.errors)
                 err(e)
@@ -156,8 +149,8 @@ def dump_resource(doc, name, lines=None):
 
             w = csv.writer(sys.stdout if six.PY2 else sys.stdout.buffer)
 
-            if r.headers():
-                w.writerow(r.headers())
+            if r.headers:
+                w.writerow(r.headers)
             else:
                 warn("No headers for resource '{}'; have schemas been generated? ".format(name))
 
@@ -307,81 +300,6 @@ def update_name(mt_file, fail_on_missing=False, report_unchanged=True, force=Fal
     if o_name != doc.find_first_value("Root.Name", section=['Identity', 'Root']) or force:
         write_doc(doc, mt_file)
 
-class S3Bucket(object):
-
-    def __init__(self, url):
-
-        self._s3 = boto3.resource('s3')
-
-        p = parse_url_to_dict(url)
-
-        if p['netloc']:  # The URL didn't have the '//'
-            self._prefix = p['path']
-            bucket_name = p['netloc']
-        else:
-            proto, netpath = url.split(':')
-            bucket_name, self._prefix = netpath.split('/', 1)
-
-        self._bucket_name = bucket_name
-        self._bucket = self._s3.Bucket(bucket_name)
-
-    def access_url(self, *paths):
-
-
-        key = join(self._prefix, *paths).strip('/')
-
-        s3 = boto3.client('s3')
-
-        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
-
-    def list(self):
-
-        s3 = boto3.client('s3')
-
-        # Create a reusable Paginator
-        paginator = s3.get_paginator('list_objects')
-
-        # Create a PageIterator from the Paginator
-        page_iterator = paginator.paginate(Bucket=self._bucket_name)
-
-        for page in page_iterator:
-            for c in page['Contents']:
-                yield c
-
-    def write(self, body, *paths):
-        from botocore.exceptions import ClientError
-        import mimetypes
-
-        if isinstance(body, six.string_types):
-            with open(body,'rb') as f:
-                body = f.read()
-
-        key = join(self._prefix, *paths).strip('/')
-
-        try:
-            o = self._bucket.Object(key)
-            if o.content_length == len(body):
-                prt("File '{}' already in bucket; skipping".format(key))
-                return self.access_url(*paths)
-            else:
-                prt("File '{}' already in bucket, but length is different; re-wirtting".format(key))
-
-        except ClientError as e:
-            if int(e.response['Error']['Code']) in (403, 405):
-                err("S3 Access failed for '{}:{}': {}\nNOTE: With Docker, this error is often the result of container clock drift. Check your container clock. "
-                    .format(self._bucket_name, key, e))
-            elif int(e.response['Error']['Code']) != 404:
-                err("S3 Access failed for '{}:{}': {}".format(self._bucket_name, key, e))
-
-        ct = mimetypes.guess_type(key)[0]
-
-        try:
-            self._bucket.put_object(Key=key, Body=body, ACL='public-read',
-                                           ContentType=ct if ct else 'binary/octet-stream')
-        except Exception as e:
-            self.err("Failed to write '{}': {}".format(key, e))
-
-        return self.access_url(*paths)
 
 def write_doc(doc, mt_file):
     """
@@ -390,7 +308,6 @@ def write_doc(doc, mt_file):
     :param mt_file:
     :return:
     """
-    from datetime import datetime
 
     doc['Root']['Modified'] = datetime_now()
 

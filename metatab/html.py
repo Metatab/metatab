@@ -141,6 +141,11 @@ def documentation_block(doc):
     notes = []
 
     try:
+        doc['Documentation']
+    except KeyError:
+        return ''
+
+    try:
         for t in doc['Documentation']:
 
             if t.term_is('Root.IncludeDocumentation'):

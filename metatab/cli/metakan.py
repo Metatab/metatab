@@ -79,7 +79,7 @@ def metakan():
     if m.mtfile_url.scheme == 's3':
         """Find all of the top level CSV files in a bucket and use them to create CKan entries"""
 
-        from .core import S3Bucket
+        from metatab.s3 import S3Bucket
 
         b = S3Bucket(m.mtfile_arg)
 

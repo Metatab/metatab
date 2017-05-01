@@ -427,12 +427,20 @@ class Package(object):
 
         resources = self.doc['Resources']
 
+        # We don't need these anymore because all of the data written into the package is normalized.
         for arg in ['startline', 'headerlines', 'encoding']:
             for e in list(resources.args):
                 if e.lower() == arg:
                     resources.args.remove(e)
 
+        for term in resources:
+            term['startline'] = None
+            term['headerlines'] = None
+            term['encoding'] = None
+
+
         schema = self.doc['Schema']
+
 
         ## FIXME! This is probably dangerous, because the section args are changing, but the children
         ## are not, so when these two are combined in the Term.properties() acessor, the values are off.
@@ -470,23 +478,33 @@ class Package(object):
 
             self.prt("Reading resource {} from {} ".format(r.name, r.resolved_url))
 
+            if not r.headers:
+                raise PackageError("Resource {} does not have header. Have schemas been generated?".format(r.name))
+
             rg = self.doc.resource(r.name, env=self._env)
 
             assert rg is not None
 
-            start_line = int(r.get_value('startline')) if r.get_value('startline') is not None  else 1
 
-            gen = islice(rg, start_line, None)
+            if True:
+                # Skipping the first line because we'll insetrt the headers manually
+                self._load_resource(r, islice(rg, 1, None), r.headers)
 
-            r.encoding = None
-            r.startline = None
-            r.headerlines = None
-            r.format = None
+            else:
 
-            if not r.headers():
-                raise PackageError("Resource {} does not have header. Have schemas been generated?".format(r.name))
+                # Old code; no longer sure why the code is faking the start line and removing
+                # the format, headerlines, etc.
 
-            self._load_resource(r, gen, r.headers())
+                start_line = int(r.get_value('startline')) if r.get_value('startline') is not None  else 1
+
+                gen = islice(rg, start_line, None)
+
+                r.encoding = None
+                r.startline = None
+                r.headerlines = None
+                r.format = None
+
+                self._load_resource(r, gen, r.headers)
 
     def _load_documentation_files(self):
         """Copy all of the Datafile entries into the Excel file"""
@@ -898,15 +916,13 @@ class S3Package(Package):
 
         super(S3Package, self).__init__(path, callback=callback, cache=cache, env=env)
 
-        self._s3 = None
-        self._bucket_name = None
-        self._prefix = None
+        self.bucket = None
 
     def save(self, url):
-
+        from metatab.s3 import S3Bucket
         self.check_is_ready()
 
-        self._init_s3(url)
+        self.bucket = S3Bucket(url)
 
         name = self.doc.find_first_value('Root.Name')
 
@@ -937,23 +953,6 @@ class S3Package(Package):
 
         return self.access_url
 
-    def _init_s3(self, url):
-        from rowgenerators import parse_url_to_dict
-        import boto3
-
-        self._s3 = boto3.resource('s3')
-
-        p = parse_url_to_dict(url)
-
-        if p['netloc']:  # The URL didn't have the '//'
-            self._prefix = p['path']
-            bucket_name = p['netloc']
-        else:
-            proto, netpath = url.split(':')
-            bucket_name, self._prefix = netpath.split('/', 1)
-
-        self._bucket_name = bucket_name
-        self._bucket = self._s3.Bucket(bucket_name)
 
     def close(self):
         pass
@@ -962,59 +961,25 @@ class S3Package(Package):
     def access_url(self):
         import boto3
 
-        key = join(self._prefix, self.package_name).strip('/')
+        return self.bucket.access_url(self.package_name)
 
-        s3 = boto3.client('s3')
-
-        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
 
     def exists(self, url):
         import botocore
+        from .s3 import S3Bucket
 
-        self._init_s3(url)
-
-        # index.html is the last file written
-        key = join(self._prefix, self.package_name, 'index.html').strip('/')
-
-        exists = False
-
-        try:
-            self._bucket.Object(key).load()
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == "404":
-                exists = False
-            else:
-                raise
+        if self.bucket:
+            bucket = self.bucket
         else:
-            exists = True
+            bucket = S3Bucket(url)
 
-        return exists
+        return bucket.exists(self.package_name, 'index.html')
+
 
     def write_to_s3(self, path, body):
-        from botocore.exceptions import ClientError
-        import mimetypes
 
-        key = join(self._prefix, self.package_name, path).strip('/')
 
-        try:
-            o = self._bucket.Object(key)
-            if o.content_length == len(body):
-                self.prt("File '{}' already in bucket; skipping".format(path))
-                return
-            else:
-                self.prt("File '{}' already in bucket, but length is different; re-wirtting".format(path))
-
-        except ClientError as e:
-            if int(e.response['Error']['Code']) != 404:
-                raise
-
-        ct = mimetypes.guess_type(key)[0]
-
-        try:
-            return self._bucket.put_object(Key=key, Body=body, ACL='public-read',
-                                           ContentType=ct if ct else 'binary/octet-stream')
-        except Exception as e:
-            self.err("Failed to write '{}': {}".format(path, e))
+        self.bucket.write(body, self.package_name, path)
 
         return
 

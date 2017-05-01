@@ -168,21 +168,6 @@ class MyTestCase(unittest.TestCase):
         for t in doc.as_dict()['parent']:
             self.assertEquals({'prop1': 'prop1', 'prop2': 'prop2', '@value': 'parent'}, t)
 
-    def test_term_addition(self):
-
-        doc = MetatabDoc(test_data('example1.csv'))
-
-        for sec in doc:
-            print (sec)
-
-        return
-
-        for t in doc.terms:
-            print(t)
-
-        import json
-        print(json.dumps(doc.as_dict(), indent=4))
-
 
 
     def test_includes(self):
@@ -458,6 +443,16 @@ class MyTestCase(unittest.TestCase):
                 #print(r.resolved_url.replace(base, '<base>'), row['url'].replace("file:",''))
                 self.assertEquals(r.resolved_url.replace(base, '<base>').replace('file:',''),
                                   row['url'].replace('file:',''))
+
+    def test_versions(self):
+
+        doc = MetatabDoc(test_data('example1.csv'))
+
+        self.assertEqual('201404',doc.find_first_value('Root.Version'))
+        self.assertEqual('201409',doc.as_version('+5').find_first_value('Root.Version'))
+        self.assertEqual('201399',doc.as_version('-5').find_first_value('Root.Version'))
+        self.assertEqual('foobar',doc.as_version('foobar').find_first_value('Root.Version'))
+
 
 if __name__ == '__main__':
     unittest.main()
