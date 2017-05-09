@@ -10,6 +10,14 @@ from metatab.cli.core import prt, err
 from os.path import join
 from rowgenerators import parse_url_to_dict
 
+def set_s3_profile(profile_name):
+    """Load the credentials for an s3 profile into environmental variables"""
+    import os
+
+    session = boto3.Session(profile_name=profile_name)
+
+    os.environ['AWS_ACCESS_KEY_ID'] = session.get_credentials().access_key
+    os.environ['AWS_SECRET_ACCESS_KEY'] = session.get_credentials().secret_key
 
 class S3Bucket(object):
 

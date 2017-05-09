@@ -10,3 +10,4 @@ from .exc import *
 from .generate import *
 from .doc import *
 from .package import *
+from .s3 import set_s3_profile

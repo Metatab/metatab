@@ -140,9 +140,14 @@ def show_credentials(profile):
 
     session = boto3.Session(profile_name=profile)
 
+    if profile:
+        cred_line = " 'eval $(metasync -C -p {} )'".format(profile)
+    else:
+        cred_line = " 'eval $(metasync -C)'"
+
     prt("export AWS_ACCESS_KEY_ID={} ".format(session.get_credentials().access_key))
     prt("export AWS_SECRET_ACCESS_KEY={}".format(session.get_credentials().secret_key))
-    prt("# Run 'eval $(metasync -C)' to configure credentials in a shell")
+    prt("# Run {} to configure credentials in a shell".format(cred_line))
 
 
 def run_docker(m):
