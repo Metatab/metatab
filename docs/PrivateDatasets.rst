@@ -5,7 +5,7 @@ Private Datasets
 Datasets that should be protected from unauthorized access can be written to S3 with a private ACL and access using S3 credentials. To use private datasets:
 
 - Use the ``metaaws`` program to setup an S3 bucket with a policy and users
-- Add a ``Root.Access` term to the dataset's metatab document.
+- Add a `Root.Access` term to the dataset's metatab document.
 - Syncronize the dataset to s3 with ``metasync``
 - Setup credentials for an S3 user
 - Access the dataset using an S3 url.
