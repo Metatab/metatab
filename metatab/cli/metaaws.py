@@ -391,11 +391,11 @@ def delete_user(args):
         user = resource.User(args.user_name)
 
         for key in user.access_keys.all():
-            prt("Deleting user key: {}",key)
+            prt("Deleting user key: {}".format(key))
             key.delete()
 
         for policy in user.policies.all():
-            prt("Deleting user policy: {}",policy.name)
+            prt("Deleting user policy: {}".format(policy.name))
             policy.delete()
 
         response = client.delete_user(UserName=args.user_name)

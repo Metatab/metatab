@@ -111,6 +111,8 @@ def metasync():
     if not m.args.s3:
         doc = MetatabDoc(m.mt_file)
         m.args.s3 = doc['Root'].find_first_value('Root.S3')
+
+    if not m.args.s3:
         err("Must specify either -S or -s")
 
     if m.args.excel is not False or m.args.zip is not False or m.args.fs is not False:

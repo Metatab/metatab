@@ -13,10 +13,12 @@ metatab/html.py
 metatab/package.py
 metatab/pands.py
 metatab/parser.py
+metatab/s3.py
 metatab/serialize.py
 metatab/util.py
 metatab/cli/__init__.py
 metatab/cli/core.py
+metatab/cli/metaaws.py
 metatab/cli/metakan.py
 metatab/cli/metapack.py
 metatab/cli/metasync.py
