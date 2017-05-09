@@ -11,7 +11,7 @@ import sys
 from genericpath import exists, isdir
 from itertools import islice
 from os import getcwd
-from os.path import  dirname, abspath
+from os.path import dirname, abspath
 from uuid import uuid4
 from datetime import datetime
 
@@ -61,7 +61,6 @@ def metapack():
     # build_group.add_argument('-r', '--resources', default=False, action='store_true',
     #                    help='Rebuild the resources, intuiting rows and encodings from the URLs')
 
-
     build_group.add_argument('-s', '--schemas', default=False, action='store_true',
                              help='Rebuild the schemas for files referenced in the resource section')
 
@@ -72,7 +71,7 @@ def metapack():
                              help="Update the Name from the Datasetname, Origin and Version terms")
 
     build_group.add_argument('-F', '--force', action='store_true', default=False,
-                               help='Force some operations, like updating the name')
+                             help='Force some operations, like updating the name and building packages')
 
     ##
     ## Derived Package Group
@@ -91,9 +90,6 @@ def metapack():
     derived_group.add_argument('-v', '--csv', action='store_true', default=False,
                                help='Create a CSV archive from a metatab file')
 
-    derived_group.add_argument('-s3', '--s3', action='store',
-                               help='Create a filesystem archive in an S3 bucket. Argument is an S3 URL with the bucket name and '
-                                    'prefix, such as "s3://devel.metatab.org:/excel/". Uses boto configuration for credentials')
 
     ##
     ## QueryPackage Group
@@ -154,7 +150,6 @@ def metapack():
             self.resource = self.mtfile_url.parts.fragment
 
             self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url.rebuild_url(False, False))
-
 
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 
@@ -244,7 +239,13 @@ def metatab_build_handler(m):
         update_name(m.mt_file, fail_on_missing=True, force=m.args.force)
 
 
-def metatab_derived_handler(m, skip_if_exists=False):
+def metatab_derived_handler(m, skip_if_exists=None):
+    """Create local Zip, Excel and Filesystem packages
+
+    :param m:
+    :param skip_if_exists:
+    :return:
+    """
     from metatab.package import PackageError
 
     create_list = []
@@ -255,30 +256,37 @@ def metatab_derived_handler(m, skip_if_exists=False):
     env = get_lib_module_dict(doc)
 
     if (m.args.excel is not False or m.args.zip is not False or
-            (hasattr(m.args, 'filesystem') and m.args.filesystem is not False) or m.args.s3):
+            (hasattr(m.args, 'filesystem') and m.args.filesystem is not False) ):
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
+
+    if m.args.force:
+        skip_if_exists = False
 
     try:
 
+        # Always create a filesystem package before ZIP or Excel, so we can use it as a source for
+        # data for the other packages. This means that Transform processes and programs only need
+        # to be run once.
+        if any([m.args.filesystem, m.args.excel, m.args.zip]):
+
+            _, url, created = make_filesystem_package(m.mt_file, m.cache, env, skip_if_exists)
+            create_list.append(('fs', url, created))
+
+            m.mt_file = url
+
+            env = {}  # Don't need it anymore, since no more programs will be run.
+
         if m.args.excel is not False:
-            url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
+            _, url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
             create_list.append(('xlsx', url, created))
 
         if m.args.zip is not False:
-            url, created = make_zip_package(m.mt_file, m.cache, env, skip_if_exists)
+            _, url, created = make_zip_package(m.mt_file, m.cache, env, skip_if_exists)
             create_list.append(('zip', url, created))
 
-        if m.args.filesystem is not False:
-            url, created = make_filesystem_package(m.mt_file, m.cache, env, skip_if_exists)
-            create_list.append(('fs', url, created))
-
         if m.args.csv is not False:
-            url, created = make_csv_package(m.mt_file, m.cache, env, skip_if_exists)
+            _, url, created = make_csv_package(m.mt_file, m.cache, env, skip_if_exists)
             create_list.append(('csv', url, created))
-
-        if m.args.s3:
-            url, created = make_s3_package(m.mt_file, m.args.s3, m.cache, env, skip_if_exists)
-            create_list.append(('s3', url, created))
 
     except PackageError as e:
         err("Failed to generate package: {}".format(e))
@@ -363,7 +371,8 @@ def add_resource(mt_file, ref, cache):
     if not 'Resources' in doc:
         doc.new_section('Resources')
 
-    doc['Resources'].args = [e for e in set(doc['Resources'].args + ['Name', 'StartLine', 'HeaderLines','Encoding']) if e]
+    doc['Resources'].args = [e for e in set(doc['Resources'].args + ['Name', 'StartLine', 'HeaderLines', 'Encoding']) if
+                             e]
 
     seen_names = set()
 

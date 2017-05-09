@@ -13,9 +13,16 @@ from rowgenerators import parse_url_to_dict
 
 class S3Bucket(object):
 
-    def __init__(self, url):
+    def __init__(self, url, acl='public', profile=None):
 
-        self._s3 = boto3.resource('s3')
+        session = boto3.Session(profile_name=profile)
+
+        self._s3 = session.resource('s3')
+
+        if acl == 'public':
+            acl = 'public-read'
+
+        self._acl = acl
 
         p = parse_url_to_dict(url)
 
@@ -54,14 +61,29 @@ class S3Bucket(object):
     def bucket_name(self):
         return self._bucket_name
 
-
     def access_url(self, *paths):
 
         key = join(self._prefix, *paths).strip('/')
 
         s3 = boto3.client('s3')
 
-        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
+        if self._acl == 'public-read':
+            return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
+        else:
+            return "s3://{}/{}".format(self._bucket_name, key)
+
+
+    def signed_access_url(self, *paths):
+
+        import pdb;
+        pdb.set_trace()
+
+        key = join(self._prefix, *paths).strip('/')
+
+        s3 = boto3.client('s3')
+
+        return s3.generate_presigned_url('get_object', Params={'Bucket': self._bucket_name, 'Key': key})
+
 
     def exists(self, *paths):
         import botocore
@@ -97,21 +119,23 @@ class S3Bucket(object):
             for c in page['Contents']:
                 yield c
 
-    def write(self, body, *paths):
+    def write(self, body, path, acl=None):
         from botocore.exceptions import ClientError
         import mimetypes
+
+        acl = acl if acl is not None else self._acl
 
         #if isinstance(body, six.string_types):
         #    with open(body,'rb') as f:
         #        body = f.read()
 
-        key = join(self._prefix, *paths).strip('/')
+        key = join(self._prefix, path).strip('/')
 
         try:
             o = self._bucket.Object(key)
             if o.content_length == len(body):
                 prt("File '{}' already in bucket; skipping".format(key))
-                return self.access_url(*paths)
+                return self.access_url(path)
             else:
                 prt("File '{}' already in bucket, but length is different; re-wirtting".format(key))
 
@@ -125,10 +149,12 @@ class S3Bucket(object):
         ct = mimetypes.guess_type(key)[0]
 
         try:
-            self._bucket.put_object(Key=key, Body=body, ACL='public-read',
-                                           ContentType=ct if ct else 'binary/octet-stream')
+            self._bucket.put_object(Key=key,
+                                    Body=body,
+                                    ACL=acl,
+                                    ContentType=ct if ct else 'binary/octet-stream')
         except Exception as e:
             self.err("Failed to write '{}': {}".format(key, e))
 
-        return self.access_url(*paths)
+        return self.access_url(path)
 

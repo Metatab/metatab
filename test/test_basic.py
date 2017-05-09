@@ -9,7 +9,13 @@ from metatab.doc import MetatabDoc
 from metatab.util import flatten, declaration_path
 from metatab import TermParser, CsvPathRowGenerator, Serializer, Term
 from collections import defaultdict
-
+from metatab.doc import Resource
+import csv
+from os.path import dirname
+from metatab.doc import open_package
+import json
+from os.path import exists
+from metatab import parse_file, MetatabDoc
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
@@ -55,8 +61,6 @@ class MyTestCase(unittest.TestCase):
         print(json.dumps(tp.decl_terms, indent=4))
 
     def test_parse_everything(self):
-        import json
-        from os.path import exists
 
         all = ['example1.csv', 'example2.csv', 'example1-web.csv',
                'include1.csv', 'include2.csv', 'include3.csv',
@@ -265,7 +269,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_sections(self):
 
-        from metatab import parse_file, MetatabDoc
+
 
         doc = MetatabDoc(test_data('example1.csv'))
 
@@ -380,6 +384,7 @@ class MyTestCase(unittest.TestCase):
 
             doc = MetatabDoc(test_data(fn))
 
+
             updates = doc.update_name()
 
             name = doc.find_first_value("Root.Name")
@@ -420,10 +425,6 @@ class MyTestCase(unittest.TestCase):
 
     def test_resolved_url(self):
 
-        from metatab.doc import Resource
-        import csv
-        from os.path import dirname
-        from metatab.doc import open_package
 
         with open(test_data('resolve_urls.csv')) as f:
             for row in csv.DictReader(f):
@@ -453,6 +454,36 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual('201399',doc.as_version('-5').find_first_value('Root.Version'))
         self.assertEqual('foobar',doc.as_version('foobar').find_first_value('Root.Version'))
 
+
+    def test_ipy(self):
+        from rowgenerators import SourceSpec, Url, RowGenerator, get_cache
+
+        from rowgenerators.fetch import download_and_cache
+
+        urls = (
+            'ipynb+file:foobar.ipynb',
+            'ipynb+http://example.com/foobar.ipynb',
+            'ipynb:foobar.ipynb'
+
+        )
+
+        for url in urls:
+            u = Url(url)
+            print(u, u.path, u.resource_url)
+
+            s = SourceSpec(url)
+            print(s, s.proto, s.scheme, s.resource_url, s.target_file, s.target_format)
+            self.assertIn(s.scheme, ('file', 'http'))
+            self.assertEquals('ipynb', s.proto)
+
+        gen = RowGenerator(cache=get_cache(),
+                           url='ipynb:scripts/Py3Notebook.ipynb#lst',
+                           working_dir=test_data(),
+                           generator_args={'mult': lambda x: x * 3})
+
+        rows = gen.generator.execute()
+
+        print(len(rows))
 
 if __name__ == '__main__':
     unittest.main()

@@ -121,6 +121,7 @@ def metatab():
         try:
             doc = MetatabDoc(metadata_url, cache=cache)
         except IOError as e:
+            raise
             err("Failed to open '{}': {}".format(metadata_url, e))
 
     if args.terms:

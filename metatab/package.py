@@ -102,7 +102,7 @@ def write_geojson(path_or_flo, columns, gen):
 
 
 class Package(object):
-    def __new__(cls, ref=None, cache=None, callback=None, env=None):
+    def __new__(cls, ref=None, cache=None, callback=None, env=None, save_url=None, acl=None):
 
         if cls == Package:
 
@@ -564,9 +564,27 @@ class FileSystemPackage(Package):
         self.package_dir = None
 
     def exists(self, path=None):
+
         if self.package_dir is None:
             self._init_dir(path)
-        return exists(self.save_path(path))
+
+        return exists(join(self.save_path(path), DEFAULT_METATAB_FILE))
+
+    def is_older_than_metatada(self,path=None):
+        """
+        Return True if the package save file is older than the metadata. Returns False if the time of either can't be determined
+
+        :param path: Optional extra save path, used in save_path()
+
+        """
+
+        from os.path import getmtime
+
+        try:
+            return getmtime(self.save_path(path)+"/metadata.csv") > self._doc.mtime
+        except (FileNotFoundError, OSError):
+            return False
+
 
     def save_path(self, path=None):
 
@@ -608,7 +626,7 @@ class FileSystemPackage(Package):
 
         return doc_file
 
-    def _init_dir(self, path=None):
+    def remove(self, path=None):
 
         if path is None:
             path = getcwd()
@@ -620,7 +638,17 @@ class FileSystemPackage(Package):
         if isdir(np):
             shutil.rmtree(np)
 
-        makedirs(np)
+    def _init_dir(self, path=None):
+
+        if path is None:
+            path = getcwd()
+
+        name = self.doc.find_first_value('Root.Name')
+
+        np = join(path, name)
+
+        if not isdir(np):
+            makedirs(np )
 
         self.package_dir = np
 
@@ -653,6 +681,10 @@ class FileSystemPackage(Package):
             remove(path)
 
         write_csv(path, headers, gen)
+
+        # Writting between resources so row-generating programs and notebooks can
+        # access previously created resources.
+        self._write_doc()
 
     def _load_documentation(self, term, contents, file_name):
 
@@ -733,9 +765,9 @@ class CsvPackage(Package):
 class ExcelPackage(Package):
     """An Excel File Package"""
 
-    def __init__(self, path=None, callback=None, cache=None, env=None):
+    def __init__(self, ref=None, callback=None, cache=None, env=None):
 
-        super(ExcelPackage, self).__init__(path, callback=callback, cache=cache, env=env)
+        super(ExcelPackage, self).__init__(ref, callback=callback, cache=cache, env=env)
 
     def save_path(self, path=None):
         base = self.doc.find_first_value('Root.Name') + '.xlsx'
@@ -808,9 +840,9 @@ class ExcelPackage(Package):
 class ZipPackage(Package):
     """A Zip File package"""
 
-    def __init__(self, path=None, callback=None, cache=None, env=None):
+    def __init__(self, ref=None, callback=None, cache=None, env=None):
 
-        super(ZipPackage, self).__init__(path, callback=callback, cache=cache, env=env)
+        super(ZipPackage, self).__init__(ref, callback=callback, cache=cache, env=env)
 
     def save_path(self, path=None):
         base = self.doc.find_first_value('Root.Name') + '.zip'
@@ -908,21 +940,35 @@ class ZipPackage(Package):
 
         self.zf.writestr(self.package_name + '/' + term['url'].value, contents)
 
-
 class S3Package(Package):
     """A Zip File package"""
 
-    def __init__(self, path=None, callback=None, cache=None, env=None):
+    def __init__(self, path=None, callback=None, cache=None, env=None, save_url=None, acl=None):
 
         super(S3Package, self).__init__(path, callback=callback, cache=cache, env=env)
 
+        self._save_url = save_url
+
         self.bucket = None
 
-    def save(self, url):
+        self._acl =  acl if acl else 'public-read'
+
+    def _init_bucket(self, url=None, acl=None):
+
         from metatab.s3 import S3Bucket
+
+        self._acl = acl if acl is not None else self._acl
+
+        if not self.bucket:
+            url = url or self._save_url
+
+            self.bucket = S3Bucket(url, acl=acl)
+
+    def save(self, url=None, acl=None):
+
         self.check_is_ready()
 
-        self.bucket = S3Bucket(url)
+        self._init_bucket(url, acl)
 
         name = self.doc.find_first_value('Root.Name')
 
@@ -953,7 +999,6 @@ class S3Package(Package):
 
         return self.access_url
 
-
     def close(self):
         pass
 
@@ -961,25 +1006,32 @@ class S3Package(Package):
     def access_url(self):
         import boto3
 
-        return self.bucket.access_url(self.package_name)
+        self._init_bucket() # Fervently hope that the self.save_url has been set
+
+        return self.bucket.access_url(self.package_name, DEFAULT_METATAB_FILE)
 
 
-    def exists(self, url):
+    @property
+    def signed_url(self):
+        """A URL with an access signature or password """
+        import boto3
+
+        self._init_bucket()  # Fervently hope that the self.save_url has been set
+
+        return self.bucket.signed_access_url(self.package_name, DEFAULT_METATAB_FILE)
+
+    def exists(self, url=None):
         import botocore
         from .s3 import S3Bucket
 
-        if self.bucket:
-            bucket = self.bucket
-        else:
-            bucket = S3Bucket(url)
+        self._init_bucket(url)
 
-        return bucket.exists(self.package_name, 'index.html')
+        return self.bucket.exists(self.package_name, 'index.html')
 
 
     def write_to_s3(self, path, body):
 
-
-        self.bucket.write(body, self.package_name, path)
+        self.bucket.write(body, join(self.package_name, path), acl=self._acl)
 
         return
 

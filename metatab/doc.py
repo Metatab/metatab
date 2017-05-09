@@ -21,7 +21,8 @@ from rowgenerators.exceptions import SourceError
 from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
 from rowpipe import RowProcessor
 from rowgenerators import Url
-from os.path import dirname, abspath, isdir
+from os.path import dirname, abspath, isdir, getmtime
+from time import time
 
 DEFAULT_METATAB_FILE = 'metadata.csv'
 
@@ -84,10 +85,13 @@ def resolve_package_metadata_url(ref):
     return package_url, metadata_url
 
 
-def open_package(ref, clean_cache=False, cache=None):
+def open_package(ref, cache=None, clean_cache=False):
+    from rowgenerators.util import clean_cache as rg_clean_cache
     package_url, metadata_url = resolve_package_metadata_url(ref)
 
-    return MetatabDoc(metadata_url, package_url=package_url, cache=get_cache(clean_cache))
+    cache = cache if cache else get_cache()
+
+    return MetatabDoc(metadata_url, package_url=package_url, cache=cache)
 
 
 EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination table but not in the source
@@ -122,7 +126,7 @@ class Resource(Term):
         try:
             if self.url:
                 return self.url
-        finally:
+        finally: # WTF? No idea, probably wrong.
             return self.value
 
     def _resolved_url(self):
@@ -429,7 +433,7 @@ class Resource(Term):
 
     def _repr_html_(self):
         return ("<h3><a name=\"resource-{name}\"></a>{name}</h3><p><a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
-                .format(name=self.name, url=self._self_url)) + \
+                .format(name=self.name, url=self.resolved_url)) + \
                "<table>\n" + \
                "<tr><th>Header</th><th>Type</th><th>Description</th></tr>" + \
                '\n'.join(
@@ -441,7 +445,7 @@ class Resource(Term):
 class MetatabDoc(object):
     def __init__(self, ref=None, decl=None, package_url=None, cache=None, clean_cache=False):
 
-        self._cache = cache if cache else get_cache(clean_cache)
+        self._cache = cache if cache else get_cache()
 
         self.decl_terms = {}
         self.decl_sections = {}
@@ -473,16 +477,30 @@ class MetatabDoc(object):
             except SourceError as e:
                 raise MetatabError("Failed to load terms for document '{}': {}".format(self._ref, e))
 
+            u = Url(self._ref)
+            if u.scheme == 'file':
+                try:
+                    self._mtime = getmtime(u.parts.path)
+                except (FileNotFoundError, OSError):
+                    self._mtime = 0
+            else:
+                self._mtime = 0
+
         else:
             self._ref = None
             self._term_parser = None
             self.root = SectionTerm('Root', term='Root', doc=self, row=0, col=0,
                                     file_name=None, parent=None)
             self.add_section(self.root)
+            self._mtime = time()
 
     @property
     def ref(self):
         return self._ref
+
+    @property
+    def mtime(self):
+        return self._mtime
 
     def as_version(self, ver):
         """Return a copy of the document, with a different version"""
@@ -711,6 +729,7 @@ class MetatabDoc(object):
 
                 assert t.section or t.join_lc == 'root.root' or t.join_lc == 'root.section', t
 
+
                 if (t.term_is(term)
                     and in_section(t, section)
                     and (value is False or value == t.value)):
@@ -718,18 +737,18 @@ class MetatabDoc(object):
 
             return found
 
-    def find_first(self, term, value=False, section=None):
+    def find_first(self, term, value=False, section=None, **kwargs):
 
-        terms = self.find(term, value=value, section=section)
+        terms = self.find(term, value=value, section=section, **kwargs)
 
         if len(terms) > 0:
             return terms[0]
         else:
             return None
 
-    def find_first_value(self, term, value=False, section=None):
+    def find_first_value(self, term, value=False, section=None, **kwargs):
 
-        term = self.find_first(term, value=value, section=section)
+        term = self.find_first(term, value=value, section=section, **kwargs)
 
         if term is None:
             return None
@@ -1016,7 +1035,7 @@ class MetatabDoc(object):
             return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a> {description}</p>" \
                 .format(name='<a href="#resource-{name}">{name}</a>'.format(name=r.name) if anchor else r.name,
                         description=r.get_value('description', ''),
-                        url=r.url)
+                        url=r.resolved_url)
 
         def documentation():
 

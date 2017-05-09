@@ -56,7 +56,8 @@ def resource(r, fields = None):
     rows = [''.join(["<td>{}</td>".format(e.replace("\n","<br/>\n")) for e in [c.get(k,'') for k in keys] ])
             for c in r.columns()]
 
-    return ("### {name} \n [{url}]({url})\n\n".format(name=r.name, url=r.url)) + \
+
+    return ("### {name} \n [{url}]({url})\n\n".format(name=r.name, url=r.resolved_url)) + \
            "{}\n".format(ns(r.description))+ \
            "<table class=\"table table-striped\">\n" + \
            ("<tr>{}</tr>".format(''.join("<th>{}</th>".format(e) for e in headers)) ) + \
@@ -83,7 +84,7 @@ def resource_block(doc, fields=None):
 
 def resource_ref(r):
 
-    return dl_templ.format(r.name,"_{}_<br/>{}".format(r.url,ns(r.description)))
+    return dl_templ.format(r.name,"_{}_<br/>{}".format(r.resolved_url,ns(r.description)))
 
 def resource_ref_block(doc):
 

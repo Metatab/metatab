@@ -6,7 +6,8 @@ from genericpath import exists
 from metatab import _meta, MetatabDoc
 from metatab.util import make_metatab_file
 from rowgenerators import Url
-
+from os.path import join
+from metatab.package import  DEFAULT_METATAB_FILE
 
 def prt(*args, **kwargs):
     print(*args, **kwargs)
@@ -121,6 +122,7 @@ def dump_resource(doc, name, lines=None):
 
     r = doc.resource(name=name, env=get_lib_module_dict(doc))
 
+
     if not r:
         err("Did not get resource for name '{}'".format(name))
 
@@ -203,7 +205,7 @@ def make_excel_package(file, cache, env, skip_if_exists):
     from metatab.package import ExcelPackage
 
     p = ExcelPackage(file, callback=prt, cache=cache, env=env)
-
+    prt('Making Excel Package')
     if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
         url = p.save(PACKAGE_PREFIX)
         prt("Packaged saved to: {}".format(url))
@@ -213,7 +215,7 @@ def make_excel_package(file, cache, env, skip_if_exists):
         created = False
         url = p.save_path(PACKAGE_PREFIX)
 
-    return url, created
+    return p, url, created
 
 
 def make_zip_package(file, cache, env, skip_if_exists):
@@ -221,6 +223,7 @@ def make_zip_package(file, cache, env, skip_if_exists):
     from metatab.package import ZipPackage
 
     p = ZipPackage(file, callback=prt, cache=cache, env=env)
+    prt('Making ZIP Package')
     if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
         url = p.save(PACKAGE_PREFIX)
         prt("Packaged saved to: {}".format(url))
@@ -230,23 +233,29 @@ def make_zip_package(file, cache, env, skip_if_exists):
         created = False
         url = p.save_path(PACKAGE_PREFIX)
 
-    return url, created
+    return p, url, created
 
 
 def make_filesystem_package(file, cache, env, skip_if_exists):
-
     from metatab.package import FileSystemPackage
+
     p = FileSystemPackage(file, callback=prt, cache=cache, env=env)
+
+    if skip_if_exists is None:
+        skip_if_exists = p.is_older_than_metatada(PACKAGE_PREFIX)
+
     if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
+        prt('Making Filesystem Package ',
+            '; existing package is older than metadata {}'.format(file) if (p.exists(PACKAGE_PREFIX) and not skip_if_exists) else '')
         url = p.save(PACKAGE_PREFIX)
         prt("Packaged saved to: {}".format(url))
         created = True
     elif p.exists(PACKAGE_PREFIX):
         prt("Filesystem Package already exists")
         created = False
-        url = p.save_path(PACKAGE_PREFIX)
+        url = join(p.save_path(PACKAGE_PREFIX).rstrip('/'), DEFAULT_METATAB_FILE)
 
-    return url, created
+    return p, url, created
 
 
 def make_csv_package(file, cache, env, skip_if_exists):
@@ -254,6 +263,7 @@ def make_csv_package(file, cache, env, skip_if_exists):
     from metatab.package import CsvPackage
 
     p = CsvPackage(file, callback=prt, cache=cache, env=env)
+    prt('Making CSV Package')
     if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
         url = p.save(PACKAGE_PREFIX)
         prt("Packaged saved to: {}".format(url))
@@ -263,22 +273,24 @@ def make_csv_package(file, cache, env, skip_if_exists):
         created = False
         url = p.save_path(PACKAGE_PREFIX)
 
-    return url, created
+    return p, url, created
 
-def make_s3_package(file, url, cache,  env, skip_if_exists):
+def make_s3_package(file, url, cache,  env, acl, skip_if_exists):
     from metatab.package import S3Package
 
-    p = S3Package(file, callback=prt, cache=cache, env=env)
-    if not p.exists(url) or not skip_if_exists:
-        url = p.save(url)
+    p = S3Package(file, callback=prt, cache=cache, env=env, save_url=url, acl=acl)
+
+    prt('Making S3 Package')
+    if not p.exists() or not skip_if_exists:
+        url = p.save()
         prt("Packaged saved to: {}".format(url))
         created = True
-    elif p.exists(url):
+    elif p.exists():
         prt("S3 Package already exists")
         created = False
         url = p.access_url
 
-    return url, created
+    return p, url, created
 
 
 def update_name(mt_file, fail_on_missing=False, report_unchanged=True, force=False):
@@ -317,13 +329,20 @@ def write_doc(doc, mt_file):
         'Root.Description',
         'Root.Identifier',
         'Root.Name',
+        'Root.Dataset',
+        'Root.Origin',
+        'Root.Time',
+        'Root.Space',
+        'Root.Grain',
+        'Root.Version',
         'Root.Group',
         'Root.Tag',
-        'Root.Keyword'
-        'Root.Subject'
+        'Root.Keyword',
+        'Root.Subject',
         'Root.Created',
         'Root.Modified',
         'Root.Issued',
+        'Root.Access',
         'Root.Distribution'
     ])
 

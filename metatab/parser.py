@@ -371,6 +371,7 @@ class Term(object):
         either the parent or record term.
 
         """
+
         if isinstance(v, six.string_types):
 
             if '.' not in v:
@@ -391,6 +392,41 @@ class Term(object):
 
         else:
 
+            return any(self.term_is(e) for e in v)
+
+    def aterm_is(self, v):
+        """Return True if the fully qualified name of the term is the same as the argument. If the
+        argument is a list or tuple, return  True if any of the term names match.
+
+        Either the parent or the record term can be '*' ( 'Table.*' or '*.Name' ) to match any value for
+        either the parent or record term.
+
+        """
+
+        if isinstance(v, six.string_types):
+
+            if '.' not in v:
+                v = 'root.' + v
+
+            v_p, v_r = self.split_term_lower(v)
+
+            if self.join_lc == v.lower():
+                print("AAAA", self.join_lc,  v.lower())
+                return True
+            elif v_r == '*' and v_p == self.parent_term_lc:
+                print("BBBB")
+                return True
+            elif v_p == '*' and v_r == self.record_term_lc:
+                print("CCCC")
+                return True
+            elif v_p == '*' and v_r == '*':
+                print("DDDD")
+                return True
+            else:
+                return False
+
+        else:
+            print("GORP")
             return any(self.term_is(e) for e in v)
 
     @property
@@ -651,6 +687,7 @@ class SectionTerm(Term):
         :return:
         """
 
+
         if order is None:
             self.terms = sorted(self.terms, key=lambda e: e.join_lc)
         else:
@@ -660,15 +697,14 @@ class SectionTerm(Term):
 
             for tn in order:
                 for t in list(all_terms):
-                    if t.join_lc == tn.lower():
+
+                    if t.term_is(tn):
                         all_terms.remove(t)
                         sorted_terms.append(t)
 
             sorted_terms.extend(sorted(all_terms, key=lambda e: e.join_lc))
 
             self.terms = sorted_terms
-
-
 
     def __getitem__(self, item):
         """Synonym for get_term()"""
