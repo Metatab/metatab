@@ -4,16 +4,16 @@ Private Datasets
 
 Datasets that should be protected from unauthorized access can be written to S3 with a private ACL and access using S3 credentials. To use private datasets:
 
-- Use the :program:`metaaws` program to setup an S3 bucket with a policy and users
+- Use the **metaaws** program to setup an S3 bucket with a policy and users
 - Add a ``Root.Access`` term to the dataset's metatab document.
-- Syncronize the dataset to s3 with :program:`metasync`
+- Syncronize the dataset to s3 with **metasync**
 - Setup credentials for an S3 user
 - Access the dataset using an S3 url.
 
 Setup The S3 Bucket
 -------------------
 
-Suppose we want to store datasets in a bucket ``bucket.example.com``. After creating the bucjet, initialize it with subdirectories and policies with the :program:`metaaws` program.
+Suppose we want to store datasets in a bucket ``bucket.example.com``. After creating the bucjet, initialize it with subdirectories and policies with the **metaaws**  program.
 
 .. code-block:: bash
 
@@ -30,7 +30,7 @@ To make a dataset private,  add a ``Root.Access`` term to the ``Root`` section, 
 Setup S3 Credentials
 --------------------
 
-Use the :program:`metaaws` program to create users and add permissions to the bucket. First, initialize a bucket with the apprpriate policies:
+Use the **metaaws**  program to create users and add permissions to the bucket. First, initialize a bucket with the apprpriate policies:
 
 .. code-block:: bash
 
