@@ -95,4 +95,33 @@ The last line of the output shows the command to run to set the credentials in t
 
     $ eval $(metasync -C -p fooprofile )
 
-Setting credentials in the shell is only required if you use a
+Setting credentials in the shell is only required if you access the private dataset via ``open_package()`` although it should also work when using the ``metasync`` and ``metapack`` program.
+
+Using Private Files
+-------------------
+
+Private files can't be easily downloaded using a web browser, but there are a few other ways to fetch them.
+
+* Use an S3 client, such as CyberDuck, S3 Browser, CloudBerry or S3 Tools.
+* Use the ``metapack`` program to dump a CSV file.
+
+To use the matpack program, first list the resources in the remote package:
+
+    .. code-block:: bash
+
+    $ metapack -r s3://library.civicknowledge.com/private/carr/civicknowledge.com-rcfe_health-1.csv
+    seniors s3://library.civicknowledge.com/private/carr/civicknowledge.com-rcfe_health-1/data/seniors.csv
+    rcfe_tract s3://library.civicknowledge.com/private/carr/civicknowledge.com-rcfe_health-1/data/rcfe_tract.csv
+    rcfe_sra s3://library.civicknowledge.com/private/carr/civicknowledge.com-rcfe_health-1/data/rcfe_sra.csv
+    rcfe_seniors_tract s3://library.civicknowledge.com/private/carr/civicknowledge.com-rcfe_health-1/data/rcfe_seniors_tract.csv
+
+Then, run the same command again, but appending a fragment to the url, and redirecting to a csv file. For instance, for the 'seniors' file, append ``#seniors`` to the url:
+
+    $ metapack -r s3://.../civicknowledge.com-rcfe_health-1.csv#seniors > seniors.csv
+
+
+
+
+
+
+

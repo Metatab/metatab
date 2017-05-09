@@ -38,6 +38,11 @@ def metapack():
     parser.add_argument('metatabfile', nargs='?',
                         help="Path or URL to a metatab file. If not provided, defaults to 'metadata.csv' ")
 
+    parser.add_argument('-p', '--profile', help="Name of a BOTO or AWS credentails profile", required=False)
+
+    parser.add_argument('--exceptions', default=False, action='store_true',
+                             help='Show full stack tract for some unhandled exceptions')
+
     parser.set_defaults(handler=None)
 
     ##
@@ -157,8 +162,18 @@ def metapack():
         metatab_info(m.cache)
         exit(0)
 
-    for handler in (metatab_build_handler, metatab_derived_handler, metatab_query_handler, metatab_admin_handler):
-        handler(m)
+    if m.args.profile:
+        from metatab.s3 import set_s3_profile
+        set_s3_profile(m.args.profile)
+
+    try:
+        for handler in (metatab_build_handler, metatab_derived_handler, metatab_query_handler, metatab_admin_handler):
+            handler(m)
+    except Exception as e:
+        if m.args.exceptions:
+            raise e
+        else:
+            err(e)
 
     clean_cache(m.cache)
 
