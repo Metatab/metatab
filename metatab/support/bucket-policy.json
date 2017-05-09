@@ -1,0 +1,153 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "list",
+            "Action": [
+                "s3:ListBucket"
+            ],
+            "Condition": {
+                "StringEquals": {
+                    "s3:prefix": [
+                        ""
+                    ],
+                    "s3:delimiter": [
+                        "/"
+                    ]
+                }
+            },
+            "Principal": {
+                "AWS": []
+            }
+        },
+        {
+            "Action": [
+                "s3:GetBucketAcl",
+                "s3:GetBucketLocation"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "bucket"
+        },
+        {
+            "Action": [
+                "s3:GetObjectAcl",
+                "s3:GetObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "ReadSystem"
+        },
+        {
+            "Action": [
+                "s3:PutObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "WriteSystem"
+        },
+        {
+            "Action": [
+                "s3:GetObjectAcl",
+                "s3:GetObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "ReadTest"
+        },
+        {
+            "Action": [
+                "s3:PutObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "WriteTest"
+        },
+        {
+            "Action": [
+                "s3:GetObjectAcl",
+                "s3:GetObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "ReadPublic"
+        },
+        {
+            "Action": [
+                "s3:PutObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "WritePublic"
+        },
+        {
+            "Action": [
+                "s3:GetObjectAcl",
+                "s3:GetObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "ReadRestricted"
+        },
+        {
+            "Action": [
+                "s3:PutObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "WriteRestricted"
+        },
+        {
+            "Action": [
+                "s3:GetObjectAcl",
+                "s3:GetObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "ReadPrivate"
+        },
+        {
+            "Action": [
+                "s3:PutObject"
+            ],
+            "Principal": {
+                "AWS": []
+            },
+            "Resource": [],
+            "Effect": "Allow",
+            "Sid": "WritePrivate"
+        }
+    ]
+}

@@ -1,0 +1,35 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Stmt1458756762000",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetBucketLocation",
+                "s3:ListBucket"
+            ],
+            "Condition": {
+                "StringLike": {
+                    "s3:prefix": [
+                        "[\"\"",
+                        "\"home/\"",
+                        "\"home/${aws:username}/\"]"
+                    ]
+                }
+            },
+            "Resource": [
+                "arn:aws:s3:::public.library.civicknowledge.com"
+            ]
+        },
+        {
+            "Sid": "Stmt1458756847000",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject"
+            ],
+            "Resource": [
+                "arn:aws:s3:::public.library.civicknowledge.com/*"
+            ]
+        }
+    ]
+}
