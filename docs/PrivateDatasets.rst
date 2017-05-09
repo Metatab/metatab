@@ -1,3 +1,6 @@
+.. role:: term
+.. role:: termval
+
 Private Datasets
 ================
 
@@ -20,9 +23,11 @@ Suppose we want to store datasets in a bucket ``bucket.example.com``. After crea
 
 
 
-
 Configure and Sync a Dataset
 ----------------------------
+
+To make a dataset private,  add a :term:`Root.Access` term to the ``Root`` section, with  a value of :termval:`private`
+
 
 Setup S3 Credentials
 --------------------
