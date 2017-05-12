@@ -43,6 +43,6 @@ The ``test-data`` directory has test files that also serve as examples to parse.
 Getting Started
 ---------------
 
-See `Getting Started <http://docs/Wrangling%20packages.rst>`_ for an initial tutorial, or the other guides in the 
-`docs directory on Github <http://docs/>`_
+See `Getting Started <https://github.com/CivicKnowledge/metatab-py/blob/master/docs/GettingStarted.rst>`_ for an initial tutorial, or the other guides in the 
+`docs directory on Github <https://github.com/CivicKnowledge/metatab-py/tree/master/docs>`_
 
