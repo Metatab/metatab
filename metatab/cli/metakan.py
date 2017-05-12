@@ -101,13 +101,10 @@ def metakan():
                 except Exception as e:
                     warn("Failed to process {}: {}".format(line, e))
 
-
     else:
-
         send_to_ckan(m)
 
     exit(0)
-
 
 def send_to_ckan(m):
 
@@ -119,13 +116,16 @@ def send_to_ckan(m):
 
     c = RemoteCKAN(m.ckan_url, apikey=m.api_key)
 
+    ckanid = doc.find_first_value('Root.Ckanid')
     identifier = doc.find_first_value('Root.Identitfier')
     name = doc.find_first('Root.Name')
 
     ckan_name = name.value.replace('.','-')
 
+    id_name = ckanid or ckan_name
+
     try:
-        pkg = c.action.package_show(name_or_id=ckan_name)
+        pkg = c.action.package_show(name_or_id=id_name)
         prt("Updating CKAN dataset for '{}'".format(ckan_name))
     except NotFound:
         pkg = c.action.package_create(name=ckan_name, package_id=identifier)
@@ -172,7 +172,6 @@ def send_to_ckan(m):
     else:
         org_name_slug = None
 
-
     extras = {}
 
     for t in doc.find('*.*', section='Root'):
@@ -183,7 +182,6 @@ def send_to_ckan(m):
         extras[t.qualified_term] = t.value
 
     pkg['extras'] = [ {'key':k, 'value':v} for k, v in extras.items() ]
-
 
     resources = []
 
@@ -247,7 +245,7 @@ def send_to_ckan(m):
                     format = ext,
                     url=r.resolved_url,
                     mimetype=mimetype,
-                    description=r.description
+                    description=r.markdown
                 )
 
                 resources.append(d)

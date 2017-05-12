@@ -346,6 +346,16 @@ def write_doc(doc, mt_file):
         'Root.Distribution'
     ])
 
+    import subprocess
+    out = subprocess.run(['git', 'remote', 'show','origin'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+
+    fetchline = next(l.split() for l in out.splitlines() if 'Fetch' in l )
+
+    if fetchline:
+        t = doc['Root'].get_or_new_term('GitUrl')
+        t.value = fetchline[-1]
+
+
     u = Url(mt_file)
 
     if u.scheme == 'file':

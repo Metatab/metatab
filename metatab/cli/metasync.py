@@ -207,6 +207,7 @@ def update_dist(doc, old_dists, v):
 
     if not t:
         doc['Root'].new_term('Root.Distribution', v)
+
         return True
     else:
         return False

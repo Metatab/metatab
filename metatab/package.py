@@ -438,9 +438,7 @@ class Package(object):
             term['headerlines'] = None
             term['encoding'] = None
 
-
         schema = self.doc['Schema']
-
 
         ## FIXME! This is probably dangerous, because the section args are changing, but the children
         ## are not, so when these two are combined in the Term.properties() acessor, the values are off.
@@ -485,7 +483,6 @@ class Package(object):
 
             assert rg is not None
 
-
             if True:
                 # Skipping the first line because we'll insetrt the headers manually
                 self._load_resource(r, islice(rg, 1, None), r.headers)
@@ -510,13 +507,18 @@ class Package(object):
         """Copy all of the Datafile entries into the Excel file"""
         from rowgenerators.generators import get_dflo, download_and_cache
         from rowgenerators import SourceSpec
+        from rowgenerators.exceptions import DownloadError
         from os.path import basename, splitext
 
         for doc in self.doc.find('Root.Documentation'):
 
             ss = SourceSpec(doc.value)
 
-            d = download_and_cache(ss, self._cache)
+            try:
+                d = download_and_cache(ss, self._cache)
+            except DownloadError as e:
+                self.warn("Failed to load documentation for '{}'".format(doc.value))
+                continue
 
             dflo = get_dflo(ss, d['sys_path'])
 
@@ -570,7 +572,7 @@ class FileSystemPackage(Package):
 
         return exists(join(self.save_path(path), DEFAULT_METATAB_FILE))
 
-    def is_older_than_metatada(self,path=None):
+    def is_older_than_metatada(self, path=None):
         """
         Return True if the package save file is older than the metadata. Returns False if the time of either can't be determined
 
@@ -581,10 +583,9 @@ class FileSystemPackage(Package):
         from os.path import getmtime
 
         try:
-            return getmtime(self.save_path(path)+"/metadata.csv") > self._doc.mtime
+            return getmtime(self.save_path(path) + "/metadata.csv") > self._doc.mtime
         except (FileNotFoundError, OSError):
             return False
-
 
     def save_path(self, path=None):
 
@@ -648,7 +649,7 @@ class FileSystemPackage(Package):
         np = join(path, name)
 
         if not isdir(np):
-            makedirs(np )
+            makedirs(np)
 
         self.package_dir = np
 
@@ -940,6 +941,7 @@ class ZipPackage(Package):
 
         self.zf.writestr(self.package_name + '/' + term['url'].value, contents)
 
+
 class S3Package(Package):
     """A Zip File package"""
 
@@ -951,7 +953,7 @@ class S3Package(Package):
 
         self.bucket = None
 
-        self._acl =  acl if acl else 'public-read'
+        self._acl = acl if acl else 'public-read'
 
     def _init_bucket(self, url=None, acl=None):
 
@@ -1006,10 +1008,9 @@ class S3Package(Package):
     def access_url(self):
         import boto3
 
-        self._init_bucket() # Fervently hope that the self.save_url has been set
+        self._init_bucket()  # Fervently hope that the self.save_url has been set
 
         return self.bucket.access_url(self.package_name, DEFAULT_METATAB_FILE)
-
 
     @property
     def signed_url(self):
@@ -1027,7 +1028,6 @@ class S3Package(Package):
         self._init_bucket(url)
 
         return self.bucket.exists(self.package_name, 'index.html')
-
 
     def write_to_s3(self, path, body):
 

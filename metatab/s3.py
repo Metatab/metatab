@@ -75,10 +75,10 @@ class S3Bucket(object):
 
         s3 = boto3.client('s3')
 
-        if self._acl == 'public-read':
-            return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
-        else:
+        if self._acl == 'private':
             return "s3://{}/{}".format(self._bucket_name, key)
+        else:
+            return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
 
 
     def signed_access_url(self, *paths):
