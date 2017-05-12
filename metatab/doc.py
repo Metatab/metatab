@@ -137,6 +137,11 @@ class Resource(Term):
 
         if self.base_url:
             u = Url(self.base_url)
+
+            # S3 security is a pain
+            if u.proto == 's3' and self.doc.find_first_value("Root.Access") != 'private':
+                print("!!!!!!", type(u))
+
         else:
             u = Url(self.doc.package_url)  # Url(self.doc.ref)
 
@@ -145,7 +150,9 @@ class Resource(Term):
 
         nu = u.component_url(self._self_url)
 
+        # For some URLs, we ned to put the proto back on.
         su = Url(self._self_url)
+
         if su.proto in PROTO_TO_SOURCE_MAP().keys():
             nu = reparse_url(nu, scheme_extension=su.proto)
 
@@ -216,8 +223,16 @@ class Resource(Term):
             if n:
                 return n
 
+
     @property
     def schema_table(self):
+        """Deprecated. Use schema_term()"""
+        return self.schema_term
+
+    @property
+    def schema_term(self):
+        """Return the Table term for this resource, which is referenced either by the `table` property or the
+        `schema` property"""
 
         t = self.doc.find_first('Root.Table', value=self.get_value('name'))
         frm = 'name'
@@ -238,7 +253,7 @@ class Resource(Term):
         are specifically applicable to the output table, and may not apply to the resource source. FOr those headers,
         use source_headers"""
 
-        t, _ = self.schema_table
+        t, _ = self.schema_term
 
         if t:
             return [self._name_for_col_term(c, i)
@@ -251,7 +266,7 @@ class Resource(Term):
         """"Returns the headers for the resource source. Specifically, does not include any header that is
         the EMPTY_SOURCE_HEADER value of _NONE_"""
 
-        t, _ = self.schema_table
+        t, _ = self.schema_term
 
         if t:
             return [self._name_for_col_term(c, i)
@@ -440,6 +455,13 @@ class Resource(Term):
                    "<tr><td>{}</td><td>{}</td><td>{}</td></tr> ".format(c['header'], c['datatype'], c['description'])
                    for c in self.columns()) + \
                '</table>'
+
+    @property
+    def markdown(self):
+
+        from .html import ckan_resource_markdown
+        return ckan_resource_markdown(self)
+
 
 
 class MetatabDoc(object):

@@ -12,11 +12,13 @@ from rowgenerators import SourceSpec
 
 dl_templ = "{}\n:   {}\n\n"
 
+
 def ns(v):
-    """Return empty str if boll false"""
+    """Return empty str if bool false"""
     return str(v) if bool(v) else ''
 
-def linkify(v, description = None, cwd_url=None):
+
+def linkify(v, description=None, cwd_url=None):
     from rowgenerators import Url
     from os.path import abspath
 
@@ -25,11 +27,11 @@ def linkify(v, description = None, cwd_url=None):
 
     u = Url(v)
 
-    if u.scheme in ('http','https','mailto'):
+    if u.scheme in ('http', 'https', 'mailto'):
 
         if description is None:
             description = v
-        return '[{desc}]({url})'.format(url=v, desc = description)
+        return '[{desc}]({url})'.format(url=v, desc=description)
 
     elif u.scheme == 'file':
 
@@ -39,33 +41,55 @@ def linkify(v, description = None, cwd_url=None):
         return v
 
 
-def resource(r, fields = None):
-
+def resource(r, fields=None):
     from operator import itemgetter
 
     fields = fields or (
         ('Header', 'header'),
-        ('Datatype','datatype'),
+        ('Datatype', 'datatype'),
         ('Description', 'description')
     )
 
-    headers = [ f[0] for f in fields]
+    headers = [f[0] for f in fields]
+    keys = [f[1] for f in fields]
+
+    rows = [''.join(["<td>{}</td>".format(e.replace("\n", "<br/>\n")) for e in [c.get(k, '') for k in keys]])
+            for c in r.columns()]
+
+    return ("### {name} \n [{url}]({url})\n\n".format(name=r.name, url=r.resolved_url)) + \
+           "{}\n".format(ns(r.description)) + \
+           "<table class=\"table table-striped\">\n" + \
+           ("<tr>{}</tr>".format(''.join("<th>{}</th>".format(e) for e in headers))) + \
+           "\n".join("<tr>{}</tr>".format(row) for row in rows) + \
+           '</table>\n'
+
+def ckan_resource_markdown(r, fields=None):
+
+    fields = fields or (
+        ('Header', 'header'),
+        ('Datatype', 'datatype'),
+        ('Description', 'description')
+    )
+
+    headers = [f[0] for f in fields]
     keys = [f[1] for f in fields]
 
 
-    rows = [''.join(["<td>{}</td>".format(e.replace("\n","<br/>\n")) for e in [c.get(k,'') for k in keys] ])
-            for c in r.columns()]
+    def col_line(c):
+        return "* **{}** ({}): {}\n".format(
+            c.get('header'),
+            c.get('datatype'),
+            "*{}*".format(c.get('description')) if c.get('description') else '')
+
+    return "### {}. {} Columns. \n\n{}".format(
+        ns(r.description),
+        len(list(r.columns())),
+        ''.join([col_line(c) for c in r.columns()])
+    )
 
 
-    return ("### {name} \n [{url}]({url})\n\n".format(name=r.name, url=r.resolved_url)) + \
-           "{}\n".format(ns(r.description))+ \
-           "<table class=\"table table-striped\">\n" + \
-           ("<tr>{}</tr>".format(''.join("<th>{}</th>".format(e) for e in headers)) ) + \
-           "\n".join("<tr>{}</tr>".format(row) for row in rows)+ \
-           '</table>\n'
 
 def resource_block(doc, fields=None):
-
     import sys
 
     if fields is None:
@@ -77,25 +101,25 @@ def resource_block(doc, fields=None):
 
         for h in doc['Schema'].args:
 
-            if h.lower() in ('note', 'notes','coding'):
-                fields.append( (h, h.lower()))
+            if h.lower() in ('note', 'notes', 'coding'):
+                fields.append((h, h.lower()))
 
     return "".join(resource(r, fields) for r in doc.resources())
 
-def resource_ref(r):
 
-    return dl_templ.format(r.name,"_{}_<br/>{}".format(r.resolved_url,ns(r.description)))
+def resource_ref(r):
+    return dl_templ.format(r.name, "_{}_<br/>{}".format(r.resolved_url, ns(r.description)))
+
 
 def resource_ref_block(doc):
-
     return "".join(resource_ref(r) for r in doc.resources())
 
 
 def contact(r):
     pass
 
-def contacts_block(doc):
 
+def contacts_block(doc):
     out = ''
 
     def mklink(url, desc):
@@ -125,16 +149,16 @@ def contacts_block(doc):
             web = p.get('url')
             org = p.get('organization', web)
 
-            out += (dl_templ .format(t.record_term.title(),
-                                     ', '.join( e for e in (ctb(email, name),ctb(web, org)) if e )))
+            out += (dl_templ.format(t.record_term.title(),
+                                    ', '.join(e for e in (ctb(email, name), ctb(web, org)) if e)))
 
     except KeyError:
         pass
 
     return out
 
-def documentation_block(doc):
 
+def documentation_block(doc):
     doc_links = ''
 
     inline = ''
@@ -158,9 +182,9 @@ def documentation_block(doc):
             elif t.properties.get('url'):
 
                 doc_links += (dl_templ
-                        .format(linkify(t.properties.get('url'), t.properties.get('title')),
-                                t.properties.get('description')
-                                ))
+                              .format(linkify(t.properties.get('url'), t.properties.get('title')),
+                                      t.properties.get('description')
+                                      ))
 
             elif t.term_is('Root.Note'):
                 notes.append(t.value)
@@ -172,19 +196,18 @@ def documentation_block(doc):
         pass
 
     return inline + \
-           (("\n\n## Notes \n\n" + "\n".join('* '+n for n in notes if n) ) if notes else '') +\
-           ("\n\n## Documentation Links\n"+doc_links if doc_links else '')
+           (("\n\n## Notes \n\n" + "\n".join('* ' + n for n in notes if n)) if notes else '') + \
+           ("\n\n## Documentation Links\n" + doc_links if doc_links else '')
+
 
 def identity_block(doc):
-
     from collections import OrderedDict
 
     name = doc.find_first('Root.Name')
 
-
     d = OrderedDict(
-        name = name.value,
-        identifier = doc.find_first_value('Root.Identifier'),
+        name=name.value,
+        identifier=doc.find_first_value('Root.Identifier'),
     )
 
     for k, v in name.properties.items():
@@ -192,7 +215,7 @@ def identity_block(doc):
 
     del d['@value']
 
-    return "".join(dl_templ.format(k, v) for k,v in d.items())
+    return "".join(dl_templ.format(k, v) for k, v in d.items())
 
 
 def markdown(doc):
@@ -217,13 +240,13 @@ _{description}_
         description=doc.find_first_value('Root.Description'),
         name=doc.find_first_value('Root.Name'),
         doc_block=documentation_block(doc),
-        contacts_block = contacts_block(doc)
+        contacts_block=contacts_block(doc)
     )
 
     return text
 
-def html(doc):
 
+def html(doc):
     extensions = [
         'markdown.extensions.extra',
         'markdown.extensions.admonition'
@@ -296,6 +319,3 @@ def html(doc):
         resource_refs=mdc(resource_ref_block(doc)).replace('<dl>', "<dl class=\"dl-horizontal\">"),
         resource_block=mdc(resource_block(doc))
     )
-
-
-
