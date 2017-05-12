@@ -66,7 +66,7 @@ Tne only required term to set is ``Name``, but you should have values for ``Titl
 
 For this example, the ``Name`` term could be changed to the name of the directory, 'example-package.' However, it is more rigorous to set the name component terms, ``DatasetName`` and zero or more of ``Origin``, ``Version``, ``Time`` or ``Space``. These terms will be combined to make the name, and the name will include important components to distinguish different package versions and similar datasets from different sources. The ``Name`` term is used to generate files names when making ZIP, Excel and S3 packages. For this tutorial use these values:
 
-- DatasetName: 'example-data-package'
+- Dataset: 'example-data-package'
 - Origin ( in the 'Contacts' Section): 'example.com'
 - Version ( Automatically set ) : '1'
 - Space: 'US'

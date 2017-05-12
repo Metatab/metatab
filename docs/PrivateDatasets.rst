@@ -107,7 +107,7 @@ Private files can't be easily downloaded using a web browser, but there are a fe
 
 To use the matpack program, first list the resources in the remote package:
 
-    .. code-block:: bash
+.. code-block:: bash
 
     $ metapack -r s3://library.civicknowledge.com/private/carr/civicknowledge.com-rcfe_health-1.csv
     seniors s3://library.civicknowledge.com/private/carr/civicknowledge.com-rcfe_health-1/data/seniors.csv
@@ -117,8 +117,18 @@ To use the matpack program, first list the resources in the remote package:
 
 Then, run the same command again, but appending a fragment to the url, and redirecting to a csv file. For instance, for the 'seniors' file, append ``#seniors`` to the url:
 
+
+.. code-block:: bash
+
     $ metapack -r s3://.../civicknowledge.com-rcfe_health-1.csv#seniors > seniors.csv
 
+You can also fetch the entire data package, downloading all of the data files, by creating a local file system, zip or excel package. The easiest to use is the Filesystem package, created with ``metapack -f``
+
+.. code-block:: bash
+
+    $ metapack -f s3://.../civicknowledge.com-rcfe_health-1.csv
+
+The command will create a complete data package with unpacked CSV files in the ``_packages`` subdirectory. 
 
 
 
