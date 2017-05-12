@@ -97,7 +97,9 @@ setup(
             'metakan=metatab.cli.metakan:metakan',
             'metasync=metatab.cli.metasync:metasync',
             'metaworld=metatab.cli.metaworld:metaworld',
-            'metaaws=metatab.cli.metaaws:metaaws'
+            'metaaws=metatab.cli.metaaws:metaaws',
+            'metasql=metatab.cli.metasql:metasql'
+
         ],
     },
 
@@ -111,7 +113,7 @@ setup(
     classifiers=classifiers,
     extras_require={
         'test': ['datapackage'],
-        'geo': ['fiona','shapely','pyproj']
+        'geo': ['fiona','shapely','pyproj'],
 
     },
 
