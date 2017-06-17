@@ -343,7 +343,12 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
                 err("Failed to find boto credentials for S3. "
                     "See http://boto3.readthedocs.io/en/latest/guide/configuration.html ")
 
-            urls.append(('fs', fs_url))
+            # A crappy hack. make_s3_package should return the correct url
+            if access_value == 'private':
+                urls.append(('fs', fs_p.private_access_url))
+            else:
+                urls.append(('fs', fs_p.public_access_url))
+
 
         # Make the CSV package from the filesystem package on S3; this will ensure that the
         # package's resource URLs point to the S3 objects

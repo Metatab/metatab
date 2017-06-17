@@ -5,6 +5,8 @@
 """
 from os.path import join, basename
 
+
+
 def declaration_path(name):
     """Return the path to an included declaration"""
     from os.path import dirname, join, exists
@@ -254,3 +256,38 @@ def enumerate_contents(url, cache, callback=None):
             yield s
 
 
+# From https://gist.github.com/zdavkeos/1098474
+def walk_up(bottom):
+    """  mimic os.walk, but walk 'up' instead of down the directory tree
+    :param bottom:
+    :return:
+    """
+    import os
+    from os import path
+
+    bottom = path.realpath(bottom)
+
+    #get files in current dir
+    try:
+        names = os.listdir(bottom)
+    except Exception as e:
+        raise e
+
+
+    dirs, nondirs = [], []
+    for name in names:
+        if path.isdir(path.join(bottom, name)):
+            dirs.append(name)
+        else:
+            nondirs.append(name)
+
+    yield bottom, dirs, nondirs
+
+    new_path = path.realpath(path.join(bottom, '..'))
+
+    # see if we are at the top
+    if new_path == bottom:
+        return
+
+    for x in walk_up(new_path):
+        yield x

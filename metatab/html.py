@@ -218,14 +218,33 @@ def identity_block(doc):
     return "".join(dl_templ.format(k, v) for k, v in d.items())
 
 
+def modtime_str(doc):
+    from dateutil.parser import parse
+
+    modtime = doc.find_first_value('Root.Modified') or doc.find_first_value('Root.Issued')
+
+    if modtime:
+        try:
+            modtime_str = "Last Modified: " + parse(modtime).strftime("%Y-%m-%d %H:%M")
+        except ValueError:
+            modtime_str = ''
+
+    else:
+
+        modtime_str = ''
+
+    return modtime_str
+
 def markdown(doc):
     """Markdown, specifically for the Notes field in a CKAN dataset"""
+
+
 
     name = doc.find_first('Root.Name')
 
     text = """
 
-`{name}`
+`{name}` {modtime}
 
 _{description}_
 
@@ -237,6 +256,7 @@ _{description}_
 
 """.format(
         title=doc.find_first_value('Root.Title'),
+        modtime=modtime_str(doc),
         description=doc.find_first_value('Root.Description'),
         name=doc.find_first_value('Root.Name'),
         doc_block=documentation_block(doc),
@@ -284,6 +304,7 @@ def html(doc):
         <div class="row">
             <div class="col-md-12">
                 <h1>{title}</h1>
+                <p>{modtime}</p>
                 <p>{description}</p>
             </div>
         </div>
@@ -312,6 +333,7 @@ def html(doc):
 </html>
     """.format(
         title=doc.find_first_value('Root.Title'),
+        modtime=modtime_str(doc),
         description=doc.find_first_value('Root.Description'),
         identity_block=mdc(identity_block(doc)).replace('<dl>', "<dl class=\"dl-horizontal\">"),
         doc_block=mdc(documentation_block(doc)),

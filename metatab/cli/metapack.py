@@ -11,13 +11,14 @@ import sys
 from genericpath import exists, isdir
 from itertools import islice
 from os import getcwd
-from os.path import dirname, abspath
+from os.path import dirname, abspath, exists
 from uuid import uuid4
 from datetime import datetime
 
 import six
 
-from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, ConversionError
+from metatab import _meta, DEFAULT_METATAB_FILE, BACKUP_METATAB_FILE, resolve_package_metadata_url, \
+                    MetatabDoc, ConversionError
 from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, \
     get_lib_module_dict, write_doc, datetime_now, \
     make_excel_package, make_filesystem_package, make_s3_package, make_csv_package, make_zip_package, update_name
@@ -144,11 +145,22 @@ def metapack():
             self.args = args
             self.cache = get_cache('metapack')
 
+            # Just the fragment was provided
             if args.metatabfile and args.metatabfile.startswith('#'):
-                # It's just a fragment, default metatab file
-                args.metatabfile = join(self.cwd, DEFAULT_METATAB_FILE) + args.metatabfile
+                frag = args.metatabfile
+                mtf = None
+            else:
+                frag = ''
+                mtf = args.metatabfile
 
-            self.mtfile_arg = args.metatabfile if args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
+            if not mtf:
+                args.metatabfile = join(self.cwd, DEFAULT_METATAB_FILE)
+
+            else:
+
+                args.metatabfile = mtf
+
+            self.mtfile_arg =  args.metatabfile + frag
 
             self.mtfile_url = Url(self.mtfile_arg)
 
@@ -316,9 +328,11 @@ def metatab_query_handler(m):
 
         try:
             doc = MetatabDoc(m.mt_file, cache=m.cache)
+
         except OSError as e:
             err("Failed to open Metatab doc: {}".format(e))
             return
+
 
         if m.resource:
             dump_resource(doc, m.resource, limit)
@@ -424,7 +438,7 @@ def process_schemas(mt_file, cache, clean=False):
     except KeyError:
         doc.new_section('Schema', ['DataType', 'Altname', 'Description'])
 
-    for r in doc.resources():
+    for r in doc.resources(env=get_lib_module_dict(doc)):
 
         schema_name = r.get_value('schema', r.get_value('name'))
 

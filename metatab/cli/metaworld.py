@@ -12,7 +12,7 @@ from os.path import join, basename
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, MetatabError, open_package
 from metatab.cli.core import err
 from rowgenerators import get_cache, Url
-from .core import prt
+from .core import prt, warn
 
 from metatab.util import slugify
 import json
@@ -88,7 +88,11 @@ def get_resource_urls(doc):
 
     for dist in doc.find("Root.Distribution"):
 
-        package_url, metadata_url = resolve_package_metadata_url(dist.value)
+        try:
+            package_url, metadata_url = resolve_package_metadata_url(dist.value)
+        except Exception as e:
+            warn("Failed for Distribution {}; {}".format(dist.value, e))
+            continue
 
         u = Url(package_url)
 
@@ -96,13 +100,14 @@ def get_resource_urls(doc):
             prt("Skipping ZIP package ", package_url)
 
         elif u.resource_format == 'xlsx':
-            resources[basename(package_url)] = package_url
-            prt("Adding XLS package ", package_url)
-            pass
+            if False:
+                resources[basename(package_url)] = package_url
+                prt("Adding XLS package ", package_url)
+                pass
 
         elif u.resource_format == 'csv':
 
-            resources[basename(package_url)] = package_url
+            resources[basename(package_url)] = u.signed_resource_url
 
             prt("Adding CSV package {}".format(basename(package_url)))
 
@@ -129,6 +134,12 @@ def get_resource_urls(doc):
 
     return resources
 
+def truncate(v, l,suffix=''):
+
+
+    return v[:(l-len(suffix))] if len(v) > l else v
+
+
 def send_to_dw(doc):
 
     client = dw.api_client()
@@ -136,10 +147,10 @@ def send_to_dw(doc):
     username = 'ericbusboom'
 
     title = doc.find_first_value("Root.Title")
-    key = join(username, slugify(title))
+    key = username+'/'+slugify(truncate(title,30))
 
     d = dict(
-        title=doc.find_first_value("Root.Title"),
+        title=truncate(title,30),
         description=doc.find_first_value("Root.Description"),
         summary=doc.markdown,
         visibility='OPEN',
@@ -156,7 +167,7 @@ def send_to_dw(doc):
 
     except RestApiError:
 
-        ds = client.create_dataset('ericbusboom', **d)
+        ds = client.create_dataset(username, **d)
 
         ds = client.get_dataset(key)
 

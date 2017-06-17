@@ -19,6 +19,8 @@ def warn(*args, **kwargs):
 
 def err(*args, **kwargs):
     import sys
+
+
     print("ERROR:", *args, file=sys.stderr, **kwargs)
     sys.exit(1)
 
@@ -80,32 +82,7 @@ def find_files(base_path, types):
 
 
 def get_lib_module_dict(doc):
-    """Load the 'lib' directory as a python module, so it can be used to provide functions
-    for rowpipe transforms"""
-
-    from os.path import dirname, abspath, join, isdir
-    from importlib import import_module
-    import sys
-
-    u = Url(doc.ref)
-    if u.proto == 'file':
-
-        doc_dir = dirname(abspath(u.parts.path))
-
-        # Add the dir with the metatab file to the system path
-        sys.path.append(doc_dir)
-
-        if not isdir(join(doc_dir, 'lib')):
-            return {}
-
-        try:
-            m = import_module("lib")
-            return {k: v for k, v in m.__dict__.items() if k in m.__all__}
-        except ImportError as e:
-            err("Failed to import python module form 'lib' directory: ", str(e))
-
-    else:
-        return {}
+    return doc.get_lib_module_dict()
 
 
 def dump_resources(doc):
@@ -120,8 +97,7 @@ def dump_resource(doc, name, lines=None):
     from tabulate import tabulate
     from rowpipe.exceptions import CasterExceptionError, TooManyCastingErrors
 
-    r = doc.resource(name=name, env=get_lib_module_dict(doc))
-
+    r = doc.resource(name=name)
 
     if not r:
         err("Did not get resource for name '{}'".format(name))

@@ -422,10 +422,14 @@ class Package(object):
 
         return added
 
-    def _clean_doc(self):
+
+    def _clean_doc(self, doc = None):
         """Clean the doc before writing it, removing unnecessary properties and doing other operations."""
 
-        resources = self.doc['Resources']
+        if doc is None:
+            doc = self.doc
+
+        resources = doc['Resources']
 
         # We don't need these anymore because all of the data written into the package is normalized.
         for arg in ['startline', 'headerlines', 'encoding']:
@@ -438,10 +442,10 @@ class Package(object):
             term['headerlines'] = None
             term['encoding'] = None
 
-        schema = self.doc['Schema']
+        schema = doc['Schema']
 
         ## FIXME! This is probably dangerous, because the section args are changing, but the children
-        ## are not, so when these two are combined in the Term.properties() acessor, the values are off.
+        ## are not, so when these two are combined in the Term.properties() acessors, the values are off.
         ## Because of this, _clean_doc should be run immediately before writing the doc.
         for arg in ['altname', 'transform']:
             for e in list(schema.args):
@@ -457,6 +461,8 @@ class Package(object):
 
                 col['altname'] = None
                 col['transform'] = None
+
+        return doc
 
     def _load_resources(self):
         """Copy all of the Datafile entries into the package"""
@@ -557,8 +563,6 @@ class GooglePackage(Package):
 
 class FileSystemPackage(Package):
     """A File System package"""
-
-    """A Zip File package"""
 
     def __init__(self, path=None, callback=None, cache=None, env=None):
 
@@ -684,8 +688,17 @@ class FileSystemPackage(Package):
         write_csv(path, headers, gen)
 
         # Writting between resources so row-generating programs and notebooks can
-        # access previously created resources.
-        self._write_doc()
+        # access previously created resources. We have to clean the doc before writing it
+
+        ref = self._write_doc()
+
+        # What a wreck ... we also have to get rid of the 'Transform' values, since the CSV files
+        # that are written don't need them, and a lot of intermediate processsing ( specifically,
+        # jupyter Notebooks, ) does not load them.
+        p = FileSystemPackage(ref)
+        p._init_dir('_packages')
+        p._clean_doc()
+        ref = p._write_doc()
 
     def _load_documentation(self, term, contents, file_name):
 
@@ -697,9 +710,9 @@ class FileSystemPackage(Package):
 
         self.prt("Loading documentation for '{}', '{}' ".format(title, file_name))
 
-        term['url'].value = 'docs/' + file_name
+        #term['url'].value = 'docs/' + file_name
 
-        path = join(self.package_dir, term['url'].value)
+        path = join(self.package_dir, 'docs/' + file_name)
 
         makedirs(dirname(path), exist_ok=True)
 
@@ -782,6 +795,9 @@ class ExcelPackage(Package):
 
     def save(self, path=None):
         from openpyxl import Workbook
+        from openpyxl.cell import WriteOnlyCell
+        from openpyxl.styles import PatternFill, Font, Alignment
+
 
         self.check_is_ready()
 
@@ -790,6 +806,12 @@ class ExcelPackage(Package):
         meta_ws = self.wb.create_sheet()
         meta_ws.title = "meta"
         meta_ws.sheet_properties.tabColor = "8888ff"
+
+        meta_ws.column_dimensions['A'].width = 15
+        meta_ws.column_dimensions['B'].width = 40
+        meta_ws.column_dimensions['C'].width = 20
+        meta_ws.column_dimensions['D'].width = 20
+        meta_ws.column_dimensions['E'].width = 20
 
         if not self.doc.find_first_value('Root.Name'):
             raise PackageError("Package must have Root.Name term defined")
@@ -804,8 +826,25 @@ class ExcelPackage(Package):
 
         self._clean_doc()
 
-        for row in self.doc.rows:
-            meta_ws.append(row)
+        fill = PatternFill("solid", fgColor="acc0e0") # PatternFill(patternType='gray125')
+        table_fill = PatternFill("solid", fgColor="d9dce0")  # PatternFill(patternType='gray125')
+
+        alignment = Alignment(wrap_text = False)
+        for i,row in enumerate(self.doc.rows,1):
+
+            if row[0] == 'Section' or row[0] == 'Table':
+                styled_row = []
+                for c in row + ['']*5:
+                    cell = WriteOnlyCell(meta_ws, value=c)
+                    cell.fill = fill if row[0] == 'Section' else table_fill
+                    styled_row.append(cell)
+                meta_ws.append(styled_row)
+
+
+            else:
+                meta_ws.append(row)
+
+
 
         ensure_exists(dirname(self.save_path(path)))
 
@@ -836,6 +875,8 @@ class ExcelPackage(Package):
 
         for row in gen:
             ws.append(row)
+
+
 
 
 class ZipPackage(Package):
@@ -1011,6 +1052,22 @@ class S3Package(Package):
         self._init_bucket()  # Fervently hope that the self.save_url has been set
 
         return self.bucket.access_url(self.package_name, DEFAULT_METATAB_FILE)
+
+    @property
+    def private_access_url(self):
+        import boto3
+
+        self._init_bucket()  # Fervently hope that the self.save_url has been set
+
+        return self.bucket.private_access_url(self.package_name, DEFAULT_METATAB_FILE)
+
+    @property
+    def public_access_url(self):
+        import boto3
+
+        self._init_bucket()  # Fervently hope that the self.save_url has been set
+
+        return self.bucket.public_access_url(self.package_name, DEFAULT_METATAB_FILE)
 
     @property
     def signed_url(self):

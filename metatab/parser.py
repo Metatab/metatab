@@ -179,6 +179,8 @@ class Term(object):
         """Remove the term from this term's children. """
         assert isinstance(child, Term)
         self.children.remove(child)
+        self.doc.remove_term(child)
+
 
     def new_children(self, **kwargs):
         """Create new children from kwargs"""
@@ -312,7 +314,8 @@ class Term(object):
 
             c = self.get_or_new_child(item, value)
 
-            assert self[item].value == value
+            # There is a bug where these two values may be different by a trailing space
+            assert self[item].value == value, "Item value '{}' is different from set value '{}' ".format(self[item].value, value)
 
             return c
 
@@ -669,7 +672,7 @@ class SectionTerm(Term):
     def remove_term(self, term):
         """Remove a term from the terms. Must be the identical term, the same object"""
 
-        self.terms.remove(term)
+        self.doc.remove(term)
 
     def clean(self):
         """Remove all of the terms from the section, and also remove them from the document"""
@@ -1014,7 +1017,7 @@ class TermParser(object):
                              file_name=ref, file_type=file_type, doc=doc)
 
 
-                if t.value and t.value.startswith('#'): # COmments are ignored
+                if t.value and str(t.value).startswith('#'): # Comments are ignored
                     continue
 
                 if t.term_is('include') or t.term_is('declare'):

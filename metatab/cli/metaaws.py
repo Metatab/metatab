@@ -5,7 +5,6 @@
 Manage AWS S3 bucket permissions and users
 """
 
-
 import metatab
 import mimetypes
 import sys
@@ -26,12 +25,12 @@ from os.path import dirname, join, abspath
 
 
 def metaaws():
-
     import argparse
 
     parser = argparse.ArgumentParser(prog='metakan',
-                                     description='CKAN management of Metatab packages, version {}'.format(_meta.__version__),
-         )
+                                     description='CKAN management of Metatab packages, version {}'.format(
+                                         _meta.__version__),
+                                     )
 
     parser.add_argument('-p', '--profile_name', type=str, nargs='?', help='Name of boto/aws credentials file')
     parser.set_defaults(subcommand=None)
@@ -78,18 +77,19 @@ def metaaws():
     else:
         args.subcommand(args)  # Note the calls to sp.set_defaults(subcommand=...)
 
-USER_PATH='/metatab/'
-TOP_LEVEL_DIRS = ('system','test','public','restricted','private')
 
-policy_name = 'ambry-s3' # User policy name
+USER_PATH = '/metatab/'
+TOP_LEVEL_DIRS = ( 'public', 'restricted', 'private')
 
-    
+policy_name = 'ambry-s3'  # User policy name
+
 
 def get_client(cli_args, service, *args, **kwargs):
     import boto3
     session = boto3.Session(profile_name=cli_args.profile_name)
 
     return session.client(service, *args, **kwargs)
+
 
 def get_resource(cli_args, service, *args, **kwargs):
     import boto3
@@ -99,7 +99,6 @@ def get_resource(cli_args, service, *args, **kwargs):
 
 
 def list_remotes(args):
-
     client = get_client(args, 's3')
 
     r = client.list_buckets()
@@ -108,7 +107,6 @@ def list_remotes(args):
 
 
 def new_user(args):
-
     from botocore.exceptions import ClientError
 
     client = get_client(args, 'iam')
@@ -128,14 +126,13 @@ def new_user(args):
 
         key_pair = user.create_access_key_pair()
 
-        prt("Created user : {}".format(user.user_name ))
+        prt("Created user : {}".format(user.user_name))
         prt("arn          : {}".format(user.arn))
         prt("Access Key   : {}".format(key_pair.id))
         prt("Secret Key   : {}".format(key_pair.secret))
 
+
 def make_group_policy(bucket, prefix, write=False):
-
-
     policy_path = join(dirname(abspath(metatab.__file__)), 'support', 'group-policy.json')
 
     with open(policy_path) as f:
@@ -143,7 +140,7 @@ def make_group_policy(bucket, prefix, write=False):
 
     doc = json.loads(policy_doc)
 
-    arn='arn:aws:s3:::'
+    arn = 'arn:aws:s3:::'
 
     def get_statement(name):
         for s in doc['Statement']:
@@ -155,23 +152,21 @@ def make_group_policy(bucket, prefix, write=False):
             if s['Sid'] == name:
                 del doc['Statement'][i]
 
-    get_statement('bucket')['Resource'].append(arn+bucket)
-    get_statement('read')['Resource'].append(arn+bucket+'/'+prefix.strip('/')+'/*')
+    get_statement('bucket')['Resource'].append(arn + bucket)
+    get_statement('read')['Resource'].append(arn + bucket + '/' + prefix.strip('/') + '/*')
 
     if write:
         get_statement('write')['Resource'].append(arn + bucket + '/' + prefix.strip('/') + '/*')
     else:
         del_statement('write')
 
-
     return json.dumps(doc)
+
 
 arn_prefix = 'arn:aws:s3:::'
 
+
 def user_dict_to_policy(d):
-
-
-
     policy_path = join(dirname(abspath(metatab.__file__)), 'support', 'user-policy.json')
 
     with open(policy_path) as f:
@@ -193,7 +188,6 @@ def user_dict_to_policy(d):
             reads.add((bucket, prefix))
             writes.add((bucket, prefix))
 
-
     # Get a reference to a read, write or bucket statement
     def get_statement(name):
         for s in doc['Statement']:
@@ -202,7 +196,7 @@ def user_dict_to_policy(d):
 
     get_statement('list')['Resource'] = [arn_prefix + b for b in buckets]
     get_statement('bucket')['Resource'] = [arn_prefix + b for b in buckets]
-    get_statement('read')['Resource'] = ["{}{}/{}/*".format(arn_prefix,b,p) for b, p in reads]
+    get_statement('read')['Resource'] = ["{}{}/{}/*".format(arn_prefix, b, p) for b, p in reads]
 
     if writes:
         get_statement('write')['Resource'] = ["{}{}/{}/*".format(arn_prefix, b, p) for b, p in writes]
@@ -217,18 +211,18 @@ def user_dict_to_policy(d):
         prefixes_per_bucket[bucket].add(prefix)
 
     for bucket, prefixes in prefixes_per_bucket.items():
-
         doc['Statement'].append(
             {
-                "Sid": "List{}".format( ''.join(p.title() for p in bucket.split('.'))),
+                "Sid": "List{}".format(''.join(p.title() for p in bucket.split('.'))),
                 "Action": ["s3:ListBucket"],
                 "Effect": "Allow",
-                "Resource": ["{}{}".format(arn_prefix,bucket)],
+                "Resource": ["{}{}".format(arn_prefix, bucket)],
                 "Condition": {"StringLike": {"s3:prefix": ["{}/*".format(prefix) for prefix in prefixes]}}
             }
         )
 
     return json.dumps(doc, indent=4)
+
 
 def user_policy_to_dict(doc):
     """Convert a bucket policy to a dict mapping principal/prefix names to 'R' or 'W' """
@@ -246,17 +240,18 @@ def user_policy_to_dict(doc):
                 return s
 
     for r in get_statement('read')['Principal']['AWS']:
-        bucket, prefix = r.replace(arn_prefix,'').replace('/*','').split('/')
+        bucket, prefix = r.replace(arn_prefix, '').replace('/*', '').split('/')
         d[(bucket, prefix.strip('/'))] = 'R'
 
     try:
         for r in get_statement('write')['Resource']:
-            bucket, prefix = r.replace(arn_prefix, '').replace('/*','').split('/')
+            bucket, prefix = r.replace(arn_prefix, '').replace('/*', '').split('/')
             d[(bucket, prefix.strip('/'))] = 'W'
     except TypeError:
-        pass # No write section
+        pass  # No write section
 
     return d
+
 
 def make_bucket_policy_statements(bucket):
     """Return the statemtns in a bucket policy as a dict of dicts"""
@@ -271,7 +266,7 @@ def make_bucket_policy_statements(bucket):
     statements = {}
 
     cl = copy.deepcopy(parts['list'])
-    cl['Resource'] = arn_prefix+bucket
+    cl['Resource'] = arn_prefix + bucket
     statements['list'] = cl
 
     cl = copy.deepcopy(parts['bucket'])
@@ -280,13 +275,13 @@ def make_bucket_policy_statements(bucket):
 
     for sd in TOP_LEVEL_DIRS:
         cl = copy.deepcopy(parts['read'])
-        cl['Resource'] = arn_prefix + bucket +'/' + sd + '/*'
-        cl['Sid'] = cl['Sid'].title()+sd.title()
+        cl['Resource'] = arn_prefix + bucket + '/' + sd + '/*'
+        cl['Sid'] = cl['Sid'].title() + sd.title()
 
         statements[cl['Sid']] = cl
 
         cl = copy.deepcopy(parts['write'])
-        cl['Resource'] = arn_prefix + bucket +'/' + sd + '/*'
+        cl['Resource'] = arn_prefix + bucket + '/' + sd + '/*'
         cl['Sid'] = cl['Sid'].title() + sd.title()
 
         statements[cl['Sid']] = cl
@@ -294,11 +289,12 @@ def make_bucket_policy_statements(bucket):
         cl = copy.deepcopy(parts['listb'])
         cl['Resource'] = arn_prefix + bucket
         cl['Sid'] = cl['Sid'].title() + sd.title()
-        cl['Condition']['StringLike']['s3:prefix'] = [sd + '/*' ]
+        cl['Condition']['StringLike']['s3:prefix'] = [sd + '/*']
 
         statements[cl['Sid']] = cl
 
     return statements
+
 
 def bucket_dict_to_policy(args, bucket_name, d):
     """
@@ -317,7 +313,7 @@ def bucket_dict_to_policy(args, bucket_name, d):
 
     statements = make_bucket_policy_statements(bucket_name)
 
-    user_stats = set() # statement tripples
+    user_stats = set()  # statement tripples
 
     for (user, prefix), mode in d.items():
 
@@ -345,11 +341,12 @@ def bucket_dict_to_policy(args, bucket_name, d):
 
         section['Principal']['AWS'].append(user.arn)
 
-    for sid in statements.keys():
+    for sid in list(statements.keys()):
         if not statements[sid]['Principal']['AWS']:
             del statements[sid]
 
     return json.dumps(dict(Version="2012-10-17", Statement=list(statements.values())), indent=4)
+
 
 def bucket_policy_to_dict(policy):
     """Produce a dictionary of read, write permissions for an existing bucket policy document"""
@@ -358,7 +355,7 @@ def bucket_policy_to_dict(policy):
     if not isinstance(policy, dict):
         policy = json.loads(policy)
 
-    statements = { s['Sid']:s for s in policy['Statement'] }
+    statements = {s['Sid']: s for s in policy['Statement']}
 
     d = {}
 
@@ -371,7 +368,6 @@ def bucket_policy_to_dict(policy):
                 if isinstance(statements[sid]['Principal']['AWS'], list):
 
                     for principal in statements[sid]['Principal']['AWS']:
-
                         user_name = principal.split('/').pop()
                         d[(user_name, prefix)] = rw[0]
                 else:
@@ -405,8 +401,6 @@ def delete_user(args):
         err("Could not delete user: {}".format(e))
 
 
-
-
 def init_bucket(args):
     from botocore.exceptions import ClientError
     import json
@@ -418,8 +412,7 @@ def init_bucket(args):
     b.create()
 
 
-def split_bucket_name(bucket, default = 'public'):
-
+def split_bucket_name(bucket, default='public'):
     if '/' in bucket:
         bn, prefix = bucket.split('/', 1)
     elif default != False:
@@ -433,13 +426,12 @@ def split_bucket_name(bucket, default = 'public'):
 
 
 def perm(args):
-
     from botocore.exceptions import ClientError
     import json
 
     iam = get_resource(args, 'iam')
 
-    bn, prefix = split_bucket_name(args.bucket, default = False)
+    bn, prefix = split_bucket_name(args.bucket, default=False)
 
     if not prefix:
         prefixes = TOP_LEVEL_DIRS
@@ -478,7 +470,11 @@ def perm(args):
         b = get_resource(args, 's3').Bucket(bn)
         policy = bucket_dict_to_policy(args, bn, perms)
 
-        b.Policy().put(Policy=policy)
+        try:
+            b.Policy().put(Policy=policy)
+        except Exception as e:
+            print(policy)
+            raise
 
 
 
@@ -499,12 +495,12 @@ def list_users(args):
     users = client.list_users(PathPrefix='/')
 
     for user_info in users['Users']:
-
         user = iam.User(user_info['UserName'])
 
-        records.append([user.name, list(user.access_keys.all())[0].id , user.arn])
+        records.append([user.name, list(user.access_keys.all())[0].id, user.arn])
 
     print(tabulate.tabulate(records, headers))
+
 
 def list_bucket_users(args):
     from botocore.exceptions import ClientError
@@ -542,6 +538,7 @@ def list_bucket_users(args):
 
     print(tabulate.tabulate(records, headers))
 
+
 def get_iam_account(l, args, user_name):
     """Return the local Account for a user name, by fetching User and looking up
     the arn. """
@@ -551,6 +548,7 @@ def get_iam_account(l, args, user_name):
     user.load()
 
     return l.find_or_new_account(user.arn)
+
 
 def test_user(args):
     from botocore.exceptions import ClientError
@@ -567,7 +565,7 @@ def test_user(args):
     root_s3 = get_resource(args, 's3')
     s3 = session.resource('s3')
 
-    bn, prefix = split_bucket_name(args.bucket, default = None)
+    bn, prefix = split_bucket_name(args.bucket, default=None)
 
     root_bucket = root_s3.Bucket(bn)
     bucket = s3.Bucket(bn)
@@ -575,8 +573,8 @@ def test_user(args):
     prefixes = [prefix] if prefix else TOP_LEVEL_DIRS
 
     for prefix in prefixes:
-        k = prefix+'/test/'+args.user_name
-        rk = k+'-root'
+        k = prefix + '/test/' + args.user_name
+        rk = k + '-root'
 
         ro = root_bucket.put_object(Key=rk, Body=args.user_name)
 
@@ -599,11 +597,9 @@ def test_user(args):
         except ClientError as e:
             delete = False
 
-        #ro.delete()
+        # ro.delete()
 
         prt("{:<35s} {:<5s} {:<5s} {:<6s} {}".format(k, 'read' if read else '',
-                                                  'write' if write else '',
-                                                  'delete' if delete else '',
-                                                  'no access' if not any((read, write, delete)) else '' ))
-
-
+                                                     'write' if write else '',
+                                                     'delete' if delete else '',
+                                                     'no access' if not any((read, write, delete)) else ''))

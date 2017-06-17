@@ -20,12 +20,14 @@ from rowgenerators import RowGenerator, Url, SelectiveRowGenerator
 from rowgenerators.exceptions import SourceError
 from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
 from rowpipe import RowProcessor
-from rowgenerators import Url
+from rowgenerators import Url, DownloadError
 from os.path import dirname, abspath, isdir, getmtime
 from time import time
+from .exc import PackageError
 
 DEFAULT_METATAB_FILE = 'metadata.csv'
 
+BACKUP_METATAB_FILE = 'metadata.xlsx'
 
 def get_cache(clean=False):
     from rowgenerators.util import get_cache, clean_cache
@@ -64,12 +66,12 @@ def resolve_package_metadata_url(ref):
         p = parse_url_to_dict(ref)
 
         if isfile(p['path']):
-            metadata_url = reparse_url(ref )
+            metadata_url = reparse_url(ref)
             package_url = reparse_url(ref, path=dirname(p['path']), fragment=False)
         else:
 
             p['path'] = join(p['path'], DEFAULT_METATAB_FILE)
-            package_url = reparse_url(ref, fragment=False, path = p['path'].rstrip('/')+'/')
+            package_url = reparse_url(ref, fragment=False, path=p['path'].rstrip('/') + '/')
             metadata_url = unparse_url_dict(p)
 
         # Make all of the paths absolute. Saves a lot of headaches later.
@@ -92,6 +94,8 @@ def open_package(ref, cache=None, clean_cache=False):
     cache = cache if cache else get_cache()
 
     return MetatabDoc(metadata_url, package_url=package_url, cache=cache)
+
+
 
 
 EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination table but not in the source
@@ -121,12 +125,14 @@ class Resource(Term):
 
         self.__initialised = True
 
+
+
     @property
     def _self_url(self):
         try:
             if self.url:
                 return self.url
-        finally: # WTF? No idea, probably wrong.
+        finally:  # WTF? No idea, probably wrong.
             return self.value
 
     def _resolved_url(self):
@@ -135,12 +141,9 @@ class Resource(Term):
 
         from rowgenerators.generators import PROTO_TO_SOURCE_MAP
 
+
         if self.base_url:
             u = Url(self.base_url)
-
-            # S3 security is a pain
-            if u.proto == 's3' and self.doc.find_first_value("Root.Access") != 'private':
-                print("!!!!!!", type(u))
 
         else:
             u = Url(self.doc.package_url)  # Url(self.doc.ref)
@@ -153,8 +156,12 @@ class Resource(Term):
         # For some URLs, we ned to put the proto back on.
         su = Url(self._self_url)
 
+        if not su.reparse:
+            return su
+
         if su.proto in PROTO_TO_SOURCE_MAP().keys():
             nu = reparse_url(nu, scheme_extension=su.proto)
+
 
         assert nu
         return nu
@@ -223,6 +230,10 @@ class Resource(Term):
             if n:
                 return n
 
+    @property
+    def schema_name(self):
+        """The value of the Name or Schema property"""
+        return self.get_value('schema', self.get_value('name'))
 
     @property
     def schema_table(self):
@@ -276,12 +287,10 @@ class Resource(Term):
         else:
             return None
 
+
     def columns(self):
 
-        t = self.doc.find_first('Root.Table', value=self.get_value('name'))
-
-        if not t:
-            t = self.doc.find_first('Root.Table', value=self.get_value('schema'))
+        t, _ = self.schema_term
 
         if not t:
             return
@@ -337,13 +346,17 @@ class Resource(Term):
 
     @property
     def row_generator(self):
+        return self._row_generator()
+
+    def _row_generator(self):
+
         d = self.properties
 
         d['url'] = self.resolved_url
         d['target_format'] = d.get('format')
         d['target_segment'] = d.get('segment')
         d['target_file'] = d.get('file')
-        d['engoding'] = d.get('encoding', 'utf8'),
+        d['encoding'] = d.get('encoding', 'utf8')
 
         generator_args = dict(d.items())
         # For ProgramSource generator, These become values in a JSON encoded dict in the PROPERTIE env var
@@ -353,6 +366,7 @@ class Resource(Term):
 
         # These become their own env vars.
         generator_args['METATAB_DOC'] = self._doc.ref
+        generator_args['METATAB_WORKING_DIR'] = self._doc.doc_dir
         generator_args['METATAB_PACKAGE'] = str(self._doc.package_url)
 
         d['cache'] = self._doc._cache
@@ -376,12 +390,12 @@ class Resource(Term):
 
             yield headers
 
-            rg = RowProcessor(islice(self.row_generator, start, None),
+            rg = RowProcessor(islice(self._row_generator(), start, None),
                               self.row_processor_table(),
                               source_headers=self.source_headers, env=self.env)
 
         else:
-            rg = self.row_generator
+            rg = self._row_generator()
 
         if six.PY3:
             # Would like to do this, but Python2 can't handle the syntax
@@ -415,13 +429,29 @@ class Resource(Term):
         """Return a pandas datafrome from the resource"""
 
         from .pands import MetatabDataFrame
+        from rowgenerators.generators import MetapackSource
 
         d = self.properties
 
-        d['url'] = self.resolved_url
-        d['working_dir'] = self._doc.doc_dir
+        rg = self.row_generator
 
-        rg = RowGenerator(**d)
+        # Maybe generator has it's own Dataframe method()
+        try:
+            return rg.generator.dataframe()
+        except AttributeError:
+            pass
+
+
+        if isinstance(rg.generator, MetapackSource):
+            try:
+                return rg.generator.resource.dataframe(limit=limit)
+            except AttributeError:
+                if rg.generator.package is None:
+                    raise PackageError("Failed to get reference package for {}".format(rg.generator.spec.resource_url))
+                if rg.generator.resource is None:
+                    raise PackageError("Failed to get reference resource for '{}' ".format(rg.generator.spec.target_segment))
+                else:
+                    raise
 
         headers = self.headers
 
@@ -433,20 +463,55 @@ class Resource(Term):
             rg = islice(rg, start, limit)
 
         else:
+            rg = iter(rg)
             headers = next(rg)  # Get the headers from the first row of the file
+
 
         rp_table = self.row_processor_table()
 
         if rp_table:
-            rg = RowProcessor(rg, rp_table, source_headers=headers, env={})
+
+            rg = RowProcessor(rg, rp_table, source_headers=headers, env=self.env)
 
         df = MetatabDataFrame(list(rg), columns=headers, metatab_resource=self)
 
-        self.errors = df.metatab_errors = rg.errors if rg.errors else {}
+        self.errors = df.metatab_errors = rg.errors if hasattr(rg, 'errors') and rg.errors else {}
 
         return df
 
+    @property
+    def sub_package(self):
+        """For references to Metapack resoruces, the original package"""
+        from rowgenerators.generators import MetapackSource
+
+        rg = self.row_generator
+
+        if isinstance(rg.generator, MetapackSource):
+            return rg.generator.package
+        else:
+            return None
+
+    @property
+    def sub_resource(self):
+        """For references to Metapack resoruces, the original package"""
+        from rowgenerators.generators import MetapackSource
+
+        rg = self.row_generator
+
+        if isinstance(rg.generator, MetapackSource):
+            return rg.generator.resource
+        else:
+            return None
+
     def _repr_html_(self):
+        from rowgenerators.generators import MetapackSource
+
+
+        try:
+            return self.sub_resource._repr_html_()
+        except AttributeError:
+            pass
+
         return ("<h3><a name=\"resource-{name}\"></a>{name}</h3><p><a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
                 .format(name=self.name, url=self.resolved_url)) + \
                "<table>\n" + \
@@ -463,9 +528,9 @@ class Resource(Term):
         return ckan_resource_markdown(self)
 
 
-
 class MetatabDoc(object):
     def __init__(self, ref=None, decl=None, package_url=None, cache=None, clean_cache=False):
+
 
         self._cache = cache if cache else get_cache()
 
@@ -477,7 +542,7 @@ class MetatabDoc(object):
         self.errors = []
         self.package_url = package_url
 
-        #if Url(self.package_url).proto == 'file':
+        # if Url(self.package_url).proto == 'file':
         #    path = abspath(parse_url_to_dict(self.package_url)['path'])
         #    self.package_url = reparse_url(self.package_url, path = path)
 
@@ -525,7 +590,16 @@ class MetatabDoc(object):
         return self._mtime
 
     def as_version(self, ver):
-        """Return a copy of the document, with a different version"""
+        """Return a copy of the document, with a different version
+
+        :param ver: A Version number for the returned document. May also be an integer prefixed with '+'
+        ( '+1' ) to set the version ahead of this document's version. Prefix with a '-' to set a version behind.
+
+        Typical use of the version math feature is to get the name of a document one version behind:
+
+        >>> doc.as_version('-1')
+
+        """
 
         doc = self.__class__(self.ref)
 
@@ -615,14 +689,20 @@ class MetatabDoc(object):
     def remove_term(self, t):
         """Only removes top-level terms. CHild terms can be removed at the parent. """
 
-        self.terms.remove(t)
+        try:
+            self.terms.remove(t)
+        except ValueError:
+            pass
 
         if t.section and t.parent_term_lc == 'root':
             t.section = self.add_section(t.section)
             t.section.remove_term(t)
 
         if t.parent:
-            t.parent.remove_child(t)
+            try:
+                t.parent.remove_child(t)
+            except ValueError:
+                pass
 
     def add_section(self, s):
 
@@ -695,9 +775,13 @@ class MetatabDoc(object):
             yield s
 
     def find(self, term, value=False, section=None, **kwargs):
-        """Return a list of terms, possibly in a particular section. Use joined term notation
+        """Return a list of terms, possibly in a particular section. Use joined term notation, such as 'Root.Name' The kwargs arg is used to set term properties, all of which match returned terms, so ``name='foobar'`` will match terms that have a ``name`` property of ``foobar``
 
-        kwargs is used to set term properties, all of which match returned terms.
+        :param term: The type of term to find, in fully-qulified notation, or use '*' for wild cards in either the parent or the record parts, such as 'Root.*', '*.Table' or '*.*'
+        :param value: Select terms with a given value
+        :param section: The name of the section in which to restrict the search
+        :param kwargs:  See additional properties on which to match terms.
+
         """
 
         import itertools
@@ -751,7 +835,6 @@ class MetatabDoc(object):
 
                 assert t.section or t.join_lc == 'root.root' or t.join_lc == 'root.section', t
 
-
                 if (t.term_is(term)
                     and in_section(t, section)
                     and (value is False or value == t.value)):
@@ -785,12 +868,18 @@ class MetatabDoc(object):
         else:
             return term.value
 
-    def resources(self, name=None, term='Root.Datafile', section='Resources'):
+    def resources(self, name=None, term='Root.Datafile', section='Resources', env=None):
         """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
 
         base_url = self.package_url if self.package_url else self._ref
 
-        for t in self['Resources'].terms:
+        if env is None:
+            try:
+                env = self.get_lib_module_dict()
+            except PackageError:
+                pass
+
+        for t in self[section].terms:
 
             if term and not t.term_is(term):
                 continue
@@ -801,9 +890,9 @@ class MetatabDoc(object):
             if not 'url' in t.properties:
                 pass
 
-            yield Resource(t, base_url)
+            yield Resource(t, base_url, env=env)
 
-    def resource(self, name=None, term='Root.Datafile', env=None):
+    def resource(self, name=None, term='Root.Datafile', section='Resources', env=None):
         """
 
         :param name:
@@ -812,15 +901,48 @@ class MetatabDoc(object):
         :return:
         """
 
-        resources = list(self.resources(name=name, term=term))
+        if env is None:
+            try:
+                env = self.get_lib_module_dict()
+            except PackageError:
+
+                pass
+
+        resources = list(self.resources(name=name, term=term, section=section, env=env))
 
         if not resources:
             return None
 
         else:
             r = resources[0]
-            r.env = env
             return r
+
+    def references(self, name=None, term='Root.Reference', section='References', env=None):
+        """
+        Like resources(), but by default looks for Root.Reference terms in the References section
+        :param name: Value of name property for terms to return
+        :param term: Fully qualified term name, defaults to Root.Reference
+        :param section: Name of section to look in. Defaults to 'References'
+        :param env: Environment dict to be passed into resource row generators.
+        :return:
+        """
+
+        return self.resources(name=name, term=term, section=section, env=env)
+
+    def reference(self, name=None, term='Root.Reference', section='References', env=None):
+        """
+        Like resource(), but by default looks for Root.Reference terms in the References section
+
+        :param name: Value of name property for terms to return
+        :param term: Fully qualified term name, defaults to Root.Reference
+        :param section: Name of section to look in. Defaults to 'References'
+        :param env: Environment dict to be passed into resource row generators.
+        :return:
+        """
+
+        return self.resource(name=name, term=term, section=section, env=env)
+
+
 
     def load_terms(self, terms):
         """Create a builder from a sequence of terms, usually a TermInterpreter"""
@@ -870,6 +992,35 @@ class MetatabDoc(object):
     def load_csv(self, file_name):
         """Load a Metatab CSV file into the builder to continue editing it. """
         return self.load_rows(CsvPathRowGenerator(file_name))
+
+    def get_lib_module_dict(self):
+        """Load the 'lib' directory as a python module, so it can be used to provide functions
+        for rowpipe transforms. This only works filesystem packages"""
+
+        from os.path import dirname, abspath, join, isdir
+        from importlib import import_module
+        import sys
+
+        u = Url(self.ref)
+        if u.proto == 'file':
+
+            doc_dir = dirname(abspath(u.parts.path))
+
+            # Add the dir with the metatab file to the system path
+            sys.path.append(doc_dir)
+
+            if not isdir(join(doc_dir, 'lib')):
+                return {}
+
+            try:
+                m = import_module("lib")
+                return {k: v for k, v in m.__dict__.items() if not k.startswith('__')}
+            except ImportError as e:
+
+                raise PackageError("Failed to import python module form 'lib' directory: ", str(e))
+
+        else:
+            return {}
 
     def cleanse(self):
         """Clean up some terms, like ensuring that the name is a slug"""
@@ -957,13 +1108,22 @@ class MetatabDoc(object):
         name = name_t.value
 
         datasetname = name_t.get_value('Name.Dataset', self.get_value('Root.Dataset'))
-        version = name_t.get_value('Name.Version', self.get_value('Root.Version'))
+
+        ver_value = name_t.get_value('Name.Version', self.get_value('Root.Version'))
+        # Excel like to make integers into floats
+        try:
+            if int(ver_value) == float(ver_value):
+                version = int(ver_value)
+
+        except (ValueError, TypeError):
+            version = ver_value
+
         origin = name_t.get_value('Name.Origin', self.get_value('Root.Origin'))
         time = name_t.get_value('Name.Time', self.get_value('Root.Time'))
         space = name_t.get_value('Name.Space', self.get_value('Root.Space'))
         grain = name_t.get_value('Name.Grain', self.get_value('Root.Grain'))
 
-        parts = [slugify(e.replace('-', '_')) for e in (origin, datasetname, time, space, grain, version) if
+        parts = [slugify(str(e).replace('-', '_')) for e in (origin, datasetname, time, space, grain, version) if
                  e and str(e).strip()]
 
         return '-'.join(parts)
@@ -1121,6 +1281,7 @@ class MetatabDoc(object):
 <h1>{title}</h1>
 <p>{name}</p>
 <p>{description}</p>
+<p>{ref}</p>
 <h2>Documentation</h2>
 {doc}
 <h2>Contacts</h2>
@@ -1132,6 +1293,7 @@ class MetatabDoc(object):
 """.format(
             title=self.find_first_value('Root.Title', section='Root'),
             name=self.find_first_value('Root.Name', section='Root'),
+            ref=self.ref,
             description=self.find_first_value('Root.Description', section='Root'),
             doc=documentation(),
             contact=contacts(),

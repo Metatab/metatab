@@ -71,15 +71,26 @@ class S3Bucket(object):
 
     def access_url(self, *paths):
 
+        if self._acl == 'private':
+            return self.private_access_url(*paths)
+        else:
+            return self.public_access_url(*paths)
+
+    def private_access_url(self, *paths):
+
         key = join(self._prefix, *paths).strip('/')
 
         s3 = boto3.client('s3')
 
-        if self._acl == 'private':
-            return "s3://{}/{}".format(self._bucket_name, key)
-        else:
-            return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
+        return "s3://{}/{}".format(self._bucket_name, key)
 
+    def public_access_url(self, *paths):
+
+        key = join(self._prefix, *paths).strip('/')
+
+        s3 = boto3.client('s3')
+
+        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
 
     def signed_access_url(self, *paths):
 

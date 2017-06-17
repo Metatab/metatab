@@ -7,6 +7,7 @@ CLI program for storing pacakges in CKAN
 
 import mimetypes
 import sys
+import traceback
 from os import getenv, getcwd
 from os.path import join, basename
 
@@ -33,6 +34,9 @@ def metakan():
 
     parser.add_argument('-p', '--packages', action='store_true',
                         help="The file argument is a text file with a list of package URLs to load")
+
+    parser.add_argument('-C', '--configure', action='store_true',
+                        help="File is a CKAN configuration file in Metatab format")
 
     parser.add_argument('metatabfile', nargs='?', default=DEFAULT_METATAB_FILE,
                         help='Path to a Metatab file, or an s3 link to a bucket with Metatab files. ')
@@ -101,7 +105,13 @@ def metakan():
                 except Exception as e:
                     warn("Failed to process {}: {}".format(line, e))
 
+
+    elif m.args.configure:
+
+        configure_ckan(m)
+
     else:
+
         send_to_ckan(m)
 
     exit(0)
@@ -118,7 +128,7 @@ def send_to_ckan(m):
 
     ckanid = doc.find_first_value('Root.Ckanid')
     identifier = doc.find_first_value('Root.Identitfier')
-    name = doc.find_first('Root.Name')
+    name = doc.as_version(None).find_first('Root.Name')
 
     ckan_name = name.value.replace('.','-')
 
@@ -126,9 +136,15 @@ def send_to_ckan(m):
 
     try:
         pkg = c.action.package_show(name_or_id=id_name)
-        prt("Updating CKAN dataset for '{}'".format(ckan_name))
-    except NotFound:
-        pkg = c.action.package_create(name=ckan_name, package_id=identifier)
+        prt("Updating CKAN dataset for '{}'".format(id_name))
+    except NotFound as e:
+        e.__traceback__ = None
+        traceback.clear_frames(e.__traceback__)
+        try:
+            pkg = c.action.package_create(name=ckan_name)
+        except Exception as e:
+            err("Failed to create package for name '{}': {} ".format(ckan_name, e))
+
         prt("Adding CKAN dataset for '{}'".format(ckan_name))
 
     pkg['title'] = doc.find_first_value('Root.Title')
@@ -141,27 +157,16 @@ def send_to_ckan(m):
     except OSError as e:
         warn(e)
 
-    pkg['version'] = name.properties.get('version')
+    pkg['version'] = name.properties.get('version') or doc.find_first_value('Root.Version')
 
     pkg['groups'] = [ {'name': g.value } for g in doc['Root'].find('Root.Group')]
 
     pkg['tags'] = [{'name': g.value} for g in doc['Root'].find('Root.Tag')]
 
-    def get_org(name):
-
-        if not name:
-            return None
-
-        try:
-            return
-        except NotFound:
-            return None
-
-    org_name = name.get('Origin',
-                        doc['Root'].find_first_value('Root.CkanOrg'))
+    org_name = doc.get_value('Root.Origin', doc.get_value('Root.CkanOrg'))
 
     if org_name:
-        org_name_slug = org_name.value.replace('.','-')
+        org_name_slug = org_name.replace('.','-')
         try:
 
             owner_org = c.action.organization_show(id=org_name_slug).get('id')
@@ -255,7 +260,7 @@ def send_to_ckan(m):
 
     c.action.package_update(**pkg)
 
-    pkg = c.action.package_show(name_or_id=ckan_name)
+    pkg = c.action.package_show(name_or_id=pkg['id'])
 
     update_dist(doc, [], join(m.ckan_url, 'dataset',ckan_name))
 
@@ -277,3 +282,36 @@ def send_to_ckan(m):
     write_doc(doc, m.mt_file)
 
 
+def configure_ckan(m):
+
+    from ckanapi import RemoteCKAN, NotFound
+    try:
+        doc = MetatabDoc(m.mt_file, cache=m.cache)
+    except (IOError, MetatabError) as e:
+        err("Failed to open metatab '{}': {}".format(m.mt_file, e))
+
+    c = RemoteCKAN(m.ckan_url, apikey=m.api_key)
+
+    groups = { g['name']:g for g in c.action.group_list(all_fields=True) }
+
+    for g in doc['Groups']:
+
+        if g.value not in groups:
+            prt('Creating group: ', g.value)
+            c.action.group_create(name=g.value,
+                                  title=g.get_value('title'),
+                                  description=g.get_value('description'),
+                                  id=g.get_value('id'),
+                                  image_url=g.get_value('image_url'))
+
+    orgs = {o['name']: o for o in c.action.organization_list(all_fields=True)}
+
+    for o in doc['Organizations']:
+
+        if o.value not in orgs:
+            prt('Creating organization: ', o.value)
+            c.action.organization_create(name=o.value,
+                                  title=o.get_value('title'),
+                                  description=o.get_value('description'),
+                                  id=o.get_value('id'),
+                                  image_url=o.get_value('image_url'))
