@@ -669,10 +669,11 @@ class SectionTerm(Term):
 
         return t
 
-    def remove_term(self, term):
+    def remove_term(self, term, remove_from_doc = True):
         """Remove a term from the terms. Must be the identical term, the same object"""
 
-        self.doc.remove(term)
+        if remove_from_doc:
+            self.doc.remove_term(term)
 
     def clean(self):
         """Remove all of the terms from the section, and also remove them from the document"""

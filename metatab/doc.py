@@ -696,7 +696,7 @@ class MetatabDoc(object):
 
         if t.section and t.parent_term_lc == 'root':
             t.section = self.add_section(t.section)
-            t.section.remove_term(t)
+            t.section.remove_term(t, remove_from_doc = False)
 
         if t.parent:
             try:
