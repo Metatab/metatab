@@ -134,12 +134,28 @@ def send_to_ckan(m):
 
     id_name = ckanid or ckan_name
 
+    found = False
+
     try:
         pkg = c.action.package_show(name_or_id=id_name)
         prt("Updating CKAN dataset for '{}'".format(id_name))
+        found = True
     except NotFound as e:
         e.__traceback__ = None
         traceback.clear_frames(e.__traceback__)
+        found = False
+
+    if not found:
+        try:
+            pkg = c.action.package_show(name_or_id=ckan_name)
+            prt("Updating CKAN dataset for '{}'".format(id_name))
+            found = True
+        except NotFound as e:
+            e.__traceback__ = None
+            traceback.clear_frames(e.__traceback__)
+            found = False
+
+    if not found:
         try:
             pkg = c.action.package_create(name=ckan_name)
         except Exception as e:
