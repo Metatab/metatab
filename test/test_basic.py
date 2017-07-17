@@ -455,35 +455,6 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual('foobar',doc.as_version('foobar').find_first_value('Root.Version'))
 
 
-    def test_ipy(self):
-        from rowgenerators import SourceSpec, Url, RowGenerator, get_cache
-
-        from rowgenerators.fetch import download_and_cache
-
-        urls = (
-            'ipynb+file:foobar.ipynb',
-            'ipynb+http://example.com/foobar.ipynb',
-            'ipynb:foobar.ipynb'
-
-        )
-
-        for url in urls:
-            u = Url(url)
-            print(u, u.path, u.resource_url)
-
-            s = SourceSpec(url)
-            print(s, s.proto, s.scheme, s.resource_url, s.target_file, s.target_format)
-            self.assertIn(s.scheme, ('file', 'http'))
-            self.assertEquals('ipynb', s.proto)
-
-        gen = RowGenerator(cache=get_cache(),
-                           url='ipynb:scripts/Py3Notebook.ipynb#lst',
-                           working_dir=test_data(),
-                           generator_args={'mult': lambda x: x * 3})
-
-        rows = gen.generator.execute()
-
-        print(len(rows))
 
 if __name__ == '__main__':
     unittest.main()

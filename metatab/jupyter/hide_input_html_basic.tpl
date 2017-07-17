@@ -1,4 +1,4 @@
-{%- extends 'full.tpl' -%}
+{%- extends 'basic.tpl' -%}
 
 {% block input_group -%}
 {%- if cell.metadata.hide_input or nb.metadata.hide_input -%}

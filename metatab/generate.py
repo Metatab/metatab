@@ -192,6 +192,54 @@ class GenericRowGenerator(MetatabRowGenerator):
         for row in spec.get_generator(self._cache):
             yield row
 
+class TextRowGenerator(MetatabRowGenerator):
 
+    def __init__(self, ref, path=None):
+
+
+        while True:
+
+            text = None
+
+            try:
+                with open(ref) as r:
+                    text = r.read()
+                break
+            except:
+                pass
+
+            try:
+                with ref.open() as r:
+                    text = r.read()
+                break
+            except:
+                pass
+
+            try:
+                text = ref.read()
+                break
+            except:
+                pass
+
+
+            text = ref
+            break
+
+        self._text_lines = text.splitlines()
+        self._path = path or '<none>'
+
+    @property
+    def path(self):
+        return self._path
+
+    def open(self):
+        pass
+
+    def close(self):
+        pass
+
+    def __iter__(self):
+        for row in self._text_lines:
+            yield [e.strip() for e in row.split(':',1)]
 
 

@@ -6,31 +6,31 @@ CLI program for managing packages
 """
 
 import json
-import re
 import sys
-from genericpath import exists, isdir
-from itertools import islice
-from os import getcwd
-from os.path import dirname, abspath, exists
 from uuid import uuid4
-from datetime import datetime
 
+import re
 import six
-
-from metatab import _meta, DEFAULT_METATAB_FILE, BACKUP_METATAB_FILE, resolve_package_metadata_url, \
+from genericpath import isdir
+from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, \
                     MetatabDoc, ConversionError
 from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, \
     get_lib_module_dict, write_doc, datetime_now, \
-    make_excel_package, make_filesystem_package, make_s3_package, make_csv_package, make_zip_package, update_name
+    make_excel_package, make_filesystem_package, make_csv_package, make_zip_package, update_name, \
+    cli_init, process_schemas, extract_path_name
 from metatab.util import make_metatab_file
-from rowgenerators import get_cache, RowGenerator, SelectiveRowGenerator, SourceError, Url
+from os import getcwd
+from os.path import dirname, abspath, exists
+from rowgenerators import get_cache, SourceError, Url
 from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
-from tableintuit import TypeIntuiter, RowIntuitError
+from tableintuit import RowIntuitError
 
 
 def metapack():
     import argparse
+
+    cli_init()
 
     parser = argparse.ArgumentParser(
         prog='metapack',
@@ -423,63 +423,6 @@ def add_resource(mt_file, ref, cache):
     write_doc(doc, mt_file)
 
 
-def process_schemas(mt_file, cache, clean=False):
-    from rowgenerators import SourceError
-    from requests.exceptions import ConnectionError
-
-    doc = MetatabDoc(mt_file)
-
-    try:
-        if clean:
-            doc['Schema'].clean()
-        else:
-            doc['Schema']
-
-    except KeyError:
-        doc.new_section('Schema', ['DataType', 'Altname', 'Description'])
-
-    for r in doc.resources(env=get_lib_module_dict(doc)):
-
-        schema_name = r.get_value('schema', r.get_value('name'))
-
-        schema_term = doc.find_first(term='Table', value=schema_name, section='Schema')
-
-        if schema_term:
-            prt("Found table for '{}'; skipping".format(schema_name))
-            continue
-
-        path, name = extract_path_name(r.url)
-
-        prt("Processing {}".format(r.url))
-
-        si = SelectiveRowGenerator(islice(r.row_generator, 100),
-                                   headers=[int(i) for i in r.get_value('headerlines', '0').split(',')],
-                                   start=int(r.get_value('startline', 1)))
-
-        try:
-            ti = TypeIntuiter().run(si)
-        except SourceError as e:
-            warn("Failed to process '{}'; {}".format(path, e))
-            continue
-        except ConnectionError as e:
-            warn("Failed to download '{}'; {}".format(path, e))
-            continue
-
-        table = doc['Schema'].new_term('Table', schema_name)
-
-        prt("Adding table '{}' ".format(schema_name))
-
-        for i, c in enumerate(ti.to_rows()):
-            raw_alt_name = alt_col_name(c['header'], i)
-            alt_name = raw_alt_name if raw_alt_name != c['header'] else ''
-
-            table.new_child('Column', c['header'],
-                            datatype=type_map.get(c['resolved_type'], c['resolved_type']),
-                            altname=alt_name)
-
-    write_doc(doc, mt_file)
-
-
 def add_single_resource(doc, ref, cache, seen_names):
     from metatab.util import slugify
 
@@ -539,37 +482,6 @@ def add_single_resource(doc, ref, cache, seen_names):
                                      encoding=encoding)
 
 
-def extract_path_name(ref):
-    from os.path import splitext, basename, abspath
-    from rowgenerators.util import parse_url_to_dict
-    from rowgenerators import SourceSpec
-
-    uparts = parse_url_to_dict(ref)
-
-    ss = SourceSpec(url=ref)
-
-    if not uparts['scheme']:
-        path = abspath(ref)
-        name = basename(splitext(path)[0])
-    else:
-        path = ref
-
-        v = ss.target_file if ss.target_file else uparts['path']
-
-        name = basename(splitext(v)[0])
-
-    return path, name
-
-
-def alt_col_name(name, i):
-    import re
-
-    if not name:
-        return 'col{}'.format(i)
-
-    return re.sub('_+', '_', re.sub('[^\w_]', '_', str(name)).lower()).rstrip('_')
-
-
 def run_row_intuit(path, cache):
     from rowgenerators import RowGenerator
     from tableintuit import RowIntuiter
@@ -591,10 +503,3 @@ def run_row_intuit(path, cache):
 
 DATA_FORMATS = ('xls', 'xlsx', 'tsv', 'csv')
 DOC_FORMATS = ('pdf', 'doc', 'docx', 'html')
-type_map = {
-    float.__name__: 'number',
-    int.__name__: 'integer',
-    six.text_type.__name__: 'string',
-    six.binary_type.__name__: 'text',
-
-}

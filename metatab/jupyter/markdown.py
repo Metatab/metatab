@@ -6,7 +6,7 @@
 from traitlets import default
 from traitlets.config import Config
 
-from .templateexporter import TemplateExporter
+from nbconvert.exporters.templateexporter import TemplateExporter
 
 
 class MarkdownExporter(TemplateExporter):
@@ -30,6 +30,7 @@ class MarkdownExporter(TemplateExporter):
 
     @property
     def default_config(self):
+
         c = Config({
             'ExtractOutputPreprocessor': {'enabled': True},
             'NbConvertBase': {
@@ -42,9 +43,17 @@ class MarkdownExporter(TemplateExporter):
                                           'text/plain'
                                           ]
             },
+            'NbConvertApp': {
+                'writer_class': 'foobar'
+            },
+            'FilesWriter': {
+                'build_directory': 'foobar/'
+            },
             'HighlightMagicsPreprocessor': {
                 'enabled':True
                 },
         })
+
         c.merge(super(MarkdownExporter, self).default_config)
+
         return c

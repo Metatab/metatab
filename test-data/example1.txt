@@ -1,0 +1,144 @@
+Declare: metatab-latest
+Title: Registered Voters, By County
+Name: cdph.ca.gov-hci-registered_voters-county
+Description: Percent of the eligible population registered to vote and the percent who voted in statewide elections.
+Identifier: cdph.ca.gov-hci-registered_voters-county
+Version: 201404
+Obsoletes: cdph.ca.gov-hci-registered_voters-county-201304
+Format: excel
+Spatial: California <04000US06>
+Time: 2002-2014
+Spatialgrain: County <05000US>
+Section: Resources
+Datafile: http://example.com/example1.csv
+Datafile.Name: example1
+Datafile.Schema: registered_voters
+Datafile.Grain: County
+Datafile.Title: The First Example Data File
+Datafile: http://example.com/example2.csv
+Datafile.Name: example2
+Datafile.Schema: registered_voters
+Datafile.Grain: Tract
+Datafile.Title: The Second Example Data File
+Homepage: https://www.cdph.ca.gov/programs/pages/healthycommunityindicators.aspx
+Homepage.Schema: Healthy Communities Data and Indicators Project (HCI)
+Documentation: https://www.cdph.ca.gov/programs/Documents/HCI_RegisteredVoters_653_Narrative_and_examples_6-2-14.pdf
+Documentation.Schema: Indicator Documentation for Voter Registration / Participation
+Documentation.Description: Voter Registration/Participation: Percent of the eligible population registered to vote and the percent who voted in statewide elections
+Section: Contacts
+Creator: Office of Health Equity
+Creator.Email: HCIOHE@cdph.ca.gov
+Wrangler: Eric Busboom
+Wrangler.Email: eric@civicknowledge.com
+Section: Notes
+Note: This file is an example of a data bundle, a simple format for linking data to metadata using spreadsheets. See the specification for more details.
+Documentation: https://docs.google.com/document/d/16tb7x73AyF8pJ6e6IBcaIJAioEZCNBGDEksKYTXfdfg/edit#
+Documentation.Title: Data Bundles Packaging Specification
+Section: Schema
+Table: registered_voters
+Table.Description: HCI Indicator 653.0: Percent of adults age 18 years and older who are registered voters
+Table.Column: reportyear
+Column.Datatype: int
+Column.Valuetype: year range
+Column.Description: Year or years that indicator was reported
+Table.Column: type
+Column.Datatype: str
+Column.Valuetype: dimension
+Column.Description: Type of record
+Table.Column: gvid
+Column.Datatype: str
+Column.Valuetype: gvid
+Column.Description: GVid version of the geotype and geotypeval
+Table.Column: geoname
+Column.Datatype: str
+Column.Valuetype: label for gvid
+Column.Description: Census name of geographic area
+Table.Column: geotype
+Column.Datatype: str
+Column.Valuetype: label
+Column.Description: Code for type of geographic area
+Table.Column: geotypevalue
+Column.Datatype: str
+Column.Valuetype: census
+Column.Description: Census geoid code
+Table.Column: county_fips
+Column.Datatype: str
+Column.Valuetype: FIPS county code
+Column.Description: County FIPS code
+Table.Column: county_name
+Column.Datatype: str
+Column.Valuetype: label for counrty_fips
+Column.Description: County name
+Table.Column: region_code
+Column.Datatype: str
+Column.Valuetype: census code
+Column.Description: Numeric code of region
+Table.Column: region_name
+Column.Datatype: str
+Column.Valuetype: label for region_code
+Column.Description: Name of region
+Table.Column: raceth
+Column.Datatype: str
+Column.Valuetype: raceth/civick
+Column.Description: Civic Knowledge race / ethnicity code.
+Table.Column: raceth_name
+Column.Datatype: str
+Column.Valuetype: label for raceeth
+Column.Description: Race / Ethnicity Name
+Table.Column: race_eth_code
+Column.Datatype: str
+Column.Valuetype: raceth/hci
+Column.Description: Race / ethnicity code
+Table.Column: race_eth_name
+Column.Datatype: str
+Column.Valuetype: label for race_eth_code
+Column.Description: Race / ethnicity name
+Table.Column: numerator
+Column.Datatype: int
+Column.Valuetype: count
+Column.Description: Adults who are registered to vote, or who voted, depending on type of record
+Table.Column: denominator
+Column.Datatype: int
+Column.Valuetype: count
+Column.Description: Population of Adults, 18 years or older
+Table.Column: percent
+Column.Datatype: float
+Column.Valuetype: percent of numerator over denominator
+Column.Description: Percent of adults who are registered to vote, or who voted, depending on type of record
+Table.Column: ll_95ci
+Column.Datatype: float
+Column.Valuetype: ci95l for percent
+Column.Description: Lower bound of 95% confidence interval
+Table.Column: ul_95ci
+Column.Datatype: float
+Column.Valuetype: ci95u for percent
+Column.Description: Upper bound of 95% confidence interval
+Table.Column: se
+Column.Datatype: float
+Column.Valuetype: se for percent
+Column.Description: Standard error
+Table.Column: rse
+Column.Datatype: float
+Column.Valuetype: rse for percent
+Column.Description: Relative standard error (se/percent * 100) expressed as a percent
+Table.Column: ca_decile
+Column.Datatype: float
+Column.Valuetype: decile
+Column.Description: Statewide decile ranking
+Table.Column: ca_rr
+Column.Datatype: float
+Column.Valuetype: ratio
+Column.Description: Ratio of indicator to state average
+Table.Column: vap
+Column.Datatype: float
+Column.Valuetype: measure
+Column.Description: Voter age population, from CA Department of Finance.
+Table.Column: ind_id
+Column.Datatype: str
+Column.Valuetype: dimension
+Table.Column: ind_definition
+Column.Datatype: str
+Column.Valuetype: dimension
+Table.Column: version
+Column.Datatype: str
+Column.Valuetype: other

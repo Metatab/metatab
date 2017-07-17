@@ -70,7 +70,8 @@ setup(
     description='Data format for storing structured data in spreadsheet tables',
     long_description=readme,
     packages=['metatab', 'test', 'metatab.declarations', 'metatab.templates', 'metatab.cli'],
-    package_data={'metatab.templates': ['*.csv']},
+    package_data={'metatab.templates': ['*.csv'],
+                  'metatab.jupyter': ['*.tpl']},
 
     zip_safe=False,
     install_requires=[
@@ -82,7 +83,7 @@ setup(
         'markdown',
         'ckanapi',
         'boto3',
-        'rowgenerators>=0.1.8',
+        'rowgenerators>=0.3.2',
         'rowpipe>=0.1.2',
         'tableintuit>=0.0.6',
         'geoid>=1.0.4'
@@ -100,6 +101,9 @@ setup(
             'metaaws=metatab.cli.metaaws:metaaws',
             'metasql=metatab.cli.metasql:metasql'
 
+        ],
+        'nbconvert.exporters': [
+            'metapack = metatab.jupyter:MetapackExporter',
         ],
     },
 

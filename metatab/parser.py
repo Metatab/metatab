@@ -82,6 +82,10 @@ class Term(object):
         self.row = row
         self.col = col
 
+
+        if self.parent:
+            assert self.parent.record_term_lc == self.parent_term_lc, term
+
         # When converting to a dict, what dict to to use for the self.value value
         self.term_value_name = '@value'  # May be change in term parsing
 
@@ -199,7 +203,7 @@ class Term(object):
             t.doc = self.doc
             t.set_ownership()
 
-    def find(self, term, value = None):
+    def find(self, term, value = False):
         """Return a terms by name. If the name is not qualified, use this term's record name for the parent.
         The method will yield all terms with a matching qualified name. """
         if '.' in  term:
@@ -208,10 +212,10 @@ class Term(object):
 
         for c in self.children:
             if c.record_term_lc == term.lower():
-                if value is None or c.value == value:
+                if value is False or c.value == value:
                     yield c
 
-    def find_first(self, term, value = None):
+    def find_first(self, term, value = False):
         """Like find(), but returns only the first matching term"""
 
         if '.' in term:
@@ -220,7 +224,7 @@ class Term(object):
 
         for c in self.children:
             if c.record_term_lc == term.lower():
-                if value is None or c.value == value:
+                if value is False or c.value == value:
                     return c
 
         return None
@@ -237,7 +241,7 @@ class Term(object):
     def find_value(self, term):
         return self.find_first_value(term)
 
-    def get_or_new_child(self, term, value=None, **kwargs):
+    def get_or_new_child(self, term, value=False, **kwargs):
         """Find a term, using find_first, and set it's value and properties, if it exists. If
         it does not, create a new term and children. """
 
@@ -253,7 +257,7 @@ class Term(object):
             self.children.append(c)
 
         else:
-            if value is not None:
+            if value is not False:
                 c.value = value
 
             for k, v in kwargs.items():
@@ -282,6 +286,7 @@ class Term(object):
             return c
 
     def get(self, item, default = None):
+        """Get a child"""
         try:
             return self[item]
         except KeyError:
@@ -289,7 +294,7 @@ class Term(object):
             return default
 
     def get_value(self, item, default=None):
-
+        """Get the value of a child"""
         try:
             return self[item].value
         except (AttributeError, KeyError) as e:
@@ -328,6 +333,9 @@ class Term(object):
         self._term = v
 
         self.parent_term, self.record_term = Term.split_term_lower(self._term)
+
+        if self.parent and self.parent_term == ROOT_TERM.lower():
+            self.parent_term = self.parent.record_term
 
 
     @classmethod
@@ -406,6 +414,8 @@ class Term(object):
 
         """
 
+        raise Exception("Is this used? SHould probably be deleted")
+
         if isinstance(v, six.string_types):
 
             if '.' not in v:
@@ -414,22 +424,19 @@ class Term(object):
             v_p, v_r = self.split_term_lower(v)
 
             if self.join_lc == v.lower():
-                print("AAAA", self.join_lc,  v.lower())
+
                 return True
             elif v_r == '*' and v_p == self.parent_term_lc:
-                print("BBBB")
                 return True
             elif v_p == '*' and v_r == self.record_term_lc:
-                print("CCCC")
                 return True
             elif v_p == '*' and v_r == '*':
-                print("DDDD")
                 return True
             else:
                 return False
 
         else:
-            print("GORP")
+
             return any(self.term_is(e) for e in v)
 
     @property
@@ -460,19 +467,21 @@ class Term(object):
 
         return d
 
-    def as_dict(self):
+    def as_dict(self, replace_value_names=True):
         """Convert the term, and it's children, to a minimal data structure form, which may
         be a scalar for a term with a single value or a dict if it has multiple proerties. """
 
-        return self._convert_to_dict(self)
+        return self._convert_to_dict(self, replace_value_names)
 
     @classmethod
-    def _convert_to_dict(cls, term):
+    def _convert_to_dict(cls, term, replace_value_names=True):
         """Converts a record heirarchy to nested dicts.
 
         :param term: Root term at which to start conversion
 
         """
+
+        assert  replace_value_names is False
 
         if not term:
             return None
@@ -484,28 +493,31 @@ class Term(object):
             for c in term.children:
 
                 if c.child_property_type == 'scalar':
-                    d[c.record_term_lc] = cls._convert_to_dict(c)
+                    d[c.record_term_lc] = cls._convert_to_dict(c, replace_value_names)
 
                 elif c.child_property_type == 'sequence':
                     try:
-                        d[c.record_term_lc].append(cls._convert_to_dict(c))
+                        d[c.record_term_lc].append(cls._convert_to_dict(c, replace_value_names))
                     except (KeyError, AttributeError):
                         # The c.term property doesn't exist, so add a list
-                        d[c.record_term_lc] = [cls._convert_to_dict(c)]
+                        d[c.record_term_lc] = [cls._convert_to_dict(c, replace_value_names)]
 
                 else:
                     try:
-                        d[c.record_term_lc].append(cls._convert_to_dict(c))
+                        d[c.record_term_lc].append(cls._convert_to_dict(c, replace_value_names))
                     except KeyError:
                         # The c.term property doesn't exist, so add a scalar or a map
-                        d[c.record_term_lc] = cls._convert_to_dict(c)
+                        d[c.record_term_lc] = cls._convert_to_dict(c, replace_value_names)
                     except AttributeError as e:
                         # d[c.term] exists, but is a scalar, so convert it to a list
 
-                        d[c.record_term_lc] = [d[c.record_term]] + [cls._convert_to_dict(c)]
+                        d[c.record_term_lc] = [d[c.record_term]] + [cls._convert_to_dict(c, replace_value_names)]
 
             if term.value:
-                d[term.term_value_name.lower()] = term.value
+                if replace_value_names:
+                    d[term.term_value_name.lower()] = term.value
+                else:
+                    d['@value'] = term.value
 
             return d
 
@@ -527,8 +539,10 @@ class Term(object):
 
         for c in self.children:
             if c.is_terminal:
-                assert c.record_term_lc
-                properties[c.record_term_lc] = c.value
+                if c.record_term_lc:
+                    # This is rare, but can happen if a property child is not given
+                    # a property name by the section -- the "Section" term has a blank column.
+                    properties[c.record_term_lc] = c.value
 
         yield (self.qualified_term, properties)
 
@@ -555,6 +569,7 @@ class Term(object):
     def __str__(self):
 
         sec_name = 'None' if not self.section else self.section.name
+
 
         if self.parent_term == ELIDED_TERM:
             return "{}.{}: val={} sec={}".format(
@@ -640,9 +655,9 @@ class SectionTerm(Term):
         self.doc.add_term(t)
         return t
 
-    def get_term(self, term):
+    def get_term(self, term, value=False):
         """Synonym for find_first, restructed to this section"""
-        return self.doc.find_first(term, section=self.name)
+        return self.doc.find_first(term, value=value, section=self.name)
 
     def find_first(self, term, value=False):
         """Synonym for find_first, restructed to this section"""
@@ -654,12 +669,13 @@ class SectionTerm(Term):
     def find_first_value(self, term, value=False):
         return self.doc.find_first_value(term, value=value, section=self.name)
 
-    def get_or_new_term(self, term, value=None, **kwargs):
+    def get_or_new_term(self, term, value=False, **kwargs):
 
-        t = self.get_term(term)
+        t = self.get_term(term, value=value)
 
         if not t:
             t = self.new_term(term, value, **kwargs)
+
         else:
             if value is not None:
                 t.value = value
@@ -771,12 +787,12 @@ class SectionTerm(Term):
                 else:
                     yield row
 
-    def as_dict(self):
+    def as_dict(self, replace_value_names=True):
         """Return the whole section as a dict"""
         old_children = self.children
         self.children = self.terms
 
-        d = super(SectionTerm, self).as_dict()
+        d = super(SectionTerm, self).as_dict(replace_value_names)
 
         self.children = old_children
 
@@ -787,10 +803,10 @@ class RootSectionTerm(SectionTerm):
     def __init__(self, file_name=None, doc=None):
         super(RootSectionTerm, self).__init__('Root', 'Root', doc, [], 0, 0, file_name, None)
 
-    def as_dict(self):
-        d = super(RootSectionTerm, self).as_dict()
+    def as_dict(self, replace_value_names=True):
+        d = super(RootSectionTerm, self).as_dict(replace_value_names)
 
-        if '@value' in d:
+        if replace_value_names and '@value' in d:
             del d['@value']
 
         return d

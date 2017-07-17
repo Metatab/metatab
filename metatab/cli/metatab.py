@@ -10,9 +10,10 @@ import json
 import sys
 
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
-from metatab.cli.core import prt, new_metatab_file, err, dump_resource, dump_resources, dump_schema
+from metatab.cli.core import prt, new_metatab_file, err, dump_resource, dump_resources, dump_schema, cli_init
 from rowgenerators import get_cache, Url
 from rowgenerators.util import clean_cache
+
 
 
 def metatab():

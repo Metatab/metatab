@@ -1,7 +1,7 @@
 # Copyright (c) 2016 Civic Knowledge. This file is licensed under the terms of the
 # Revised BSD License, included in this distribution as LICENSE
 
-"""Support for IPython snf Python kernels in Jupyter Notebooks"""
+"""Support for IPython and Python kernels in Jupyter Notebooks"""
 
 
 from . import open_package as op

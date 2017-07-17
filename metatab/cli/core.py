@@ -1,27 +1,44 @@
 import sys
+from itertools import islice
 from uuid import uuid4
 
 import six
 from genericpath import exists
 from metatab import _meta, MetatabDoc
 from metatab.util import make_metatab_file
-from rowgenerators import Url
+from rowgenerators import Url, SelectiveRowGenerator
 from os.path import join
 from metatab.package import  DEFAULT_METATAB_FILE
+import logging
+
+from tableintuit import TypeIntuiter
+
+logger = logging.getLogger('user')
+logger_err = logging.getLogger('cli-errors')
+debug_logger = logging.getLogger('debug')
+
+def cli_init(log_level=logging.INFO):
+
+    out_hdlr = logging.StreamHandler(sys.stdout)
+    out_hdlr.setFormatter(logging.Formatter('%(message)s'))
+    out_hdlr.setLevel(log_level)
+    logger.addHandler(out_hdlr)
+    logger.setLevel(log_level)
+
+    out_hdlr = logging.StreamHandler(sys.stderr)
+    out_hdlr.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+    out_hdlr.setLevel(logging.WARN)
+    logger_err.addHandler(out_hdlr)
+    logger_err.setLevel(logging.WARN)
 
 def prt(*args, **kwargs):
-    print(*args, **kwargs)
-
+    logger.info(' '.join(str(e) for e in args),**kwargs)
 
 def warn(*args, **kwargs):
-    print('WARN:', *args, file=sys.stderr, **kwargs)
-
+    logger_err.warn(' '.join(str(e) for e in args),**kwargs)
 
 def err(*args, **kwargs):
-    import sys
-
-
-    print("ERROR:", *args, file=sys.stderr, **kwargs)
+    logger_err.critical(' '.join(str(e) for e in args),**kwargs)
     sys.exit(1)
 
 
@@ -30,6 +47,7 @@ def load_plugins(parser):
 
     for p in mtp.metatab_plugins_list:
         p(parser)
+
 
 
 def datetime_now():
@@ -340,3 +358,108 @@ def write_doc(doc, mt_file):
     else:
         return False
         #warn("Not writing back to url ", mt_file)
+
+
+def process_schemas(mt_file, cache=None, clean=False):
+    from rowgenerators import SourceError
+    from requests.exceptions import ConnectionError
+
+    if isinstance(mt_file, MetatabDoc):
+        doc = mt_file
+        write_doc_to_file = False
+    else:
+        doc = MetatabDoc(mt_file)
+        write_doc_to_file = True
+
+    try:
+        if clean:
+            doc['Schema'].clean()
+        else:
+            doc['Schema']
+
+    except KeyError:
+        doc.new_section('Schema', ['DataType', 'Altname', 'Description'])
+
+    for r in doc.resources(env=get_lib_module_dict(doc)):
+
+        schema_name = r.get_value('schema', r.get_value('name'))
+
+        schema_term = doc.find_first(term='Table', value=schema_name, section='Schema')
+
+        if schema_term:
+            prt("Found table for '{}'; skipping".format(schema_name))
+            continue
+
+
+        path, name = extract_path_name(r.url)
+
+        prt("Processing {}".format(r.url))
+
+        si = SelectiveRowGenerator(islice(r.row_generator, 100),
+                                   headers=[int(i) for i in r.get_value('headerlines', '0').split(',')],
+                                   start=int(r.get_value('startline', 1)))
+
+        try:
+            ti = TypeIntuiter().run(si)
+        except SourceError as e:
+            warn("Failed to process '{}'; {}".format(path, e))
+            continue
+        except ConnectionError as e:
+            warn("Failed to download '{}'; {}".format(path, e))
+            continue
+
+        table = doc['Schema'].new_term('Table', schema_name)
+
+        prt("Adding table '{}' ".format(schema_name))
+
+        for i, c in enumerate(ti.to_rows()):
+
+            raw_alt_name = alt_col_name(c['header'], i)
+            alt_name = raw_alt_name if raw_alt_name != c['header'] else ''
+
+            t = table.new_child('Column', c['header'],
+                            datatype=type_map.get(c['resolved_type'], c['resolved_type']),
+                            altname=alt_name)
+
+    if write_doc_to_file:
+        write_doc(doc, mt_file)
+
+
+def extract_path_name(ref):
+    from os.path import splitext, basename, abspath
+    from rowgenerators.util import parse_url_to_dict
+    from rowgenerators import SourceSpec
+
+    uparts = parse_url_to_dict(ref)
+
+    ss = SourceSpec(url=ref)
+
+    if not uparts['scheme']:
+        path = abspath(ref)
+        name = basename(splitext(path)[0])
+    else:
+        path = ref
+
+        v = ss.target_file if ss.target_file else uparts['path']
+
+        name = basename(splitext(v)[0])
+
+    return path, name
+
+
+def alt_col_name(name, i):
+    import re
+
+    if not name:
+        return 'col{}'.format(i)
+
+    return re.sub('_+', '_', re.sub('[^\w_]', '_', str(name)).lower()).rstrip('_')
+
+
+type_map = {
+    float.__name__: 'number',
+    int.__name__: 'integer',
+    six.text_type.__name__: 'string',
+    six.binary_type.__name__: 'text',
+
+}
