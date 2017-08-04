@@ -1,0 +1,26 @@
+Declare,metatab-latest
+Title,Test Package
+Description,Package for Testing
+Identifier,
+Identifier,36c7e945-943c-435e-923c-1af21d831b3b
+Name,example.com-test_package-1
+Dataset,test_package
+Origin,example.com
+Time,
+Space,
+Grain,
+Version,1
+Created,2017-08-03T21:15:56
+Modified,2017-08-03T21:15:56
+Modified,2017-08-03T21:16:42
+Giturl,https://github.com/CivicKnowledge/metatab-py.git
+
+Section,Resources,Name,Description,
+Datafile,http://example.com/data.csv,,,
+
+Section,Documentation,Title,Description,
+Note,,,,
+
+Section,Contacts,Email,Organization,Url
+
+Section,Schema,DataType,AltName,Description
