@@ -12,7 +12,7 @@ from os import getenv, getcwd
 from os.path import join, basename
 
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, open_package, MetatabError
-from metatab.cli.core import err, metatab_info
+from metatab.cli.core import err, metatab_info, cli_init
 from rowgenerators import get_cache, Url
 from .core import prt, warn, write_doc
 from .metasync import update_dist
@@ -24,6 +24,8 @@ def metakan():
         prog='metakan',
         description='CKAN management of Metatab packages, version {}'.format(_meta.__version__),
          )
+
+    cli_init()
 
     parser.add_argument('-i', '--info', default=False, action='store_true',
                    help="Show configuration information")
@@ -127,14 +129,12 @@ def send_to_ckan(m):
     c = RemoteCKAN(m.ckan_url, apikey=m.api_key)
 
     ckanid = doc.find_first_value('Root.Ckanid')
-    identifier = doc.find_first_value('Root.Identitfier')
+
     name = doc.as_version(None).find_first('Root.Name')
 
     ckan_name = name.value.replace('.','-')
 
     id_name = ckanid or ckan_name
-
-    found = False
 
     try:
         pkg = c.action.package_show(name_or_id=id_name)
@@ -168,10 +168,6 @@ def send_to_ckan(m):
     if not pkg['title']:
         pkg['title'] = doc.find_first_value('Root.Description')
 
-    try:
-        pkg['notes'] = doc.markdown #doc.find_first_value('Root.Description')
-    except OSError as e:
-        warn(e)
 
     pkg['version'] = name.properties.get('version') or doc.find_first_value('Root.Version')
 
@@ -206,13 +202,15 @@ def send_to_ckan(m):
 
     resources = []
 
-    for dist in doc.find("Root.Distribution"):
+    # Try to set the markdown from a CSV package, since it will have the
+    # correct links.
+    markdown = None
 
-        package_url, metadata_url = resolve_package_metadata_url(dist.value)
+    for dist in doc.distributions():
 
-        u = Url(package_url)
+        package_url, metadata_url = resolve_package_metadata_url(dist.term.value)
 
-        if u.resource_format == 'zip':
+        if dist.type == 'zip':
             d = dict(
                 url=package_url,
                 name=basename(package_url),
@@ -223,7 +221,7 @@ def send_to_ckan(m):
             resources.append(d)
             prt("Adding ZIP package ", d['name'])
 
-        elif u.resource_format == 'xlsx':
+        elif dist.type == 'xlsx':
             d = dict(
                 url=package_url,
                 name=basename(package_url),
@@ -234,7 +232,7 @@ def send_to_ckan(m):
             resources.append(d)
             prt("Adding XLS package ", d['name'])
 
-        elif u.resource_format == 'csv':
+        elif dist.type == 'csv':
 
             d=dict(
                 url=package_url,
@@ -250,7 +248,7 @@ def send_to_ckan(m):
             try:
                 p = open_package(package_url)
             except (IOError, MetatabError) as e:
-                err("Failed to open package '{}' from reference '{}': {}".format(package_url, dist.value, e))
+                err("Failed to open package '{}' from reference '{}': {}".format(package_url, dist.url, e))
 
             for r in p.resources():
 
@@ -271,6 +269,17 @@ def send_to_ckan(m):
 
                 resources.append(d)
                 prt("Adding {} resource {}".format(d['format'], d['name']))
+
+        elif dist.type == 'fs':
+            # Fervently hope that this is a web acessible fs distribution
+            p = open_package(package_url)
+            markdown = p.markdown
+
+
+    try:
+        pkg['notes'] = markdown or doc.markdown #doc.find_first_value('Root.Description')
+    except OSError as e:
+        warn(e)
 
     pkg['resources'] = resources
 

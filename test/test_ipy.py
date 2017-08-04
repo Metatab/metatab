@@ -137,20 +137,25 @@ class TestIPython(unittest.TestCase):
         for c in r.columns():
             print(c)
 
-
     def test_nbconvert(self):
 
-        from metatab.jupyter.convert import write_documentation, write_notebook
+        from traitlets.config import  Config
+        from metatab.jupyter.exporters import PackageExporter
+        import logging
 
-        #init_logging()
-        #debug_logger.setLevel(logging.INFO)
+        logging.basicConfig(level=logging.INFO)
+        logger = logging.getLogger('PackageExporter')
+        logger.setLevel(logging.INFO)
 
-        debug_logger.info('Starting Test')
+        c = Config()
 
-        nb_path = test_data('notebooks/ConversionTest.ipynb')
+        pe = PackageExporter(config=c)
 
-        write_documentation(nb_path)
-        write_notebook(nb_path)
+        output, resources = pe.from_filename(test_data('notebooks/MagicsTest.ipynb'))
+
+        for o in resources.get('outputs',{}).keys():
+            print (o)
+
 
 
 if __name__ == '__main__':

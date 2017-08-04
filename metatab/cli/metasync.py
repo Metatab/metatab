@@ -12,7 +12,7 @@ from tabulate import tabulate
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
 from metatab.cli.core import prt, err, get_lib_module_dict, write_doc, datetime_now, \
     make_excel_package, make_s3_package, make_zip_package, make_filesystem_package, \
-    update_name, metatab_info, PACKAGE_PREFIX
+    update_name, metatab_info, PACKAGE_PREFIX, cli_init
 from metatab.s3 import S3Bucket
 from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage, CsvPackage
 from rowgenerators import Url, get_cache
@@ -23,6 +23,9 @@ from botocore.exceptions import NoCredentialsError
 
 def metasync():
     import argparse
+
+    cli_init()
+
     parser = argparse.ArgumentParser(
         prog='metasync',
         description='Create packages and store them in s3 buckets, version {}'.format(_meta.__version__),
@@ -122,6 +125,7 @@ def metasync():
     doc['Root'].get_or_new_term('Root.S3', m.args.s3)
     write_doc(doc, m.mt_file)
 
+    # Update the Root.Distribution Term in the second stage metatab file.
     second_stage_mtfile, distupdated = update_distributions(m)
 
     if second_stage_mtfile != m.mt_file:
@@ -228,6 +232,12 @@ def update_distributions(m):
 
     old_dists = list(doc.find('Root.Distribution'))
 
+    if m.args.fs is not False:
+        p = FileSystemPackage(m.mt_file)
+        if update_dist(doc, old_dists, b.access_url(p.save_path(), DEFAULT_METATAB_FILE)):
+            prt("Added FS distribution to metadata")
+            updated = True
+
     if m.args.excel is not False:
         p = ExcelPackage(m.mt_file)
 
@@ -241,13 +251,8 @@ def update_distributions(m):
             prt("Added ZIP distribution to metadata")
             updated = True
 
-    if m.args.fs is not False:
-        p = FileSystemPackage(m.mt_file)
-        if update_dist(doc, old_dists, b.access_url(p.save_path(), DEFAULT_METATAB_FILE)):
-            prt("Added FS distribution to metadata")
-            updated = True
-
     if m.args.csv is not False:
+
         p = CsvPackage(m.mt_file)
         url = b.access_url(basename(p.save_path()))
         if update_dist(doc, old_dists, url):
@@ -285,12 +290,10 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
     :return:
     """
 
-
     create_list = []
     url = None
 
     doc = MetatabDoc(second_stage_mtfile)
-
 
     access_value = doc.find_first_value('Root.Access')
 
@@ -348,7 +351,6 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
                 urls.append(('fs', fs_p.private_access_url))
             else:
                 urls.append(('fs', fs_p.public_access_url))
-
 
         # Make the CSV package from the filesystem package on S3; this will ensure that the
         # package's resource URLs point to the S3 objects

@@ -35,7 +35,7 @@ def linkify(v, description=None, cwd_url=None):
 
     elif u.scheme == 'file':
 
-        return '[{desc}](file:{url})'.format(url=u.parts.path, desc=description)
+        return '[{desc}]({url})'.format(url=u.parts.path, desc=description)
 
     else:
         return v
@@ -171,25 +171,38 @@ def documentation_block(doc):
         return ''
 
     try:
-        for t in doc['Documentation']:
 
-            if t.term_is('Root.IncludeDocumentation'):
-                paths = download_and_cache(SourceSpec(t.value), cache_fs=doc._cache)
+        for t in doc.resources(term='Root.IncludeDocumentation', section='Documentation'):
+            paths = download_and_cache(SourceSpec(t.value), cache_fs=doc._cache)
 
-                with open(paths['sys_path']) as f:
-                    inline += f.read()
+            with open(paths['sys_path']) as f:
+                inline += f.read()
 
-            elif t.properties.get('url'):
+        for t in doc.resources(term=['Root.Documentation'], section='Documentation'):
+
+                if t.properties.get('description'):
+                    dl_templ = "{}\n:   {}\n\n"
+                else:
+                    dl_templ = "{} {}\n\n"
 
                 doc_links += (dl_templ
-                              .format(linkify(t.properties.get('url'), t.properties.get('title')),
+                              .format(linkify(t.resolved_url,
+                                              t.properties.get('title')),
                                       t.properties.get('description')
                                       ))
+        # The doc_img alt text is so we can set a class for CSS to resize the image.
+        # img[alt=doc_img] { width: 100 px; }
 
-            elif t.term_is('Root.Note'):
-                notes.append(t.value)
-            else:
-                doc_links += (dl_templ.format(t.record_term.title(), t.value))
+        for t in doc.resources(term=['Root.Image'], section='Documentation'):
+            doc_links += ('[![{}]({} "{}")]({})'
+                          .format('doc_img', t.resolved_url, t.properties.get('title'),
+                                  t.resolved_url))
+
+
+        for t in doc.resources(term='Root.Note', section='Documentation'):
+
+            notes.append(t.value)
+
 
     except KeyError:
         raise
@@ -198,6 +211,102 @@ def documentation_block(doc):
     return inline + \
            (("\n\n## Notes \n\n" + "\n".join('* ' + n for n in notes if n)) if notes else '') + \
            ("\n\n## Documentation Links\n" + doc_links if doc_links else '')
+
+
+from pybtex.style.formatting.plain import Style
+from pybtex.backends.html import Backend
+
+from pybtex.style.formatting import toplevel, find_plugin
+from pybtex.style.template import (
+    join, words, together, field, optional, first_of,
+    names, sentence, tag, optional_field, href
+)
+from pybtex.richtext import Text, Symbol
+class MetatabStyle(Style):
+    # Minnesota Population Center. IPUMS Higher Ed: Version 1.0 [dataset]
+    # Minneapolis, MN: University of Minnesota, 2016. http://doi.org/10.18128/D100.V1.0.
+
+    def format_url(self, e):
+
+        return words [
+            href [
+                field('url', raw=True),
+                field('url', raw=True)
+                ]
+        ]
+
+    def format_accessed(self, e):
+        from dateutil.parser import parser
+
+        return words [
+            'Accessed',
+            field('accessdate', raw=True, apply_func=lambda v: str(parser().parse(v).strftime("%d %b %Y")))
+        ]
+
+    def format_dataset(self, e):
+        date = words[optional_field('month'), field('year')]
+
+        template = toplevel[
+            self.format_author_or_editor(e),
+            self.format_btitle(e, 'title'),
+            sentence[together[ 'Version', optional_field('version')]],
+            sentence[
+                field('publisher'),
+                date
+            ],
+            self.format_web_refs(e),
+            self.format_accessed(e)
+        ]
+
+
+        return template.format_data(e)
+
+class MetatabHtmlBackend(Backend):
+
+    def write_prologue(self):
+        pass
+        #super().write_prologue()
+
+    def write_epilogue(self):
+        pass
+        #super().write_epilogue()
+
+    def write_entry(self, key, label, text):
+        self.output("<div class='citation'><a name=\"{key}\"><b>[{key}]</b></a> {text} </div>"
+                    .format(key=key, text=text))
+
+
+def citation(t):
+    from pybtex import PybtexEngine
+    from nameparser import HumanName
+    from yaml import safe_dump
+
+    d = t.as_dict()
+    if 'author' in d:
+        authors = []
+        for e in d['author'].split(';'):
+            author_d = HumanName(e).as_dict(include_empty=False)
+            if 'suffix' in author_d:
+                author_d['lineage'] = author_d['suffix']
+                del author_d['suffix']
+            authors.append(author_d)
+        d['author'] = authors
+
+    return PybtexEngine().format_from_string(safe_dump({ 'entries' : {  t.value : d } }),
+                                             style=MetatabStyle,
+                                             output_backend=MetatabHtmlBackend,
+                                             bib_format='yaml')
+
+def bibliography(doc):
+
+    entries = []
+
+    for t in doc.get_section('Bibliography', []):
+        entries.append(citation(t))
+
+    return '\n'.join(entries)
+
+
 
 
 def identity_block(doc):
@@ -237,8 +346,6 @@ def modtime_str(doc):
 
 def markdown(doc):
     """Markdown, specifically for the Notes field in a CKAN dataset"""
-
-
 
     name = doc.find_first('Root.Name')
 

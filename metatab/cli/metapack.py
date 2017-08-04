@@ -144,6 +144,7 @@ def metapack():
             self.cwd = getcwd()
             self.args = args
             self.cache = get_cache('metapack')
+            frag = ''
 
             # Just the fragment was provided
             if args.metatabfile and args.metatabfile.startswith('#'):
@@ -153,14 +154,16 @@ def metapack():
                 frag = ''
                 mtf = args.metatabfile
 
+            # If could not get it from the args, Set it to the default file name in the current dir
             if not mtf:
-                args.metatabfile = join(self.cwd, DEFAULT_METATAB_FILE)
+                mtf = join(self.cwd, DEFAULT_METATAB_FILE)
 
-            else:
+            self.init_stage2(mtf, frag)
 
-                args.metatabfile = mtf
+        def init_stage2(self, mtf, frag):
 
-            self.mtfile_arg =  args.metatabfile + frag
+            self.frag = frag
+            self.mtfile_arg = mtf + frag
 
             self.mtfile_url = Url(self.mtfile_arg)
 
@@ -170,6 +173,7 @@ def metapack():
 
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 
+
     if m.args.info:
         metatab_info(m.cache)
         exit(0)
@@ -177,6 +181,10 @@ def metapack():
     if m.args.profile:
         from metatab.s3 import set_s3_profile
         set_s3_profile(m.args.profile)
+
+    # Metapack cant actually process Jupyter notebooks, so they need to be converted first
+    preprocess_notebook(m)
+
 
     try:
         for handler in (metatab_build_handler, metatab_derived_handler, metatab_query_handler, metatab_admin_handler):
@@ -263,6 +271,7 @@ def metatab_build_handler(m):
             err(e)
 
     if m.mtfile_url.scheme == 'file' and m.args.update:
+
         update_name(m.mt_file, fail_on_missing=True, force=m.args.force)
 
 
@@ -500,6 +509,42 @@ def run_row_intuit(path, cache):
 
     raise RowIntuitError('Failed to convert with any encoding')
 
+
+def add_doc_refs(doc_path, doc_refs):
+
+    doc = MetatabDoc(doc_path)
+
+    if not 'Documentation' in doc:
+        doc.get_or_new_section('Documentation',['Name','Title','Description'])
+
+    s = doc['Documentation']
+
+    for r in doc_refs:
+        t = s.new_term(r['term'], r['ref'],name=r['name'], title=r['title'])
+
+    doc.write_csv()
+
+def preprocess_notebook(m):
+    import nbformat
+    from metatab.jupyter.convert import write_documentation, write_notebook, get_package_dir
+
+    if m.mtfile_url.target_format == 'ipynb':
+        prt('Convert notebook to Metatab source package')
+        nb_path = Url(m.mt_file).parts.path
+        pkg_dir, pkg_name = get_package_dir(nb_path)
+
+        with open(nb_path) as f:
+            nb = nbformat.reads(f.read(), as_version=4)
+
+        doc_refs = write_documentation(nb, join(pkg_dir, 'docs'))
+
+        doc_path = write_notebook(nb, dirname(nb_path), pkg_dir, pkg_name, doc_refs)
+
+        add_doc_refs(doc_path, doc_refs)
+
+        # Reset the input to use the new data
+        prt('Running with new package file: {}'.format(doc_path))
+        m.init_stage2(doc_path, '')
 
 DATA_FORMATS = ('xls', 'xlsx', 'tsv', 'csv')
 DOC_FORMATS = ('pdf', 'doc', 'docx', 'html')

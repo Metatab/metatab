@@ -193,6 +193,8 @@ class GenericRowGenerator(MetatabRowGenerator):
             yield row
 
 class TextRowGenerator(MetatabRowGenerator):
+    """Return lines of text of a line-oriented metatab file, breaking them to be used as Metatab rows"""
+
 
     def __init__(self, ref, path=None):
 
@@ -239,7 +241,11 @@ class TextRowGenerator(MetatabRowGenerator):
         pass
 
     def __iter__(self):
+        import re
+
         for row in self._text_lines:
+            if re.match(r'^\s*#', row): # Skip comments
+                continue
             yield [e.strip() for e in row.split(':',1)]
 
 

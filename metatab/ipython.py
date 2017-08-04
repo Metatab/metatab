@@ -11,7 +11,7 @@ from os.path import getmtime, join, exists
 from .exc import PackageError
 
 def caller_locals():
-    """Print the local variables in the caller's frame."""
+    """Get the local variables in the caller's frame."""
     import inspect
     frame = inspect.currentframe()
     try:
@@ -25,9 +25,12 @@ def in_build():
 
 
 
-def open_source_package():
+def open_source_package(dr=None):
 
-    for i, e in enumerate(walk_up(getcwd())):
+    if dr is None:
+        dr = getcwd()
+
+    for i, e in enumerate(walk_up(dr)):
 
         if 'metadata.csv' in e[2]:
             return op(join(e[0], 'metadata.csv'))
@@ -37,7 +40,7 @@ def open_source_package():
 
     return None
 
-def open_package(locals=None):
+def open_package(locals=None, dr=None):
     """Try to open a package with the metatab_doc variable, which is set when a Notebook is run
     as a resource. If that does not exist, try the local _packages directory"""
 
@@ -55,7 +58,10 @@ def open_package(locals=None):
         build_package_dir = None
         source_package = None
 
-        for i, e in enumerate(walk_up(getcwd())):
+        if dr is None:
+            dr = getcwd()
+
+        for i, e in enumerate(walk_up(dr)):
 
             if 'metadata.csv' in e[2]:
                 source_package = join(e[0],'metadata.csv')
@@ -77,9 +83,12 @@ def open_package(locals=None):
             # Open the previously built package
             pack = op(join(build_package_dir, package_name))
 
-        else:
+        elif source_package:
             # Open the source package
             pack = op(source_package)
+
+        else:
+            raise PackageError("Failed to find package, either in locals() or above dir '{}' ".format(dr))
 
 
     return pack

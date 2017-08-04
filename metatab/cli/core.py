@@ -341,7 +341,8 @@ def write_doc(doc, mt_file):
     ])
 
     import subprocess
-    out = subprocess.run(['git', 'remote', 'show','origin'], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    out = subprocess.run(['git', 'remote', 'show','origin'], stdout=subprocess.PIPE, timeout=6)\
+        .stdout.decode('utf-8')
 
     fetchline = next(l.split() for l in out.splitlines() if 'Fetch' in l )
 

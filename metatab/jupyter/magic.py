@@ -16,159 +16,200 @@ import shlex
 import docopt
 
 from IPython import get_ipython
-from IPython.core.magic import (Magics, magics_class, line_magic,
-                                cell_magic)
+from IPython.core.magic import Magics, magics_class, line_magic, cell_magic
+from IPython.display import display_html, display, HTML
 from collections import OrderedDict
 from metatab import MetatabDoc
 from metatab.cli.core import process_schemas
 from metatab.generate import TextRowGenerator
-from os import makedirs
-from os.path import join, abspath, dirname
+from os import makedirs, getcwd
+from os.path import join, abspath, dirname, exists
 from warnings import warn
+from metatab.html import bibliography
 
+from IPython.core.magic_arguments import (argument, magic_arguments,
+                                          parse_argstring)
 
 logger = logging.getLogger('user')
 logger_err = logging.getLogger('cli-errors')
 doc_logger = logging.getLogger('doc')
 debug_logger = logging.getLogger('debug_logger')
 
+MT_DOC_VAR = 'mt_pkg' # Namespace name for the metatab document.
+
 @magics_class
 class MetatabMagic(Magics):
 
-    @staticmethod
-    def metatab_args(line):
-        # Using docopt b/c I didn't know about @magic_arguments
-        args =  docopt.docopt(MetatabMagic.metatab.__doc__, argv=shlex.split(line))
+    """Magics for using Metatab in Jupyter Notebooks
 
-        if not args.get('OUTVAR'):
-            args['OUTVAR'] = 'mt_pkg'
+    """
 
-        return args
-
-    @cell_magic
-    def metatab(self, line, cell):
-        """Process a cell of Metatab data, in line format
-
-        Usage: metatab [-s | --show] [OUTVAR]
-
-        Options:
-            -h --help           Show this screen.
-            -s --show         Display the Metatab terms, showing any updates
-
-
-        """
-
-
-        ip = get_ipython()
-
-        doc = MetatabDoc(TextRowGenerator(cell))
-
-        doc['Root'].get_or_new_term('Root.Name')
-
-        doc.update_name(force=True)
-
-        if not 'Resources' in doc:
-            doc.new_section('Resources', ['Name', 'Description'])
-        else:
-            doc['Resources'].args = \
-                list(OrderedDict( (c.record_term.title(),None) for t in doc['Resources'].terms for c in t.children).keys())
-
-        if not 'References' in doc:
-            doc.new_section('References', ['Name', 'Description'])
-
-        process_schemas(doc)
+    def _get_notebook_dir(self):
+        """Return the directory the notebook is in. This is either based on the path set by
+        %mt_notebook_path, or the current directory"""
 
         try:
-            args = self.metatab_args(line)
-        except docopt.DocoptExit as e:
-            warn(str(e))
-        except SystemExit:
-            return
+            return dirname(self.shell.user_ns['_notebook_path'])
+        except KeyError:
+            pass
 
-        doc_var_name = args['OUTVAR']
+        try:
+            return self.shell.user_ns['_notebook_dir']
+        except KeyError:
+            return getcwd()
 
-        if not '_mt_doc_names' in self.shell.user_ns:
-            self.shell.user_ns['_mt_doc_names'] = set()
 
-            self.shell.user_ns['_mt_doc_names'].add(doc_var_name)
+    @property
+    def mt_doc(self):
+        """Return the current metatab document, which must be created with either %%metatab
+        or %mt_load_package"""
 
-        self.shell.user_ns[doc_var_name] = doc
+        return self.shell.user_ns[MT_DOC_VAR]
 
-        if args['--show']:
-            for l in doc.lines:
+    @property
+    def package_dir(self):
+        """Return the current metatab document, which must be created with either %%metatab
+        or %mt_load_package"""
+
+        return self.shell.user_ns['_package_dir']
+
+    @magic_arguments()
+    @argument('-s', '--show', help='After loading, display the document', action='store_true')
+    @argument('-p', '--package_dir', help='Set the directory where the package will be created')
+    @cell_magic
+    def metatab(self, line, cell):
+        """Process a cell of Metatab data, in line format. Stores document in the `mt_pkg` variable
+        """
+
+        args = parse_argstring(self.metatab, line)
+
+        inline_doc = MetatabDoc(TextRowGenerator("Declare: metatab-latest\n" + cell))
+
+        extant_identifier = inline_doc.get_value('Root.Identifier')
+        extant_name = inline_doc.get_value('Root.Name')
+
+        inline_doc['Root'].get_or_new_term('Root.Name')
+
+        inline_doc.update_name(force=True)
+
+        if not 'Resources' in inline_doc:
+            inline_doc.new_section('Resources', ['Name', 'Description'])
+        else:
+            inline_doc['Resources'].args = \
+                list(OrderedDict(
+                    (c.record_term.title(), None) for t in inline_doc['Resources'].terms for c in t.children).keys())
+
+        if not 'References' in inline_doc:
+            inline_doc.new_section('References', ['Name', 'Description'])
+
+        process_schemas(inline_doc)
+
+        # Give all of the sections their standard args, to make the CSV versions of the doc
+        # prettier
+
+        for name, s in inline_doc.sections.items():
+            try:
+                s.args = inline_doc.decl_sections[name.lower()]['args']
+            except KeyError:
+                pass
+
+        if args.show:
+            for l in inline_doc.lines:
                 print(': '.join(str(e) for e in l))
 
-        logger.info("Metatab document set in variable named '{}'".format(doc_var_name))
+        self.shell.user_ns['_notebook_dir'] = getcwd()
+
+        if args.package_dir:
+            self.shell.user_ns['_package_dir'] = abspath(join(getcwd(), args.package_dir))
+        else:
+            self.shell.user_ns['_package_dir'] = join(getcwd(), inline_doc.get_value('Root.Name'))
+
+        if extant_identifier != inline_doc.get_value('Root.Identifier'):
+            print("Identifier updated. \nSet 'Identifier: {}'  in document".format(inline_doc.get_value('Root.Identifier')))
+
+        if extant_name != inline_doc.get_value('Root.Name'):
+            print("Name Changed\nSet 'Name: {}'  in document".format(inline_doc.get_value('Root.Name')))
+
+        self.shell.user_ns[MT_DOC_VAR] = inline_doc
+
+    @magic_arguments()
+    @argument('-s', '--source', help='Force opening the source package', action='store_true')
+    @line_magic
+    def mt_open_package(self, line):
+        """Find the metatab file for this package, open it, and load it into the namespace. """
+
+        from metatab.ipython import open_package, open_source_package
+        from rowgenerators import Url
+
+        args = parse_argstring(self.mt_open_package, line)
+        self.shell.user_ns[MT_DOC_VAR] = open_package(self.shell.user_ns)
+
+        self.shell.user_ns['_notebook_dir'] = getcwd()
+
+        if self.mt_doc.package_url:
+            u = Url(self.mt_doc.package_url)
+
+    @line_magic
+    def mt_import_terms(self, line):
+        """Import the value of some Metatab terms into the notebook namespace """
+
+        mt_terms = {}
+
+        doc = self.mt_doc
+
+        mt_terms['root.title'] = doc['Root'].find_first_value('Root.Title')
+        mt_terms['root.description'] = doc['Root'].find_first_value('Root.Description')
+        mt_terms['root.name'] = doc['Root'].find_first_value('Root.Name')
+        mt_terms['root.identifier'] = doc['Root'].find_first_value('Root.Identifier')
+
+        mt_terms['contacts'] = []
+
+        for t in doc.get_section('Contacts', []):
+            d = t.as_dict()
+            d['type'] = t.record_term_lc
+            mt_terms['contacts'].append(d)
+
+        mt_terms['bibliography'] = []
+
+        for t in doc.get_section('Bibliography', []):
+            d = t.as_dict()
+            d['type'] = t.record_term_lc
+            mt_terms['bibliography'].append(d)
+
+        mt_terms['references'] = []
+
+        for t in doc.get_section('References', []):
+            d = t.as_dict()
+            d['type'] = t.record_term_lc
+            mt_terms['references'].append(d)
+
+        print('mt_terms')
+
+        self.shell.user_ns['mt_terms'] = mt_terms
 
     @line_magic
     def mt_process_schemas(self, line):
-        """Add Schema entries for resources to the metatab file.
+        """Add Schema entries for resources to the metatab file. Does not write the doc file"""
 
-        Runs on every metatab file declared in the notebook. Does not write the doc file"""
-
-        for doc_var_name in self.shell.user_ns['_mt_doc_names']:
-            doc = self.shell.user_ns[doc_var_name]
-            process_schemas(doc)
-
+        process_schemas(self.mt_doc)
 
     @line_magic
-    def mt_write_metatab(self, line):
-        """Write a metatab files to a file.
-
-        If --doc is not specified, writes all of the files declared in the document
-
-        Usage: mt_write_metatab [options] [<path>]
-
-        Options:
-            path                        File name to write to. If end with '/', a path name
-            -h, --help                  Show this screen.
-            -D <doc>, --doc <doc>       Variable name of the metatab doc [default: mt_pkg]
+    def mt_materialize(self, line):
+        """Write a metatab files to the package directory
 
         """
 
-        try:
-            args = docopt.docopt(self.mt_write_metatab.__doc__, argv=shlex.split(line))
-        except docopt.DocoptExit as e:
-            warn(str(e))
-        except SystemExit:
-            return
-
-        debug_logger.info("Enter mt_write_metatab")
-
-        if args['<path>']:
-            if args['<path>'].endswith('/'):
-                dir_name = args['<path>']
-                file_name = None
-            else:
-                dir_name = None
-                file_name = args['<path>']
-        else:
-            dir_name = ''
-            file_name = None
-
-        for n in self.shell.user_ns.get('_mt_doc_names'):
-
-            doc = self.shell.user_ns[n]
-
-            doc.update_name()
-
-            if not dir_name:
-                source_name = doc['Root'].get_value('Root.Name')
-
-                path = abspath(join(source_name, file_name or 'metadata.csv'))
-            else:
-                path = abspath(join(dir_name, file_name or 'metadata.csv'))
-
-            makedirs(dirname(path), exist_ok=True)
-
-            path = self.shell.user_ns[n].write_csv(path)
-
-            debug_logger.info("Wrote", n, " to ", path)
-
+        for df_name, ref in self.shell.user_ns.get('_material_dataframes',{}):
+            self._materialize(self.mt_doc, df_name, ref)
 
     @line_magic
-    def mt_showinput(self, line):
-        """Marks the cell as an input that should be shown. """
+    def mt_show_metatab(self, line):
+        """Dump the metatab file to the output, so it can be harvested after the notebook is executed"""
+
+        for line in self.mt_doc.lines:
+
+            if  line[1]: # Don't display "None"
+               print(': '.join(line))
 
 
     @line_magic
@@ -180,13 +221,13 @@ class MetatabMagic(Magics):
         Options:
             dataframe_name    Variable name of the dataframe
             -h, --help         Show this screen.
-            -D <doc>, --doc <doc>            Variable name of the metatab doc [default: mt_pkg]
             -t <title>, --title <title>      Title of the dataframe
             -n <name>, --name  <name>        Metadata reference name of the dataframe
+            -m , --materialize               Save the data for the dataframe
 
 
         """
-        from .convert import process_schema
+        from metatab.jupyter.core import process_schema
 
         try:
             args = docopt.docopt(self.mt_add_dataframe.__doc__, argv=shlex.split(line))
@@ -195,16 +236,24 @@ class MetatabMagic(Magics):
         except SystemExit:
             return
 
-        doc = self.shell.user_ns[args['--doc']]
+        doc = self.mt_doc
 
-        notebook_name = doc['Root'].get_value('name','notebook')
+        if not '_material_dataframes' in self.shell.user_ns:
+            self.shell.user_ns['_material_dataframes'] = []
+
+        notebook_name = doc['Root'].get_value('name', 'notebook')
 
         df = self.shell.user_ns[args['<dataframe_name>']]
 
         name = args['--name'] or df.name
         title = args['--title'] or df.title or df.desc
 
-        ref='ipynb:notebooks/{}.ipynb#{}'.format(notebook_name,  args['<dataframe_name>'])
+        if args['--materialize']:
+            ref = 'file:data/{}.csv'.format(name)
+            self.shell.user_ns['_material_dataframes'].append((args['<dataframe_name>'], ref))
+
+        else:
+            ref = 'ipynb:notebooks/{}.ipynb#{}'.format(notebook_name, args['<dataframe_name>'])
 
         if not 'Resources' in doc:
             doc.new_section('Resources')
@@ -214,15 +263,65 @@ class MetatabMagic(Magics):
         t['name'] = name
         t['title'] = title
 
-        process_schema(doc,doc.resource(name), df)
+        process_schema(doc, doc.resource(name), df)
+
+    def _materialize(self, doc, df_name, ref):
+        """Write a dataframe into the package as a CSV file"""
+        from rowgenerators import Url, PandasDataframeSource, SourceSpec
+        import csv
+
+        u = Url(Url(ref).prefix_path(self.package_dir))
+        path = u.parts.path
+
+        if not exists(dirname(path)):
+            makedirs(dirname(path))
+
+        df = self.shell.user_ns[df_name]
+
+        gen = PandasDataframeSource(SourceSpec(str(u)), df, cache=doc._cache)
+
+        with open(path, 'w') as f:
+            w = csv.writer(f)
+            w.writerows(gen)
+            print("Wrote '{}' into '{}' ".format(df_name, path))
 
     @line_magic
     def mt_notebook_path(self, line):
         """Set the notebook path in the notebook, for use by other magics during execution"""
 
-        debug_logger.info("mt_notebook_path "+line)
+        from os import getcwd
 
-        self.shell.user_ns['_notebook_path'] = line.strip()
+        if not line.strip():
+            # If the magic is used before any changes in directory, the notebok dir will
+            # be the current directory
+            self.shell.user_ns['_notebook_dir'] = getcwd()
+
+        else:
+            self.shell.user_ns['_notebook_path'] = line.strip()
+            self.shell.user_ns['_notebook_dir'] = dirname(self.shell.user_ns['_notebook_path'])
+
+    @line_magic
+    def mt_package_dir(self, line):
+        """Set the directory for the source package the outputs from the notebook will be written into """
+
+        from os import getcwd
+
+        if not line.strip():
+            # If the magic is used before any changes in directory, the notebok dir will
+            # be the current directory
+            self.shell.user_ns['_package_dir'] = getcwd()
+
+        else:
+            self.shell.user_ns['_package_dir'] = line.strip()
+
+
+    @magic_arguments()
+    @line_magic
+    def mt_bibliography(self, line):
+        """Display, as HTML, the bibliography for the metatab document. With no argument,
+         concatenate all doc, or with an arg, for only one. """
+
+        return HTML(bibliography(self.mt_doc))
 
 
 def load_ipython_extension(ipython):
@@ -234,7 +333,8 @@ def load_ipython_extension(ipython):
     # call the default constructor on it.
     ip.register_magics(MetatabMagic)
 
-    #init_logging()
+    # init_logging()
+
 
 def unload_ipython_extension(ipython):
     # If you want your extension to be unloadable, put that logic here.

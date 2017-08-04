@@ -422,8 +422,7 @@ class Package(object):
 
         return added
 
-
-    def _clean_doc(self, doc = None):
+    def _clean_doc(self, doc=None):
         """Clean the doc before writing it, removing unnecessary properties and doing other operations."""
 
         if doc is None:
@@ -485,7 +484,15 @@ class Package(object):
             if not r.headers:
                 raise PackageError("Resource {} does not have header. Have schemas been generated?".format(r.name))
 
-            rg = self.doc.resource(r.name, env=self._env)
+            try:
+                code_path = join(dirname(self.package_dir), 'row_processors', r.name + '.py')
+            except AttributeError:
+                # Not all packages have a package_dir property, which is an error,
+                # but we really only need code_path for the FilesystemPackage
+                code_path = None
+
+
+            rg = self.doc.resource(r.name, env=self._env,code_path=code_path)
 
             assert rg is not None
 
@@ -516,7 +523,7 @@ class Package(object):
         from rowgenerators.exceptions import DownloadError
         from os.path import basename, splitext
 
-        for doc in self.doc.find('Root.Documentation'):
+        for doc in self.doc.find(['Root.Documentation', 'Root.Image']):
 
             ss = SourceSpec(doc.value)
 
@@ -531,20 +538,21 @@ class Package(object):
             f = dflo.open('rb')
 
             try:
-                # FOr file file, the target_file may actually be a regex, so we have to resolve the
+                # For file file, the target_file may actually be a regex, so we have to resolve the
                 # regex before using it as a filename
                 real_name = basename(dflo.memo[1].name)  # Internal detail of how Zip files are accessed
             except (AttributeError, TypeError):
 
                 real_name = basename(ss.target_file)
 
-            # Prefer the slugified title to the base name, because in cases of collections
-            # of many data releases, like annual datasets, documentation files may all have the same name,
-            # but the titles should be different.
-            real_name_base, ext = splitext(real_name)
-            name = doc.get_value('title') if doc.get_value('title') else real_name_base
+            if doc.term_is('Root.Documentation'):
+                # Prefer the slugified title to the base name, because in cases of collections
+                # of many data releases, like annual datasets, documentation files may all have the same name,
+                # but the titles should be different.
+                real_name_base, ext = splitext(real_name)
 
-            real_name = slugify(name) + ext
+                name = doc.get_value('name') if doc.get_value('name') else real_name_base
+                real_name = slugify(name) + ext
 
             self._load_documentation(doc, f.read(), real_name)
 
@@ -623,11 +631,11 @@ class FileSystemPackage(Package):
 
         self._write_dpj()
 
-        self._write_html()
-
         self._clean_doc()
 
         doc_file = self._write_doc()
+
+        self._write_html()
 
         return doc_file
 
@@ -649,6 +657,9 @@ class FileSystemPackage(Package):
             path = getcwd()
 
         name = self.doc.find_first_value('Root.Name')
+
+        assert path
+        assert name
 
         np = join(path, name)
 
@@ -710,7 +721,7 @@ class FileSystemPackage(Package):
 
         self.prt("Loading documentation for '{}', '{}' ".format(title, file_name))
 
-        #term['url'].value = 'docs/' + file_name
+        # term['url'].value = 'docs/' + file_name
 
         path = join(self.package_dir, 'docs/' + file_name)
 
@@ -751,6 +762,12 @@ class CsvPackage(Package):
 
         r.url = r.resolved_url
 
+
+    def _relink_documentation(self):
+
+        for doc in self.doc.resources(term=['Root.Documentation', 'Root.Image'], section='Documentation'):
+            doc.url =  doc.resolved_url
+
     def save(self, path=None):
 
         # HACK ...
@@ -764,6 +781,8 @@ class CsvPackage(Package):
         self.doc.cleanse()
 
         self._load_resources()
+
+        self._relink_documentation()
 
         self._clean_doc()
 
@@ -798,7 +817,6 @@ class ExcelPackage(Package):
         from openpyxl.cell import WriteOnlyCell
         from openpyxl.styles import PatternFill, Font, Alignment
 
-
         self.check_is_ready()
 
         self.wb = Workbook(write_only=True)
@@ -826,15 +844,15 @@ class ExcelPackage(Package):
 
         self._clean_doc()
 
-        fill = PatternFill("solid", fgColor="acc0e0") # PatternFill(patternType='gray125')
+        fill = PatternFill("solid", fgColor="acc0e0")  # PatternFill(patternType='gray125')
         table_fill = PatternFill("solid", fgColor="d9dce0")  # PatternFill(patternType='gray125')
 
-        alignment = Alignment(wrap_text = False)
-        for i,row in enumerate(self.doc.rows,1):
+        alignment = Alignment(wrap_text=False)
+        for i, row in enumerate(self.doc.rows, 1):
 
             if row[0] == 'Section' or row[0] == 'Table':
                 styled_row = []
-                for c in row + ['']*5:
+                for c in row + [''] * 5:
                     cell = WriteOnlyCell(meta_ws, value=c)
                     cell.fill = fill if row[0] == 'Section' else table_fill
                     styled_row.append(cell)
@@ -843,8 +861,6 @@ class ExcelPackage(Package):
 
             else:
                 meta_ws.append(row)
-
-
 
         ensure_exists(dirname(self.save_path(path)))
 
@@ -875,8 +891,6 @@ class ExcelPackage(Package):
 
         for row in gen:
             ws.append(row)
-
-
 
 
 class ZipPackage(Package):
@@ -986,13 +1000,15 @@ class ZipPackage(Package):
 class S3Package(Package):
     """A Zip File package"""
 
-    def __init__(self, path=None, callback=None, cache=None, env=None, save_url=None, acl=None):
+    def __init__(self, path=None, callback=None, cache=None, env=None, save_url=None, acl=None, force=False):
 
         super(S3Package, self).__init__(path, callback=callback, cache=cache, env=env)
 
         self._save_url = save_url
 
         self.bucket = None
+
+        self.force = force
 
         self._acl = acl if acl else 'public-read'
 
@@ -1088,7 +1104,7 @@ class S3Package(Package):
 
     def write_to_s3(self, path, body):
 
-        self.bucket.write(body, join(self.package_name, path), acl=self._acl)
+        self.bucket.write(body, join(self.package_name, path), acl=self._acl, force=self.force)
 
         return
 

@@ -281,7 +281,7 @@ class Term(object):
 
             c = self.find_first(item)
             if c is None:
-                raise KeyError
+                raise KeyError("Failed to find key '{}' in term '{}'".format(item, str(self)))
 
             return c
 
@@ -480,8 +480,6 @@ class Term(object):
         :param term: Root term at which to start conversion
 
         """
-
-        assert  replace_value_names is False
 
         if not term:
             return None
@@ -1199,6 +1197,7 @@ class TermParser(object):
 
 
     def manage_declare_terms(self, t):
+
 
         if t.term_is('root.declaresection'):
             self.add_declared_section(t)

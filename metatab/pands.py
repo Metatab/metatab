@@ -48,8 +48,10 @@ class MetatabDataFrame(DataFrame):
 
         super(MetatabDataFrame, self).__init__(data, index, columns, dtype, copy)
 
+
     @property
     def _constructor(self):
+
         return MetatabDataFrame
 
     @property

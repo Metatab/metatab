@@ -138,7 +138,7 @@ class S3Bucket(object):
             for c in page['Contents']:
                 yield c
 
-    def write(self, body, path, acl=None):
+    def write(self, body, path, acl=None, force=False):
         from botocore.exceptions import ClientError
         import mimetypes
 
@@ -153,8 +153,11 @@ class S3Bucket(object):
         try:
             o = self._bucket.Object(key)
             if o.content_length == len(body):
-                prt("File '{}' already in bucket; skipping".format(key))
-                return self.access_url(path)
+                if force:
+                    prt("File '{}' already in bucket, but forcing overwrite".format(key))
+                else:
+                    prt("File '{}' already in bucket; skipping".format(key))
+                    return self.access_url(path)
             else:
                 prt("File '{}' already in bucket, but length is different; re-wirtting".format(key))
 
