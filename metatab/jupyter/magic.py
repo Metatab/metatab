@@ -193,14 +193,46 @@ class MetatabMagic(Magics):
 
         process_schemas(self.mt_doc)
 
+    @magic_arguments()
+    @argument('package_dir', help='Package directory')
     @line_magic
     def mt_materialize(self, line):
         """Write a metatab files to the package directory
-
         """
 
+        from json import dumps
+
+        materialized = []
+
+        args = parse_argstring(self.mt_materialize, line)
+
         for df_name, ref in self.shell.user_ns.get('_material_dataframes',{}):
-            self._materialize(self.mt_doc, df_name, ref)
+            self._materialize(self.mt_doc, df_name, ref, args.package_dir)
+            materialized.append({
+                'df_name': df_name,
+                'ref':ref
+            })
+
+        print(dumps(materialized, indent=4))
+
+    def _materialize(self, doc, df_name, ref, package_dir):
+        """Write a dataframe into the package as a CSV file"""
+        from rowgenerators import Url, PandasDataframeSource, SourceSpec
+        import csv
+
+        u = Url(Url(ref).prefix_path(package_dir))
+        path = u.parts.path
+
+        if not exists(dirname(path)):
+            makedirs(dirname(path))
+
+        df = self.shell.user_ns[df_name]
+
+        gen = PandasDataframeSource(SourceSpec(str(u)), df, cache=doc._cache)
+
+        with open(path, 'w') as f:
+            w = csv.writer(f)
+            w.writerows(gen)
 
     @line_magic
     def mt_show_metatab(self, line):
@@ -265,25 +297,7 @@ class MetatabMagic(Magics):
 
         process_schema(doc, doc.resource(name), df)
 
-    def _materialize(self, doc, df_name, ref):
-        """Write a dataframe into the package as a CSV file"""
-        from rowgenerators import Url, PandasDataframeSource, SourceSpec
-        import csv
 
-        u = Url(Url(ref).prefix_path(self.package_dir))
-        path = u.parts.path
-
-        if not exists(dirname(path)):
-            makedirs(dirname(path))
-
-        df = self.shell.user_ns[df_name]
-
-        gen = PandasDataframeSource(SourceSpec(str(u)), df, cache=doc._cache)
-
-        with open(path, 'w') as f:
-            w = csv.writer(f)
-            w.writerows(gen)
-            print("Wrote '{}' into '{}' ".format(df_name, path))
 
     @line_magic
     def mt_notebook_path(self, line):
@@ -300,19 +314,6 @@ class MetatabMagic(Magics):
             self.shell.user_ns['_notebook_path'] = line.strip()
             self.shell.user_ns['_notebook_dir'] = dirname(self.shell.user_ns['_notebook_path'])
 
-    @line_magic
-    def mt_package_dir(self, line):
-        """Set the directory for the source package the outputs from the notebook will be written into """
-
-        from os import getcwd
-
-        if not line.strip():
-            # If the magic is used before any changes in directory, the notebok dir will
-            # be the current directory
-            self.shell.user_ns['_package_dir'] = getcwd()
-
-        else:
-            self.shell.user_ns['_package_dir'] = line.strip()
 
 
     @magic_arguments()
@@ -322,6 +323,7 @@ class MetatabMagic(Magics):
          concatenate all doc, or with an arg, for only one. """
 
         return HTML(bibliography(self.mt_doc))
+
 
 
 def load_ipython_extension(ipython):

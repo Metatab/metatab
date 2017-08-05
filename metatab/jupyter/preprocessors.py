@@ -14,6 +14,24 @@ from IPython.core.magic_arguments import (argument, magic_arguments,
                                           parse_argstring)
 
 
+class RemoveDocsFromImages(Preprocessor):
+    """Change the file name for images, because they are in the sam dir as the HTML files"""
+    doc = None
+
+    def preprocess_cell(self, cell, resources, index):
+
+        for o in cell.get('outputs',{}):
+
+            if not 'metadata' in o:
+                continue
+
+            image_file = o.get('metadata',{}).get('filenames',{}).get('image/png')
+
+            if image_file:
+                o['metadata']['filenames']['image/png'] =  image_file.replace('docs/','')
+
+        return cell, resources
+
 class ExtractInlineMetatabDoc(Preprocessor):
     """Extract the Inlined Metatab document"""
 
@@ -59,6 +77,28 @@ class ExtractFinalMetatabDoc(Preprocessor):
 
         return cell, resources
 
+class ExtractMaterializedRefs(Preprocessor):
+    """Extract the metatab document produced from the %mt_show_metatab magic"""
+
+    from nbformat.notebooknode import NotebookNode
+
+    materialized = None
+
+    def preprocess_cell(self, cell, resources, index):
+        import re
+        from metatab.generate import TextRowGenerator
+        from metatab import MetatabDoc
+        from json import loads
+
+        if cell['metadata'].get('mt_materialize'):
+
+            if cell['outputs']:
+                o = ''.join( e['text'] for e in cell['outputs'])
+
+                self.materilized = loads(o)
+
+
+        return cell, resources
 
 class RemoveMetatab(Preprocessor):
     """NBConvert preprocessor to remove the %metatab block"""
@@ -74,6 +114,9 @@ class RemoveMetatab(Preprocessor):
 
             source = cell['source']
 
+            if cell['metadata'].get('epilog'):
+                continue
+
             if source.startswith('%%metatab'):
 
                 lines = source.splitlines() # resplit to remove leading blank lines
@@ -82,8 +125,6 @@ class RemoveMetatab(Preprocessor):
 
                 cell.source = "%mt_open_package\n"
                 cell.outputs = []
-            else:
-                cell.source = re.sub(r'\%mt_[^\n]+\n', '', source)
 
             out_cells.append(cell)
 
@@ -106,6 +147,9 @@ class RemoveMagics(Preprocessor):
                 cell.source = re.sub(r'\%[^\n]+\n?', '', cell.source)
 
         return nb, resources
+
+class ReplaceMagics(Preprocessor):
+    """Replace some magics"""
 
 class NoShowInput(Preprocessor):
     """NBConvert preprocessor to add hide_input metatab to cells, except to cells that have either
@@ -172,7 +216,7 @@ class AddEpilog(Preprocessor):
         nb.cells.append(from_dict({
             'cell_type': 'code',
             'outputs': [],
-            'metadata': {'mt_materialize' : True},
+            'metadata': {'mt_materialize' : True, 'epilog': True},
             'execution_count': None,
             'source': dedent("""
             %mt_materialize {pkg_dir}
@@ -182,7 +226,7 @@ class AddEpilog(Preprocessor):
         nb.cells.append(from_dict({
             'cell_type': 'code',
             'outputs': [],
-            'metadata': {'mt_final_metatab': True},
+            'metadata': {'mt_final_metatab': True, 'epilog': True},
             'execution_count': None,
             'source': dedent("""
             %mt_show_metatab

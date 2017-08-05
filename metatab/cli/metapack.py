@@ -79,6 +79,9 @@ def metapack():
     build_group.add_argument('-F', '--force', action='store_true', default=False,
                              help='Force some operations, like updating the name and building packages')
 
+    build_group.add_argument('-M', '--make-package', default=False, action='store_true',
+                             help='Build a package from a Jupyter notebook')
+
     ##
     ## Derived Package Group
 
@@ -173,6 +176,13 @@ def metapack():
 
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 
+    # Maybe need to convert a notebook first
+    if m.args.make_package:
+
+        if not m.mtfile_url.target_format == 'ipynb':
+            err("Input must be a Jupyter notebook file")
+
+        convert_notebook(m)
 
     if m.args.info:
         metatab_info(m.cache)
@@ -181,10 +191,6 @@ def metapack():
     if m.args.profile:
         from metatab.s3 import set_s3_profile
         set_s3_profile(m.args.profile)
-
-    # Metapack cant actually process Jupyter notebooks, so they need to be converted first
-    preprocess_notebook(m)
-
 
     try:
         for handler in (metatab_build_handler, metatab_derived_handler, metatab_query_handler, metatab_admin_handler):
@@ -199,6 +205,9 @@ def metapack():
 
 
 def metatab_build_handler(m):
+
+
+
     if m.args.create is not False:
 
         template = m.args.create if m.args.create else 'metatab'
@@ -524,27 +533,26 @@ def add_doc_refs(doc_path, doc_refs):
 
     doc.write_csv()
 
-def preprocess_notebook(m):
-    import nbformat
-    from metatab.jupyter.convert import write_documentation, write_notebook, get_package_dir
+def convert_notebook(m):
 
-    if m.mtfile_url.target_format == 'ipynb':
-        prt('Convert notebook to Metatab source package')
-        nb_path = Url(m.mt_file).parts.path
-        pkg_dir, pkg_name = get_package_dir(nb_path)
+    from .core import  logger
+    from traitlets.config import Config
+    from metatab.jupyter.exporters import PackageExporter
 
-        with open(nb_path) as f:
-            nb = nbformat.reads(f.read(), as_version=4)
+    prt('Convert notebook to Metatab source package')
+    nb_path = Url(m.mt_file).parts.path
 
-        doc_refs = write_documentation(nb, join(pkg_dir, 'docs'))
+    c = Config()
 
-        doc_path = write_notebook(nb, dirname(nb_path), pkg_dir, pkg_name, doc_refs)
+    pe = PackageExporter(config=c, log=logger)
 
-        add_doc_refs(doc_path, doc_refs)
+    pe.from_filename(nb_path)
 
-        # Reset the input to use the new data
-        prt('Running with new package file: {}'.format(doc_path))
-        m.init_stage2(doc_path, '')
+    new_mt_file = join(pe.output_dir, DEFAULT_METATAB_FILE)
+
+    # Reset the input to use the new data
+    prt('Running with new package file: {}'.format(new_mt_file))
+    m.init_stage2(new_mt_file, '')
 
 DATA_FORMATS = ('xls', 'xlsx', 'tsv', 'csv')
 DOC_FORMATS = ('pdf', 'doc', 'docx', 'html')

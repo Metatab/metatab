@@ -138,3 +138,6 @@ def process_schema(doc, resource, df):
                             altname=alt_name,
                             description=df[c['header']].description if df[c['header']].description else ''
                             )
+
+
+

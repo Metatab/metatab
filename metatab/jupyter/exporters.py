@@ -23,10 +23,11 @@ from os import getcwd, makedirs
 from os.path import dirname, join, abspath, exists
 from traitlets import List
 from traitlets.config import Bool, Unicode, Config
-from .preprocessors import ( AddEpilog, RemoveMetatab, ExtractInlineMetatabDoc,
-                             ExtractFinalMetatabDoc, ExtractMetatabTerms )
+from .preprocessors import ( AddEpilog, RemoveMetatab, ExtractInlineMetatabDoc, RemoveMetatab,
+                             ExtractFinalMetatabDoc, ExtractMetatabTerms, ExtractMaterializedRefs)
 import io
 import copy
+import nbformat
 
 import logging
 
@@ -65,7 +66,8 @@ class PackageExporter(Exporter):
             'metatab.jupyter.preprocessors.RemoveMetatab'
         ]
 
-        c.HTMLExporter.preprocessors = ['nbconvert.preprocessors.ExtractOutputPreprocessor',
+        c.HTMLExporter.preprocessors = [
+                                        'metatab.jupyter.preprocessors.RemoveDocsFromImages',
                                         'metatab.jupyter.preprocessors.NoShowInput',
                                         'metatab.jupyter.preprocessors.RemoveMetatab'
                                         ]
@@ -117,14 +119,15 @@ class PackageExporter(Exporter):
         return super().from_filename(filename, resources, **kw)
 
     def from_notebook_node(self, nb, resources=None, **kw):
+        """Create a Metatab package from a notebook node """
 
         nb_copy = copy.deepcopy(nb)
 
         # The the package name and directory, either from the inlined Metatab doc,
         # or from the config
-        package_dir, package_name = self.get_package_dir_name(nb)
+        self.package_dir, self.package_name = self.get_package_dir_name(nb)
 
-        self.output_dir = join(package_dir, package_name)
+        self.output_dir = join(self.package_dir, self.package_name)
 
         resources = self._init_resources(resources)
 
@@ -146,39 +149,23 @@ class PackageExporter(Exporter):
         terms = self.extract_terms(nb_copy)
 
         # Clear the output before executing
-        self.clear_output(nb)
+        self.clear_output(nb_copy)
 
-        # Save the notebook we're about to exec, in the form it will be executed
-        nb, resources = self.add_exec_notebook(nb_copy, resources)
+        try:
 
-        nb_final, resources = self.exec_notebook(nb, resources, self.notebook_dir)
-
-        self.write_files(resources)
-
-        return str(nb_final), resources
+            nb_copy, resources = self.exec_notebook(nb_copy, resources, self.notebook_dir)
 
 
 
-    def doc_refs(self, resources):
+        except CellExecutionError as e:
 
-        doc_refs = [{
-            'term': 'Root.Documentation',
-            'ref': 'file:docs/documentation.html',
-            'name': 'documentation',
-            'title': "Main documentation"
-        }]
+            raise CellExecutionError("Errors executing noteboook. See output at {} for details.\n{}"
+                                     .format(self.output_dir, ''))
+        finally:
+            self.write_files(resources)
 
-        for filename, data in resources.get('outputs', {}).items():
-            doc_refs.append(
-                {
-                    'term': 'Root.Image',
-                    'ref': 'file:docs/{}'.format(filename),
-                    'name': filename,
-                    'title': "Documentation image"
-                }
-            )
+        return nb, resources
 
-        return doc_refs
 
     def clear_output(self, nb):
 
@@ -218,24 +205,47 @@ class PackageExporter(Exporter):
 
         resources['outputs']['docs/documentation.md'] = md_body.encode('utf-8')
 
-    def add_exec_notebook(self, nb, resources):
+    def exec_notebook(self, nb, resources, nb_dir):
 
-        nb, _ = AddEpilog().preprocess(nb, resources)
+        nb, _ = AddEpilog(pkg_dir=self.output_dir).preprocess(nb, resources)
 
-        resources['outputs']['notebooks/executed-source.ipynb'] = str(nb).encode('utf-8')
-
-        return nb, resources
-
-    def exec_notebook(self, nb, resources,  nb_dir):
+        resources['outputs']['notebooks/executed-source.ipynb'] = nbformat.writes(nb).encode('utf-8')
 
         ep = ExecutePreprocessor()
 
         nb, _ = ep.preprocess(nb, {'metadata': {'path': nb_dir}})
 
+        nb, resources = self.add_metatab_doc(nb, resources)
+
+        nb, _ = RemoveMetatab().preprocess(nb, {})
+
+        resources['outputs']['notebooks/{}.ipynb'.format(self.package_name)] = nbformat.writes(nb).encode('utf-8')
+
+        return nb, resources
+
+    def add_metatab_doc(self, nb, resources):
+
         efm = ExtractFinalMetatabDoc()
         efm.preprocess(nb, {})
 
+        doc = efm.doc.get_or_new_section('Documentation')
+
+        for name, data in resources.get('outputs', {}).items():
+
+            if name.startswith('docs/'):
+                t = None
+                if name.endswith('.html') or name.endswith('.md'):
+                    t = doc.new_term('Root.Documentation', 'file:'+name, title='Documentation')
+
+                elif name.endswith('.png'):
+                    t = doc.new_term('Root.Image',  name, title='Image for HTML Documentation')
+
         resources['outputs'][DEFAULT_METATAB_FILE] = efm.doc.as_csv()
+
+        emr = ExtractMaterializedRefs()
+        emr.preprocess(nb, {})
+
+        materialized_refs = emr.materialized
 
         return nb, resources
 
@@ -250,7 +260,6 @@ class PackageExporter(Exporter):
 
     def write_files(self, resources):
 
-
         self.log.info('Base dir: {}'.format(self.output_dir))
 
         for filename, data in resources.get('outputs', {}).items():
@@ -262,50 +271,3 @@ class PackageExporter(Exporter):
                 f.write(data)
                 self.log.info("Wrote '{}' ".format(filename))
 
-
-    def write_notebook(nb, nb_dir, pkg_dir, pkg_name, doc_refs=[]):
-        """Executes the notebook, exports the Metatab data in it, and writes the notebook into the package.
-
-        Also writes the metatab file that defined in the Notebook"""
-
-        out_path = join(pkg_dir, 'notebooks', pkg_name + '.ipynb')
-
-        try:
-            # Save the notebook, before it gets pre-processed
-            with open(out_path.replace('.ipynb', '-exec.ipynb'), mode='wt') as f:
-                nbformat.write(nb, f)
-
-
-
-
-        except CellExecutionError as e:
-
-            raise CellExecutionError("Errors executing noteboook. See output at {} for details.\n{}"
-                                     .format(out_path, ''))
-        finally:
-            with open(out_path, mode='wt') as f:
-                nbformat.write(nb, f)
-
-        return join(pkg_dir, DEFAULT_METATAB_FILE)
-
-    def preprocess_notebook(m):
-        import nbformat
-        from metatab.jupyter.convert import write_documentation, write_notebook, get_package_dir
-
-        if m.mtfile_url.target_format == 'ipynb':
-            prt('Convert notebook to Metatab source package')
-            nb_path = Url(m.mt_file).parts.path
-            pkg_dir, pkg_name = get_package_dir(nb_path)
-
-            with open(nb_path) as f:
-                nb = nbformat.reads(f.read(), as_version=4)
-
-            doc_refs = write_documentation(nb, join(pkg_dir, 'docs'))
-
-            doc_path = write_notebook(nb, dirname(nb_path), pkg_dir, pkg_name, doc_refs)
-
-            add_doc_refs(doc_path, doc_refs)
-
-            # Reset the input to use the new data
-            prt('Running with new package file: {}'.format(doc_path))
-            m.init_stage2(doc_path, '')

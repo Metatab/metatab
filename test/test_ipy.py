@@ -139,6 +139,9 @@ class TestIPython(unittest.TestCase):
 
     def test_nbconvert(self):
 
+        from metatab.jupyter.exporters import PackageExporter
+        import logging
+
         from traitlets.config import  Config
         from metatab.jupyter.exporters import PackageExporter
         import logging
@@ -151,11 +154,22 @@ class TestIPython(unittest.TestCase):
 
         pe = PackageExporter(config=c)
 
-        output, resources = pe.from_filename(test_data('notebooks/MagicsTest.ipynb'))
+        pe.from_filename(test_data('notebooks/MagicsTest.ipynb'))
 
-        for o in resources.get('outputs',{}).keys():
-            print (o)
+    def test_get_ipython(self):
 
+        from metatab.jupyter.script import  ScriptIPython
+
+        foo = 'bar'
+
+        sp = ScriptIPython()
+
+        sp.system('pwd')
+
+        self.assertIn('foo', sp.user_ns)
+        self.assertIn('bar', sp.user_ns['foo'])
+
+        print(sp.user_ns)
 
 
 if __name__ == '__main__':

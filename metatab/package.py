@@ -525,12 +525,22 @@ class Package(object):
 
         for doc in self.doc.find(['Root.Documentation', 'Root.Image']):
 
-            ss = SourceSpec(doc.value)
+            uv = Url(doc.value)
+            ur = Url(self._ref)
+
+            if ur.proto == 'file' and uv.proto == 'file':
+
+                path = uv.prefix_path(Url(ur.dirname()).parts.path)
+                ss = SourceSpec(path)
+
+            else:
+
+                ss = SourceSpec(doc.value)
 
             try:
                 d = download_and_cache(ss, self._cache)
             except DownloadError as e:
-                self.warn("Failed to load documentation for '{}'".format(doc.value))
+                self.warn("Failed to load documentation for '{}': {}".format(doc.value, e))
                 continue
 
             dflo = get_dflo(ss, d['sys_path'])
