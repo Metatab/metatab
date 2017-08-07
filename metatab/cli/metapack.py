@@ -18,14 +18,13 @@ from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, meta
     get_lib_module_dict, write_doc, datetime_now, \
     make_excel_package, make_filesystem_package, make_csv_package, make_zip_package, update_name, \
     cli_init, process_schemas, extract_path_name
-from metatab.util import make_metatab_file
+from metatab.util import make_metatab_file, copytree, ensure_dir
 from os import getcwd
 from os.path import dirname, abspath, exists
 from rowgenerators import get_cache, SourceError, Url
 from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
 from tableintuit import RowIntuitError
-
 
 def metapack():
     import argparse
@@ -533,11 +532,14 @@ def add_doc_refs(doc_path, doc_refs):
 
     doc.write_csv()
 
+
 def convert_notebook(m):
 
-    from .core import  logger
+    from .core import logger
     from traitlets.config import Config
-    from metatab.jupyter.exporters import PackageExporter
+    from metatab.jupyter.exporters import PackageExporter, DocumentationExporter
+    from nbconvert.writers import FilesWriter
+    from os.path import normpath
 
     prt('Convert notebook to Metatab source package')
     nb_path = Url(m.mt_file).parts.path
@@ -546,11 +548,47 @@ def convert_notebook(m):
 
     pe = PackageExporter(config=c, log=logger)
 
-    pe.from_filename(nb_path)
+    prt('Runing the notebook')
+    output, resources = pe.from_filename(nb_path)
+
+    fw = FilesWriter()
+    fw.build_directory = pe.output_dir
+
+    fw.write(output, resources, notebook_name=DEFAULT_METATAB_FILE)
+
+    de = DocumentationExporter(config=c, log=logger)
+
+    prt('Exporting documentation')
+    output, resources = de.from_filename(nb_path)
+
+    fw.build_directory = join(pe.output_dir,'docs')
+    fw.write(output, resources, notebook_name='notebook')
 
     new_mt_file = join(pe.output_dir, DEFAULT_METATAB_FILE)
 
+    doc = MetatabDoc(new_mt_file)
+
+    de.update_metatab(doc, resources)
+
+    for term, value in pe.extra_terms:
+        doc['Root'].get_or_new_term(term, value)
+
+    for lib_dir in pe.lib_dirs:
+
+        lib_dir = normpath(lib_dir).lstrip('./')
+
+        doc['Resources'].new_term("Root.PythonLib", lib_dir)
+
+        path = abspath(lib_dir)
+        dest = join(pe.output_dir, lib_dir)
+
+        ensure_dir(dest)
+        copytree(path, join(pe.output_dir, lib_dir))
+
+    doc.write_csv()
+
     # Reset the input to use the new data
+
     prt('Running with new package file: {}'.format(new_mt_file))
     m.init_stage2(new_mt_file, '')
 

@@ -259,7 +259,9 @@ def update_distributions(m):
             prt("Added CSV distribution to metadata", url)
             updated = True
 
-    doc['Root']['Issued'] = datetime_now()
+
+    t = doc['Root'].get_or_new_term('Root.Issued')
+    t.value = datetime_now()
 
     if not write_doc(doc, m.mt_file):
         # The mt_file is probably a URL, so we can't write back to it,

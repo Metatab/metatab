@@ -3,8 +3,11 @@
 
 """Classes to build a Metatab document
 """
-from os.path import join, basename
-
+import os
+import shutil
+from genericpath import exists
+from os import makedirs
+from os.path import join, basename, dirname
 
 
 def declaration_path(name):
@@ -291,3 +294,19 @@ def walk_up(bottom):
 
     for x in walk_up(new_path):
         yield x
+
+
+def ensure_dir(path):
+
+    if path and not exists(path):
+            makedirs(path)
+
+
+def copytree(src, dst, symlinks=False, ignore=None):
+    for item in os.listdir(src):
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        if os.path.isdir(s):
+            shutil.copytree(s, d, symlinks, ignore)
+        else:
+            shutil.copy2(s, d)

@@ -12,7 +12,7 @@ from __future__ import print_function
 
 import logging
 import shlex
-
+import sys
 import docopt
 
 from IPython import get_ipython
@@ -23,7 +23,7 @@ from metatab import MetatabDoc
 from metatab.cli.core import process_schemas
 from metatab.generate import TextRowGenerator
 from os import makedirs, getcwd
-from os.path import join, abspath, dirname, exists
+from os.path import join, abspath, dirname, exists, normpath
 from warnings import warn
 from metatab.html import bibliography
 
@@ -273,7 +273,7 @@ class MetatabMagic(Magics):
         if not '_material_dataframes' in self.shell.user_ns:
             self.shell.user_ns['_material_dataframes'] = []
 
-        notebook_name = doc['Root'].get_value('name', 'notebook')
+        notebook_name = doc.as_version(None).get_value('Root.Name', 'notebook')
 
         df = self.shell.user_ns[args['<dataframe_name>']]
 
@@ -297,8 +297,6 @@ class MetatabMagic(Magics):
 
         process_schema(doc, doc.resource(name), df)
 
-
-
     @line_magic
     def mt_notebook_path(self, line):
         """Set the notebook path in the notebook, for use by other magics during execution"""
@@ -314,8 +312,6 @@ class MetatabMagic(Magics):
             self.shell.user_ns['_notebook_path'] = line.strip()
             self.shell.user_ns['_notebook_dir'] = dirname(self.shell.user_ns['_notebook_path'])
 
-
-
     @magic_arguments()
     @line_magic
     def mt_bibliography(self, line):
@@ -324,6 +320,47 @@ class MetatabMagic(Magics):
 
         return HTML(bibliography(self.mt_doc))
 
+    @magic_arguments()
+    @argument('lib_dir', help='Directory', nargs='?',)
+    @line_magic
+    def mt_lib_dir(self, line):
+        """Declare a source code directory and add it to the sys path. defaults to ./lib, which
+        may either be in the same dir as the Notebook, or one level up.
+
+        """
+
+        args = parse_argstring(self.mt_lib_dir, line)
+
+        if not args.lib_dir:
+            lib_dir = 'lib'
+
+        else:
+            lib_dir = args.lib_dir
+
+        lib_dir = normpath(lib_dir).lstrip('./')
+
+        if not '_lib_dirs' in self.shell.user_ns:
+            self.shell.user_ns['_lib_dirs'] = set()
+
+        for path in [ abspath(lib_dir), abspath(join('..',lib_dir))]:
+            if exists(path):
+                sys.path.append(path)
+                self.shell.user_ns['_lib_dirs'].add(lib_dir)
+                return
+
+
+        logger.error("Library directory does not exist: {} ".format(lib_dir))
+
+
+    @line_magic
+    def mt_show_libdirs(self, line):
+        """Dump the list of lib dirs as JSON"""
+        import json
+
+        if '_lib_dirs' in self.shell.user_ns:
+            print(json.dumps(list(self.shell.user_ns['_lib_dirs'])))
+        else:
+            print(json.dumps([]))
 
 
 def load_ipython_extension(ipython):

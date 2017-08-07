@@ -9,7 +9,7 @@ import shutil
 from collections import namedtuple
 from io import BytesIO
 from itertools import islice
-from os import getcwd, makedirs, remove
+from os import getcwd, makedirs, remove, walk
 from os.path import basename, abspath, dirname, exists, isdir, join, splitext
 
 import unicodecsv as csv
@@ -22,6 +22,10 @@ from rowgenerators import RowGenerator, SourceSpec, TextEncodingError, Url, enum
 from rowgenerators.util import get_cache
 from tableintuit import RowIntuiter
 from .exc import PackageError
+from rowgenerators.generators import get_dflo, download_and_cache
+from rowgenerators import SourceSpec
+from rowgenerators.exceptions import DownloadError
+from os.path import basename, splitext
 
 TableColumn = namedtuple('TableColumn', 'path name start_line header_lines columns')
 
@@ -134,7 +138,7 @@ class Package(object):
         self._doc = None
         self._callback = callback
         self._env = env if env is not None else {}
-
+        self.source_dir = dirname(Url(ref).path())
         self.init_doc()
 
     def load_doc(self, ref):
@@ -320,7 +324,6 @@ class Package(object):
 
     @staticmethod
     def find_files(base_path, types):
-        from os import walk
 
         for root, dirs, files in walk(base_path):
             if '_metapack' in root:
@@ -516,44 +519,53 @@ class Package(object):
 
                 self._load_resource(r, gen, r.headers)
 
+    def _get_ref_contents(self, t):
+
+        uv = Url(t.value)
+        ur = Url(self._ref)
+
+        # In the case that the input doc is a file, and the ref is to a file,
+        # try interpreting the file as relative.
+        if ur.proto == 'file' and uv.proto == 'file':
+            path = uv.prefix_path(Url(ur.dirname()).parts.path)
+            ss = SourceSpec(path)
+
+        else:
+            ss = SourceSpec(t.value)
+
+        return self._download_ss(ss)
+
+    def _download_ss(self,ss):
+
+        try:
+            d = download_and_cache(ss, self._cache)
+        except DownloadError as e:
+            self.warn("Failed to load file for '{}': {}".format(ss, e))
+            return None, None
+
+        dflo = get_dflo(ss, d['sys_path'])
+
+        f = dflo.open('rb')
+
+        try:
+            # For file file, the target_file may actually be a regex, so we have to resolve the
+            # regex before using it as a filename
+            real_name = basename(dflo.memo[1].name)  # Internal detail of how Zip files are accessed
+        except (AttributeError, TypeError):
+
+            real_name = basename(ss.target_file)
+
+        return real_name, f
+
     def _load_documentation_files(self):
         """Copy all of the Datafile entries into the Excel file"""
-        from rowgenerators.generators import get_dflo, download_and_cache
-        from rowgenerators import SourceSpec
-        from rowgenerators.exceptions import DownloadError
-        from os.path import basename, splitext
 
         for doc in self.doc.find(['Root.Documentation', 'Root.Image']):
 
-            uv = Url(doc.value)
-            ur = Url(self._ref)
+            real_name, f = self._get_ref_contents(doc)
 
-            if ur.proto == 'file' and uv.proto == 'file':
-
-                path = uv.prefix_path(Url(ur.dirname()).parts.path)
-                ss = SourceSpec(path)
-
-            else:
-
-                ss = SourceSpec(doc.value)
-
-            try:
-                d = download_and_cache(ss, self._cache)
-            except DownloadError as e:
-                self.warn("Failed to load documentation for '{}': {}".format(doc.value, e))
+            if not f:
                 continue
-
-            dflo = get_dflo(ss, d['sys_path'])
-
-            f = dflo.open('rb')
-
-            try:
-                # For file file, the target_file may actually be a regex, so we have to resolve the
-                # regex before using it as a filename
-                real_name = basename(dflo.memo[1].name)  # Internal detail of how Zip files are accessed
-            except (AttributeError, TypeError):
-
-                real_name = basename(ss.target_file)
 
             if doc.term_is('Root.Documentation'):
                 # Prefer the slugified title to the base name, because in cases of collections
@@ -571,12 +583,57 @@ class Package(object):
     def _load_documentation(self, term, contents):
         raise NotImplementedError()
 
+    def _load_files(self):
+        """Load other files"""
+
+        def copy_dir(path):
+            for (dr, _, files) in walk(path):
+                for fn in files:
+
+                    if '__pycache__' in fn:
+                        continue
+
+                    relpath = dr.replace(self.source_dir, '').strip('/')
+                    src = join(dr, fn)
+                    dest = join(relpath, fn)
+
+                    real_name, f = self._download_ss(SourceSpec(src))
+
+                    self._load_file( dest, f.read())
+
+
+        for term in self.resources(term = 'Root.Pythonlib'):
+
+            uv = Url(term.value)
+            ur = Url(self._ref)
+
+            # In the case that the input doc is a file, and the ref is to a file,
+            # try interpreting the file as relative.
+            if ur.proto == 'file' and uv.proto == 'file':
+
+                # Either a file or a directory
+                path = join(self.source_dir, uv.path())
+                if isdir(path):
+                    copy_dir(path)
+
+            else:
+                # Load it as a URL
+                real_name, f = self._get_ref_contents(term)
+                self._load_file(term.value,f.read() )
+
+        nb_dir = join(self.source_dir, 'notebooks')
+
+        if exists(nb_dir) and isdir(nb_dir):
+            copy_dir(nb_dir)
+
+
+
+    def _load_file(self,  filename, contents):
+        raise NotImplementedError()
+
+
     def check_is_ready(self):
         pass
-
-
-class GooglePackage(Package):
-    """A Zip File package"""
 
 
 class FileSystemPackage(Package):
@@ -638,6 +695,8 @@ class FileSystemPackage(Package):
         self._load_documentation_files()
 
         self._load_resources()
+
+        self._load_files()
 
         self._write_dpj()
 
@@ -721,6 +780,36 @@ class FileSystemPackage(Package):
         p._clean_doc()
         ref = p._write_doc()
 
+    def _load_documentation_files(self):
+        from nbconvert.writers import FilesWriter
+        from metatab.jupyter.exporters import DocumentationExporter
+
+        notebook_docs = []
+
+        # First find and remove them from the doc.
+        for term in list(self.doc['Documentation'].find('Root.Documentation')):
+            u = Url(term.value)
+            if u.target_format == 'ipynb':
+                notebook_docs.append(term)
+                self.doc.remove_term(term)
+
+        # Process all of the normal files
+        super()._load_documentation_files()
+
+        de = DocumentationExporter()
+        fw = FilesWriter()
+        fw.build_directory = join(self.package_dir,'docs')
+
+        # Now, generate the documents directly into the filesystem package
+        for term in notebook_docs:
+            u = Url(term.value)
+            nb_path = u.path(self.source_dir)
+
+            output, resources = de.from_filename(nb_path)
+            fw.write(output, resources, notebook_name='notebook')
+
+            de.update_metatab(self.doc, resources)
+
     def _load_documentation(self, term, contents, file_name):
 
         try:
@@ -730,8 +819,6 @@ class FileSystemPackage(Package):
             return
 
         self.prt("Loading documentation for '{}', '{}' ".format(title, file_name))
-
-        # term['url'].value = 'docs/' + file_name
 
         path = join(self.package_dir, 'docs/' + file_name)
 
@@ -743,13 +830,19 @@ class FileSystemPackage(Package):
         with open(path, 'wb') as f:
             f.write(contents)
 
+    def _load_file(self,  filename, contents):
 
-class SocrataPackage(Package):
-    """"""
+        from metatab.util import ensure_dir
 
+        if "__pycache__" in filename:
+            return
 
-class CkanPackage(Package):
-    """"""
+        path = join(self.package_dir, filename)
+
+        ensure_dir(dirname(path))
+
+        with open(path, 'wb') as f:
+            f.write(contents)
 
 
 class CsvPackage(Package):
@@ -920,91 +1013,34 @@ class ZipPackage(Package):
         else:
             return base
 
-    def save(self, path=None):
-
-        self.check_is_ready()
-
-        if not self.doc.find_first_value('Root.Name'):
-            raise PackageError("Package must have Root.Name term defined")
-
-        self.sections.resources.sort_by_term()
-
-        self.load_declares()
-
-        self.doc.cleanse()
-
-        ensure_exists(dirname(self.save_path(path)))
-
-        self._init_zf(path)
-
-        self._load_resources()
-
-        self._write_dpj()
-
-        self._write_html()
-
-        self._clean_doc()
-
-        self._write_doc()
-
-        self.close()
-
-        return self.save_path(path)
-
     def _init_zf(self, path):
 
         from zipfile import ZipFile
 
         self.zf = ZipFile(self.save_path(path), 'w')
 
-    def close(self):
-        if self.zf:
-            self.zf.close()
+    def save(self, path=None):
 
-    def _write_doc(self):
+        self.check_is_ready()
 
-        bio = BytesIO()
-        writer = csv.writer(bio)
+        root_dir = self.doc.find_first_value('Root.Name')
 
-        writer.writerows(self.doc.rows)
+        self._init_zf(path)
 
-        self.zf.writestr(self.package_name + '/metadata.csv', bio.getvalue())
+        for root, dirs, files in walk(self.source_dir):
+            for f in files:
+                source = join(root, f)
+                rel = source.replace(self.source_dir,'').strip('/')
+                dest = join(root_dir, rel)
 
-    def _write_dpj(self):
-        from metatab.datapackage import convert_to_datapackage
-        from metatab import ConversionError
+                self.zf.write(source,dest)
 
-        try:
-            dpj = convert_to_datapackage(self._doc)
-        except ConversionError as e:
-            self.warn(("Error while writing datapackage.json. Skipping: " + str(e)))
-            return
+        self.zf.close()
 
-        self.zf.writestr(self.package_name + '/datapackage.json', json.dumps(dpj, indent=4))
 
-    def _write_html(self):
-        self.zf.writestr(self.package_name + '/index.html', self._doc.html)
+        return self.save_path(path)
 
-    def _load_resource(self, r, gen, headers):
 
-        self.prt("Loading data for '{}'  from '{}'".format(r.name, r.resolved_url))
-
-        r.url = 'data/' + r.name + '.csv'
-
-        bio = BytesIO()
-
-        v = write_csv(bio, headers, gen)
-
-        self.zf.writestr(self.package_name + '/' + r.url, v)
-
-    def _load_documentation(self, term, contents, file_name):
-        title = term['title'].value
-
-        self.prt("Loading documentation for '{}', '{}' ".format(title, file_name))
-
-        term['url'].value = 'docs/' + file_name
-
-        self.zf.writestr(self.package_name + '/' + term['url'].value, contents)
 
 
 class S3Package(Package):

@@ -798,6 +798,7 @@ class MetatabDoc(object):
     def remove_term(self, t):
         """Only removes top-level terms. CHild terms can be removed at the parent. """
 
+
         try:
             self.terms.remove(t)
         except ValueError:
@@ -834,7 +835,14 @@ class MetatabDoc(object):
         """Return a new section"""
         self.sections[name.lower()] = SectionTerm(name, term_args=params, doc=self, parent=self.root)
 
-        return self.sections[name.lower()]
+        # Set the default arguments
+        s = self.sections[name.lower()]
+
+        if name.lower() in self.decl_sections:
+            s.args = self.decl_sections[name.lower()]['args']
+
+        return s
+
 
     def get_or_new_section(self, name, params=None):
         """Create a new section or return an existing one of the same name"""

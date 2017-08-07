@@ -315,7 +315,8 @@ def write_doc(doc, mt_file):
     :return:
     """
 
-    doc['Root']['Modified'] = datetime_now()
+    t = doc['Root'].get_or_new_term('Root.Modified')
+    t.value = datetime_now()
 
     doc['Root'].sort_by_term(order = [
         'Root.Declare',

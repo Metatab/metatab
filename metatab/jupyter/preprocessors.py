@@ -97,6 +97,23 @@ class ExtractMaterializedRefs(Preprocessor):
 
                 self.materilized = loads(o)
 
+        return cell, resources
+
+class ExtractLibDirs(Preprocessor):
+    """Extract the metatab document produced from the %mt_show_metatab magic"""
+
+    lib_dirs = []
+
+    def preprocess_cell(self, cell, resources, index):
+
+        from json import loads
+
+        if cell['metadata'].get('mt_show_libdirs'):
+
+            if cell['outputs']:
+                o = ''.join( e['text'] for e in cell['outputs'])
+
+                self.lib_dirs = loads(o)
 
         return cell, resources
 
@@ -146,6 +163,23 @@ class RemoveMagics(Preprocessor):
             else:
                 cell.source = re.sub(r'\%[^\n]+\n?', '', cell.source)
 
+        return nb, resources
+
+class PrepareScript(Preprocessor):
+    """Add an import so converted scripts can handle some magics"""
+
+    def preprocess(self, nb, resources):
+        import re
+
+        nb.cells  = [from_dict({
+            'cell_type': 'code',
+            'outputs': [],
+            'metadata': { },
+            'execution_count': None,
+            'source': dedent("""
+            from metatab.jupyter.script import get_ipython
+            """)
+        })] + nb.cells
         return nb, resources
 
 class ReplaceMagics(Preprocessor):
@@ -230,6 +264,17 @@ class AddEpilog(Preprocessor):
             'execution_count': None,
             'source': dedent("""
             %mt_show_metatab
+
+            """.format(pkg_dir=self.pkg_dir))
+        }))
+
+        nb.cells.append(from_dict({
+            'cell_type': 'code',
+            'outputs': [],
+            'metadata': {'mt_show_libdirs': True, 'epilog': True},
+            'execution_count': None,
+            'source': dedent("""
+            %mt_show_libdirs
 
             """.format(pkg_dir=self.pkg_dir))
         }))

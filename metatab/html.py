@@ -180,16 +180,22 @@ def documentation_block(doc):
 
         for t in doc.resources(term=['Root.Documentation'], section='Documentation'):
 
-                if t.properties.get('description'):
-                    dl_templ = "{}\n:   {}\n\n"
-                else:
-                    dl_templ = "{} {}\n\n"
+                title = t.properties.get('title')
+                desc = t.properties.get('description')
 
-                doc_links += (dl_templ
-                              .format(linkify(t.resolved_url,
-                                              t.properties.get('title')),
-                                      t.properties.get('description')
-                                      ))
+                if title and desc:
+                    dl_templ = "{}\n:   {}\n\n"
+                elif title:
+                    dl_templ = "{}\n\n"
+                elif desc:
+                    title = desc
+                    dl_templ = "{}\n\n"
+                else:
+                    title = t.value
+                    dl_templ = "{}\n\n"
+
+                doc_links += (dl_templ.format(linkify(t.resolved_url,title), desc))
+
         # The doc_img alt text is so we can set a class for CSS to resize the image.
         # img[alt=doc_img] { width: 100 px; }
 
