@@ -20,20 +20,120 @@ class RemoveDocsFromImages(Preprocessor):
 
     def preprocess_cell(self, cell, resources, index):
 
-        for o in cell.get('outputs',{}):
+        for o in cell.get('outputs', {}):
 
             if not 'metadata' in o:
                 continue
 
-            image_file = o.get('metadata',{}).get('filenames',{}).get('image/png')
+            image_file = o.get('metadata', {}).get('filenames', {}).get('image/png')
 
             if image_file:
-                o['metadata']['filenames']['image/png'] =  image_file.replace('docs/','')
+                o['metadata']['filenames']['image/png'] = image_file.replace('docs/', '')
 
         return cell, resources
 
-class ExtractInlineMetatabDoc(Preprocessor):
-    """Extract the Inlined Metatab document"""
+
+class ScrubPlainText(Preprocessor):
+    """If there is a Latex or HTML representation for data, remove only latex representations
+    This is primarily for bibliographies, where the text/plain version of the bib, which is
+    just the repr() of an HTML object, is showing up in LaTex
+    """
+    doc = None
+
+    def preprocess_cell(self, cell, resources, index):
+
+        for o in cell.get('outputs', {}):
+
+            d = o.get('data', {})
+
+            if ('text/latex' in d or 'text/html' in d) and 'text/plain' in d:
+                del d['text/plain']
+
+        return cell, resources
+
+
+class HtmlBib(Preprocessor):
+    """ Keep only HTML outputs  for biblographies
+    """
+
+    remove_type = 'text/html'
+
+    def preprocess_cell(self, cell, resources, index):
+
+        if 'mt_bibliography' in cell.source or 'mt_data_references' in cell.source:
+            outputs = []
+            for o in cell.get('outputs', {}):
+
+                d = o.get('data', {})
+                remove_keys = [k for k in d.keys() if k != self.remove_type]
+                o['data'] = {k: v for k, v in d.items() if k not in remove_keys}
+
+                if o['data']:
+                    outputs.append(o)
+
+            cell['outputs'] = outputs
+
+        return cell, resources
+
+
+class LatexBib(HtmlBib):
+    """ Keep only Latex outputs  for biblographies
+    """
+
+    remove_type = 'text/latex'
+
+
+class MoveTitleDescription(Preprocessor):
+    """NBConvert preprocessor to remove the %metatab block"""
+
+    def preprocess(self, nb, resources):
+
+        r = super().preprocess(nb, resources)
+
+        return r
+
+    def preprocess_cell(self, cell, resources, index):
+
+        if cell['cell_type'] == 'markdown':
+            tags = cell['metadata'].get('tags', [])
+
+            if 'Title' in tags:
+                m = resources.get('metadata', {})
+                m['name'] = cell.source.strip().replace('#', '')
+                resources['metadata'] = m
+                cell.source = ''
+
+            if 'Description' in tags:
+                cell.source = ''
+
+        return cell, resources
+
+
+class ExtractMetatabTerms(Preprocessor):
+    """Look for tagged markdown cells and use the value to set some metatab doc terms"""
+
+    terms = None
+
+    def preprocess_cell(self, cell, resources, index):
+
+        if not self.terms:
+            self.terms = []
+
+        if cell['cell_type'] == 'markdown':
+
+            tags = cell['metadata'].get('tags', [])
+
+            if 'Title' in tags:
+                self.terms.append(('Root','Root.Title', cell.source.strip().replace('#', '')))
+
+            elif 'Description' in tags:
+                self.terms.append(('Root','Root.Description', cell.source.strip()))
+
+        return cell, resources
+
+class ExtractInlineMetatabDoc(ExtractMetatabTerms):
+    """Extract the Inlined Metatab document. WIll Apply the metatab cell vaules for
+    the Title and Description to the document terms. """
 
     doc = None
 
@@ -44,9 +144,28 @@ class ExtractInlineMetatabDoc(Preprocessor):
 
         if cell['source'].startswith('%%metatab'):
             self.doc = MetatabDoc(TextRowGenerator("Declare: metatab-latest\n" +
-                                                     re.sub(r'\%\%metatab.*\n', '',cell['source'])))
+                                                   re.sub(r'\%\%metatab.*\n', '', cell['source'])))
+        else:
+            cell, resources = super().preprocess_cell(cell,resources,index)
+
 
         return cell, resources
+
+    def preprocess(self, nb, resources):
+
+        r = super().preprocess(nb, resources)
+
+        for section, term, value in self.terms:
+            self.doc[section].get_or_new_term(term, value)
+
+        return r
+
+    def run(self, nb):
+
+        self.preprocess(nb,{})
+
+        return self.doc
+
 
 class ExtractFinalMetatabDoc(Preprocessor):
     """Extract the metatab document produced from the %mt_show_metatab magic"""
@@ -62,7 +181,7 @@ class ExtractFinalMetatabDoc(Preprocessor):
 
         if cell['metadata'].get('mt_final_metatab'):
             if cell['outputs']:
-                o = ''.join( e['text'] for e in cell['outputs'])
+                o = ''.join(e['text'] for e in cell['outputs'])
 
                 self.doc = MetatabDoc(TextRowGenerator(o))
 
@@ -76,6 +195,7 @@ class ExtractFinalMetatabDoc(Preprocessor):
                         pass
 
         return cell, resources
+
 
 class ExtractMaterializedRefs(Preprocessor):
     """Extract the metatab document produced from the %mt_show_metatab magic"""
@@ -93,11 +213,12 @@ class ExtractMaterializedRefs(Preprocessor):
         if cell['metadata'].get('mt_materialize'):
 
             if cell['outputs']:
-                o = ''.join( e['text'] for e in cell['outputs'])
+                o = ''.join(e['text'] for e in cell['outputs'])
 
                 self.materilized = loads(o)
 
         return cell, resources
+
 
 class ExtractLibDirs(Preprocessor):
     """Extract the metatab document produced from the %mt_show_metatab magic"""
@@ -111,11 +232,12 @@ class ExtractLibDirs(Preprocessor):
         if cell['metadata'].get('mt_show_libdirs'):
 
             if cell['outputs']:
-                o = ''.join( e['text'] for e in cell['outputs'])
+                o = ''.join(e['text'] for e in cell['outputs'])
 
                 self.lib_dirs = loads(o)
 
         return cell, resources
+
 
 class RemoveMetatab(Preprocessor):
     """NBConvert preprocessor to remove the %metatab block"""
@@ -135,10 +257,9 @@ class RemoveMetatab(Preprocessor):
                 continue
 
             if source.startswith('%%metatab'):
+                lines = source.splitlines()  # resplit to remove leading blank lines
 
-                lines = source.splitlines() # resplit to remove leading blank lines
-
-                args = parse_argstring(MetatabMagic.metatab, lines[0].replace('%%metatab',''))
+                args = parse_argstring(MetatabMagic.metatab, lines[0].replace('%%metatab', ''))
 
                 cell.source = "%mt_open_package\n"
                 cell.outputs = []
@@ -149,6 +270,7 @@ class RemoveMetatab(Preprocessor):
 
         return nb, resources
 
+
 class RemoveMagics(Preprocessor):
     """Remove line magic lines, or entire cell magic cells"""
 
@@ -157,7 +279,6 @@ class RemoveMagics(Preprocessor):
 
         for i, cell in enumerate(nb.cells):
 
-
             if re.match(r'^\%\%', cell.source):
                 cell.source = ''
             else:
@@ -165,16 +286,17 @@ class RemoveMagics(Preprocessor):
 
         return nb, resources
 
+
 class PrepareScript(Preprocessor):
     """Add an import so converted scripts can handle some magics"""
 
     def preprocess(self, nb, resources):
         import re
 
-        nb.cells  = [from_dict({
+        nb.cells = [from_dict({
             'cell_type': 'code',
             'outputs': [],
-            'metadata': { },
+            'metadata': {},
             'execution_count': None,
             'source': dedent("""
             from metatab.jupyter.script import get_ipython
@@ -182,8 +304,10 @@ class PrepareScript(Preprocessor):
         })] + nb.cells
         return nb, resources
 
+
 class ReplaceMagics(Preprocessor):
     """Replace some magics"""
+
 
 class NoShowInput(Preprocessor):
     """NBConvert preprocessor to add hide_input metatab to cells, except to cells that have either
@@ -203,10 +327,10 @@ class NoShowInput(Preprocessor):
 
                 source = cell['source']
 
-                tags = cell['metadata'].get('tags',[])
+                tags = cell['metadata'].get('tags', [])
 
                 if source.startswith('%mt_showinput') or 'show' in tags:
-                    cell['source'] = re.sub(r'\%mt_showinput','',source)
+                    cell['source'] = re.sub(r'\%mt_showinput', '', source)
                 else:
                     cell['metadata']['hide_input'] = True
 
@@ -216,27 +340,6 @@ class NoShowInput(Preprocessor):
 
         return nb, resources
 
-class ExtractMetatabTerms(Preprocessor):
-    """Look for tagged markdown cells and use the value to set some metatab doc terms"""
-
-    terms = None
-
-    def preprocess_cell(self, cell, resources, index):
-
-        if not self.terms:
-            self.terms = []
-
-        if cell['cell_type'] == 'markdown':
-
-            tags = cell['metadata'].get('tags', [])
-
-            if 'Title' in tags:
-                self.terms.append(('Root.Title', cell.source.strip().replace('#', '')))
-
-            elif 'Description' in tags:
-                self.terms.append(('Root.Description',cell.source.strip() ))
-
-        return cell, resources
 
 
 class AddEpilog(Preprocessor):
@@ -250,7 +353,7 @@ class AddEpilog(Preprocessor):
         nb.cells.append(from_dict({
             'cell_type': 'code',
             'outputs': [],
-            'metadata': {'mt_materialize' : True, 'epilog': True},
+            'metadata': {'mt_materialize': True, 'epilog': True},
             'execution_count': None,
             'source': dedent("""
             %mt_materialize {pkg_dir}

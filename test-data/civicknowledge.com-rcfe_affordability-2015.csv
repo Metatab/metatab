@@ -1,0 +1,103 @@
+Declare,metatab-latest
+Identifier,47bc1089-7584-41f0-b804-602ec42f1249
+Origin,civicknowledge.com
+Dataset,rcfe_affordability
+Version,2
+Time,2015
+Name,civicknowledge.com-rcfe_affordability-2015-2
+Title,San Diego RCFE Affordability Index
+Description,A collection of synthetic datasets that estimate the number of households in San Diego County with one or more seniors which can afford 22 months of residential care.
+
+Section,Contacts,Email,Organization,Tel,Url
+Wrangler,Eric Busboom,eric@civicknowledge.com,,,
+
+Section,References,Name,Title,Description,StartLine,HeaderLines,Encoding
+Reference,censusreporter:B09020/140/05000US06073,B09020,,Relationship by Household Type (Including Living Alone) for Population 65 Years and Over,,,
+Reference,censusreporter:B25007/140/05000US06073,B25007,,Tenure by Age of Householder,,,
+Reference,censusreporter:B19049/140/05000US06073,B19049,,Median Household Income by Age of Householder,,,
+Reference,censusreporter:B19049/050/05000US06073,B19049_county,,Median Household Income by Age of Householder,,,
+Reference,censusreporter:B25076/140/05000US06073,B25076,,Lower Value Quartile (Dollars),,,
+Reference,censusreporter:B25077/140/05000US06073,B25077,,Median Value,,,
+Reference,censusreporter:B25078/140/05000US06073,B25078,,Upper Value Quartile (Dollars),,,
+Reference,censusreporter:B25076/050/05000US06073,B25076_county,,Lower Value Quartile (Dollars),,,
+Reference,censusreporter:B25077/050/05000US06073,B25077_county,,Median Value,,,
+Reference,censusreporter:B25078/050/05000US06073,B25078_county,,Upper Value Quartile (Dollars),,,
+Reference,metatab+http://s3.amazonaws.com/library.metatab.org/sangis.org-census_regions-2010-sandiego-7.csv#tract-sra-msa-xwalk,tracts,,"Crosswalk between crosswalks, tracts, zip codes and SRAs in San Diego County",,,
+Reference,metatab+http://s3.amazonaws.com/library.metatab.org/sangis.org-census_regions-2010-sandiego-7.csv#tracts,tracts_geo,,Geographics Boundaries for Tracts,,,
+Reference,metatab+http://s3.amazonaws.com/library.metatab.org/sangis.org-census_regions-2010-sandiego-7.csv#sra,sra_geo,,Geographics Boundaries for SRAs,,,
+Reference,metatab+http://s3.amazonaws.com/library.metatab.org/ipums.org-income_homevalue-5.zip#income_homeval,incv,,Income and Home value records from IPUMS for San Diego County,,,
+
+Section,Resources,Name,Title,Description,StartLine,HeaderLines,Encoding
+Datafile,file:data/affordability.csv,affordability,Number of seniors who can afford RCFE care. Full final dataset with all columns,,,,
+Datafile,file:data/afford_tracts.csv,afford_tracts,Number of seniors who can afford RCFE care by tract,,,,
+Datafile,file:data/afford_sra.csv,afford_sra,Number of seniors who can afford RCFE care by SRA,,,,
+Datafile,file:data/afford_msa.csv,afford_msa,Number of seniors who can afford RCFE care by MSA,,,,
+
+Section,Bibliography,Name,Type,Author,Title,Year,Month,Publisher,Journal,Version,Volume,Number,Pages,AccessDate,Location,Url,Doi,Issn
+Citation,ipums,,dataset,Steven Ruggles; Katie Genadek; Ronald Goeken; Josiah Grover; Matthew Sobek,Integrated Public Use Microdata Series,2017,,University of Minnesota,,7.0,,,,20170718,,https://usa.ipums.org/usa/index.shtml,https://doi.org/10.18128/D010.V7.0,
+Citation,bordley,,article,Robert F. Bordley; James B. McDonald; Anand Mantrala,"Something New, Something Old: Parametric Models for the Size of Distribution of Income",1997,June,,Journal of Income Distribution,,6,1,5-5,,,https://ideas.repec.org/a/jid/journl/y1997v06i1p5-5.html,,
+Citation,mcdonald,,article,"McDonald, James B.;  Mantrala, Anand",The distribution of personal income: Revisited,1995,,"Wiley Subscription Services, Inc., A Wiley Company",Journal of Applied Econometrics,,10,2,"201--204,",,,,10.1002/jae.3950100208,1099-1255
+Citation,majumder,,article,"Majumder, Amita; Chakravarty, Satya Ranjan",Distribution of personal income: Development of a new model and its application to U.S. income data,1990,,"Wiley Subscription Services, Inc., A Wiley Company",Journal of Applied Econometrics,,5,2,189--196,,,,10.1002/jae.3950050206,1099-1255
+
+Section,Schema,DataType,ValueType,Description
+Table,affordability,,,
+Table.Column,Index,text,,
+Column.Altname,index
+Table.Column,senior_pop,integer,,
+Table.Column,senior_pop_m90,integer,,
+Table.Column,homeown_65,integer,,
+Table.Column,homeown_65_m90,number,,
+Table.Column,renters_65,integer,,
+Table.Column,median_income,number,,
+Table.Column,median_income_25_m90,number,,
+Table.Column,hv_25,integer,,
+Table.Column,hv_25_m90,number,,
+Table.Column,hv_50,integer,,
+Table.Column,hv_50_m90,number,,
+Table.Column,hv_75,number,,
+Table.Column,hv_75_m90,number,,
+Table.Column,tract,number,,
+Table.Column,tract_census_geoid,integer,,
+Table.Column,sra,integer,,
+Table.Column,sra_name,text,,
+Table.Column,msa,integer,,
+Table.Column,msa_name,text,,
+Table.Column,lon,number,,
+Table.Column,lat,number,,
+Table.Column,can_afford,integer,,
+Table.Column,counts,integer,,
+Table.Column,cant_afford,integer,,
+Table.Column,afford_pct,integer,,
+Table,afford_tracts,,,
+Table.Column,Index,text,,
+Column.Altname,index
+Table.Column,senior_pop,integer,,"Number of seniors, aged 65+"
+Table.Column,can_afford,integer,,Number of seniors who can afford RCFE care
+Table.Column,afford_pct,integer,,Percentage of seniors who can afford RCFE care
+Table.Column,score,integer,,Affordability Score
+Table,afford_sra,,,
+Table.Column,Index,text,,
+Column.Altname,index
+Table.Column,can_afford,integer,,Number of seniors who can afford RCFE care
+Table.Column,senior_pop,integer,,"Number of seniors, aged 65+"
+Table.Column,afford_pct,number,,Percentage of seniors who can afford RCFE care
+Table.Column,score,number,,Affordability Score
+Table,afford_msa,,,
+Table.Column,Index,text,,
+Column.Altname,index
+Table.Column,can_afford,integer,,Number of seniors who can afford RCFE care
+Table.Column,senior_pop,integer,,"Number of seniors, aged 65+"
+Table.Column,afford_pct,integer,,Percentage of seniors who can afford RCFE care
+Table.Column,score,integer,,Affordability Score
+
+Section,Documentation,Name,Title,Description
+Documentation,docs/notebook.html,notebook.html,Jupyter Notebook (HTML),
+Image,docs/image_7_0.png,,Image for HTML Documentation,
+Image,docs/image_9_0.png,,Image for HTML Documentation,
+Image,docs/image_25_0.png,,Image for HTML Documentation,
+Image,docs/image_33_0.png,,Image for HTML Documentation,
+Image,docs/image_34_0.png,,Image for HTML Documentation,
+Image,docs/image_35_0.png,,Image for HTML Documentation,
+Image,docs/image_36_0.png,,Image for HTML Documentation,
+Documentation,docs/documentation.md,,Documentation (Markdown),
+Documentation,docs/documentation.html,,Primary Documentation (HTML),

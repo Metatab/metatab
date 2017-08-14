@@ -14,17 +14,19 @@ import six
 from genericpath import isdir
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, \
                     MetatabDoc, ConversionError
+from metatab.jupyter.convert import convert_documentation, convert_notebook
 from metatab.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, \
     get_lib_module_dict, write_doc, datetime_now, \
     make_excel_package, make_filesystem_package, make_csv_package, make_zip_package, update_name, \
     cli_init, process_schemas, extract_path_name
-from metatab.util import make_metatab_file, copytree, ensure_dir
+from metatab.util import make_metatab_file
 from os import getcwd
 from os.path import dirname, abspath, exists
 from rowgenerators import get_cache, SourceError, Url
 from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
 from tableintuit import RowIntuitError
+
 
 def metapack():
     import argparse
@@ -80,6 +82,9 @@ def metapack():
 
     build_group.add_argument('-M', '--make-package', default=False, action='store_true',
                              help='Build a package from a Jupyter notebook')
+
+    build_group.add_argument('-D', '--make-documentation', default=False, action='store_true',
+                             help='With -M, make only the documentation')
 
     ##
     ## Derived Package Group
@@ -181,7 +186,11 @@ def metapack():
         if not m.mtfile_url.target_format == 'ipynb':
             err("Input must be a Jupyter notebook file")
 
-        convert_notebook(m)
+        if m.args.make_documentation:
+            convert_documentation(m)
+            sys.exit(0)
+        else:
+            convert_notebook(m)
 
     if m.args.info:
         metatab_info(m.cache)
@@ -204,7 +213,6 @@ def metapack():
 
 
 def metatab_build_handler(m):
-
 
 
     if m.args.create is not False:
@@ -498,7 +506,6 @@ def add_single_resource(doc, ref, cache, seen_names):
                                      headerlines=','.join(str(e) for e in header_lines),
                                      encoding=encoding)
 
-
 def run_row_intuit(path, cache):
     from rowgenerators import RowGenerator
     from tableintuit import RowIntuiter
@@ -518,79 +525,6 @@ def run_row_intuit(path, cache):
     raise RowIntuitError('Failed to convert with any encoding')
 
 
-def add_doc_refs(doc_path, doc_refs):
-
-    doc = MetatabDoc(doc_path)
-
-    if not 'Documentation' in doc:
-        doc.get_or_new_section('Documentation',['Name','Title','Description'])
-
-    s = doc['Documentation']
-
-    for r in doc_refs:
-        t = s.new_term(r['term'], r['ref'],name=r['name'], title=r['title'])
-
-    doc.write_csv()
-
-
-def convert_notebook(m):
-
-    from .core import logger
-    from traitlets.config import Config
-    from metatab.jupyter.exporters import PackageExporter, DocumentationExporter
-    from nbconvert.writers import FilesWriter
-    from os.path import normpath
-
-    prt('Convert notebook to Metatab source package')
-    nb_path = Url(m.mt_file).parts.path
-
-    c = Config()
-
-    pe = PackageExporter(config=c, log=logger)
-
-    prt('Runing the notebook')
-    output, resources = pe.from_filename(nb_path)
-
-    fw = FilesWriter()
-    fw.build_directory = pe.output_dir
-
-    fw.write(output, resources, notebook_name=DEFAULT_METATAB_FILE)
-
-    de = DocumentationExporter(config=c, log=logger)
-
-    prt('Exporting documentation')
-    output, resources = de.from_filename(nb_path)
-
-    fw.build_directory = join(pe.output_dir,'docs')
-    fw.write(output, resources, notebook_name='notebook')
-
-    new_mt_file = join(pe.output_dir, DEFAULT_METATAB_FILE)
-
-    doc = MetatabDoc(new_mt_file)
-
-    de.update_metatab(doc, resources)
-
-    for term, value in pe.extra_terms:
-        doc['Root'].get_or_new_term(term, value)
-
-    for lib_dir in pe.lib_dirs:
-
-        lib_dir = normpath(lib_dir).lstrip('./')
-
-        doc['Resources'].new_term("Root.PythonLib", lib_dir)
-
-        path = abspath(lib_dir)
-        dest = join(pe.output_dir, lib_dir)
-
-        ensure_dir(dest)
-        copytree(path, join(pe.output_dir, lib_dir))
-
-    doc.write_csv()
-
-    # Reset the input to use the new data
-
-    prt('Running with new package file: {}'.format(new_mt_file))
-    m.init_stage2(new_mt_file, '')
 
 DATA_FORMATS = ('xls', 'xlsx', 'tsv', 'csv')
 DOC_FORMATS = ('pdf', 'doc', 'docx', 'html')

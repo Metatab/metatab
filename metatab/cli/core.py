@@ -342,15 +342,18 @@ def write_doc(doc, mt_file):
     ])
 
     import subprocess
-    out = subprocess.run(['git', 'remote', 'show','origin'], stdout=subprocess.PIPE, timeout=6)\
-        .stdout.decode('utf-8')
 
-    fetchline = next(l.split() for l in out.splitlines() if 'Fetch' in l )
+    try:
+        out = subprocess.run(['git', 'remote', 'show','origin'], stdout=subprocess.PIPE, timeout=6)\
+            .stdout.decode('utf-8')
+
+        fetchline = next(l.split() for l in out.splitlines() if 'Fetch' in l )
+    except TimeoutError:
+        fetchline = None
 
     if fetchline:
         t = doc['Root'].get_or_new_term('GitUrl')
         t.value = fetchline[-1]
-
 
     u = Url(mt_file)
 

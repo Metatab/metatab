@@ -1037,10 +1037,7 @@ class ZipPackage(Package):
 
         self.zf.close()
 
-
         return self.save_path(path)
-
-
 
 
 class S3Package(Package):

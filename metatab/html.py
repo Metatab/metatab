@@ -5,10 +5,24 @@
 Create Markdown and HTML of datasets.
 """
 
-import six
+import datetime
+
 from markdown import markdown as convert_markdown
-from rowgenerators.fetch import download_and_cache
+
+from nameparser import HumanName
+from pybtex import PybtexEngine
+from pybtex.backends.html import Backend as HtmlBackend
+from pybtex.style.formatting import toplevel
+from pybtex.style.formatting.plain import Style
+from pybtex.style.template import (
+    words, together, field, sentence, optional_field, href, optional
+)
 from rowgenerators import SourceSpec
+from rowgenerators import Url
+from rowgenerators.fetch import download_and_cache
+from yaml import safe_dump
+from .doc import MetatabDoc
+
 
 dl_templ = "{}\n:   {}\n\n"
 
@@ -20,7 +34,6 @@ def ns(v):
 
 def linkify(v, description=None, cwd_url=None):
     from rowgenerators import Url
-    from os.path import abspath
 
     if not v:
         return None
@@ -42,8 +55,6 @@ def linkify(v, description=None, cwd_url=None):
 
 
 def resource(r, fields=None):
-    from operator import itemgetter
-
     fields = fields or (
         ('Header', 'header'),
         ('Datatype', 'datatype'),
@@ -63,8 +74,8 @@ def resource(r, fields=None):
            "\n".join("<tr>{}</tr>".format(row) for row in rows) + \
            '</table>\n'
 
-def ckan_resource_markdown(r, fields=None):
 
+def ckan_resource_markdown(r, fields=None):
     fields = fields or (
         ('Header', 'header'),
         ('Datatype', 'datatype'),
@@ -73,7 +84,6 @@ def ckan_resource_markdown(r, fields=None):
 
     headers = [f[0] for f in fields]
     keys = [f[1] for f in fields]
-
 
     def col_line(c):
         return "* **{}** ({}): {}\n".format(
@@ -88,10 +98,7 @@ def ckan_resource_markdown(r, fields=None):
     )
 
 
-
 def resource_block(doc, fields=None):
-    import sys
-
     if fields is None:
         fields = [
             ('Header', 'header'),
@@ -180,21 +187,21 @@ def documentation_block(doc):
 
         for t in doc.resources(term=['Root.Documentation'], section='Documentation'):
 
-                title = t.properties.get('title')
-                desc = t.properties.get('description')
+            title = t.properties.get('title')
+            desc = t.properties.get('description')
 
-                if title and desc:
-                    dl_templ = "{}\n:   {}\n\n"
-                elif title:
-                    dl_templ = "{}\n\n"
-                elif desc:
-                    title = desc
-                    dl_templ = "{}\n\n"
-                else:
-                    title = t.value
-                    dl_templ = "{}\n\n"
+            if title and desc:
+                dl_templ = "{}\n:   {}\n\n"
+            elif title:
+                dl_templ = "{}\n\n"
+            elif desc:
+                title = desc
+                dl_templ = "{}\n\n"
+            else:
+                title = t.value
+                dl_templ = "{}\n\n"
 
-                doc_links += (dl_templ.format(linkify(t.resolved_url,title), desc))
+            doc_links += (dl_templ.format(linkify(t.resolved_url, title), desc))
 
         # The doc_img alt text is so we can set a class for CSS to resize the image.
         # img[alt=doc_img] { width: 100 px; }
@@ -204,9 +211,7 @@ def documentation_block(doc):
                           .format('doc_img', t.resolved_url, t.properties.get('title'),
                                   t.resolved_url))
 
-
         for t in doc.resources(term='Root.Note', section='Documentation'):
-
             notes.append(t.value)
 
 
@@ -219,76 +224,79 @@ def documentation_block(doc):
            ("\n\n## Documentation Links\n" + doc_links if doc_links else '')
 
 
-from pybtex.style.formatting.plain import Style
-from pybtex.backends.html import Backend
 
-from pybtex.style.formatting import toplevel, find_plugin
-from pybtex.style.template import (
-    join, words, together, field, optional, first_of,
-    names, sentence, tag, optional_field, href
-)
-from pybtex.richtext import Text, Symbol
+
 class MetatabStyle(Style):
     # Minnesota Population Center. IPUMS Higher Ed: Version 1.0 [dataset]
     # Minneapolis, MN: University of Minnesota, 2016. http://doi.org/10.18128/D100.V1.0.
 
     def format_url(self, e):
-
-        return words [
-            href [
+        return words[
+            href[
                 field('url', raw=True),
                 field('url', raw=True)
-                ]
+            ]
         ]
 
     def format_accessed(self, e):
         from dateutil.parser import parser
 
-        return words [
+        return words[
             'Accessed',
             field('accessdate', raw=True, apply_func=lambda v: str(parser().parse(v).strftime("%d %b %Y")))
         ]
 
     def format_dataset(self, e):
-        date = words[optional_field('month'), field('year')]
 
         template = toplevel[
-            self.format_author_or_editor(e),
+            optional[sentence[field('origin')]],
             self.format_btitle(e, 'title'),
-            sentence[together[ 'Version', optional_field('version')]],
-            sentence[
-                field('publisher'),
-                date
-            ],
+            optional[sentence[together['Version', field('version')]]],
+            optional[sentence[field('publisher') ]],
+            optional[self.format_author_or_editor(e)],
+            optional[words[optional_field('month'), field('year')]],
             self.format_web_refs(e),
             self.format_accessed(e)
         ]
 
-
         return template.format_data(e)
 
-class MetatabHtmlBackend(Backend):
 
+class MetatabHtmlBackend(HtmlBackend):
     def write_prologue(self):
         pass
-        #super().write_prologue()
+        # super().write_prologue()
 
     def write_epilogue(self):
         pass
-        #super().write_epilogue()
+        # super().write_epilogue()
 
     def write_entry(self, key, label, text):
         self.output("<div class='citation'><a name=\"{key}\"><b>[{key}]</b></a> {text} </div>"
                     .format(key=key, text=text))
 
 
-def citation(t):
-    from pybtex import PybtexEngine
-    from nameparser import HumanName
-    from yaml import safe_dump
+def make_citation_dict(td):
+    """
+    Update a citation dictionary by editing the Author field
+    :param td: A BixTex format citation dict or a term
+    :return:
+    """
 
-    d = t.as_dict()
-    if 'author' in d:
+    if isinstance(td, dict):
+        d = td
+        name = d['name']
+    else:
+
+        d = td.as_dict()
+        d['_term'] = td
+
+        try:
+            d['name'] = td.name
+        except AttributeError:
+            d['name'] = td['name'].value
+
+    if 'author' in d and isinstance(d['author'], str):
         authors = []
         for e in d['author'].split(';'):
             author_d = HumanName(e).as_dict(include_empty=False)
@@ -298,21 +306,162 @@ def citation(t):
             authors.append(author_d)
         d['author'] = authors
 
-    return PybtexEngine().format_from_string(safe_dump({ 'entries' : {  t.value : d } }),
+    if not 'type' in d:
+
+        if '_term' in d:
+            t = d['_term']
+
+            if t.term_is('Root.Reference') or t.term_is('Root.Resource'):
+                d['type'] = 'dataset'
+
+            elif t.term_is('Root.Citation'):
+                d['type'] = 'article'
+            else:
+                d['type'] = 'article'
+
+    if d['type'] == 'dataset':
+
+        if not 'editor' in d:
+            d['editor'] = [HumanName('Missing Editor').as_dict(include_empty=False)]
+
+        if not 'accessdate' in d:
+            d['accessdate'] = datetime.now().strftime('%Y-%m-%d')
+
+    if not 'author' in d:
+        d['author'] = [HumanName('Missing Author').as_dict(include_empty=False)]
+
+    if not 'title' in d:
+        d['title'] = d.get('description', '<Missing Title>')
+
+    if not 'journal' in d:
+        d['journal'] = '<Missing Journal>'
+
+    if not 'year' in d:
+        d['year'] = '<Missing Year>'
+
+    if '_term' in d:
+        del d['_term']
+
+    return d
+
+
+def make_metatab_citation_dict(t):
+    """
+    Return a dict with BibText key/values for metatab data
+    :param t:
+    :return:
+    """
+
+    try:
+
+        if Url(t.url).proto == 'metatab':
+
+            try:
+                url = Url(str(t.resolved_url)).resource_url
+                doc = t.row_generator.generator.package
+
+            except AttributeError as e:
+                return False  # It isn't a resource or reference
+
+            creator = doc.find_first('Root.Creator')
+            author_key='author'
+
+            if not creator:
+                creator = doc.find_first('Root.Wrangler')
+                author_key = 'editor'
+
+            if not creator:
+                creator = doc.find_first('Root.Origin')
+                author_key = 'editor'
+
+            try:
+                origin = doc['Contacts'].get('Root.Origin').get('organization').value
+            except AttributeError:
+                try:
+                    origin = doc.get_value('Root.Origin', doc.get_value('Name.Origin')).title()
+                except:
+                    origin = None
+
+            d = {
+                'type': 'dataset',
+                'name': t.name,
+                author_key: [HumanName(creator.value).as_dict(include_empty=False)],
+                'publisher': creator.properties.get('organization'),
+                'origin': origin,
+                'journal': '2010 - 2015 American Community Survey',
+                'title': doc['Root'].find_first_value('Root.Title') + '; ' + t.name,
+                'year': doc.get_value('Root.Year'),
+                'accessDate': '{}'.format(datetime.datetime.now().strftime('%Y-%m-%d')),
+                'url': url,
+                'version': doc.get_value('Root.Version', doc.get_value('Name.Version') ),
+            }
+
+            d =  { k:v for k, v in d.items() if v is not None}
+
+
+            return d
+
+
+        else:
+            return False
+
+    except (AttributeError, KeyError) as e:
+        raise
+        return False
+
+
+def _bibliography(doc, terms, converters=[], format='html'):
+    """
+    Render citations, from a document or a doct of dicts
+
+    If the input is a dict, each key is the name of the citation, and the value is a BibTex
+    formatted dict
+
+    :param doc: A MetatabDoc, or a dict of BibTex dicts
+    :return:
+    """
+
+    output_backend = 'latex' if format == 'latex' else MetatabHtmlBackend
+
+    def mk_cite(v):
+        for c in converters:
+            r = c(v)
+
+            if r is not False:
+                return r
+
+        return make_citation_dict(v)
+
+    if isinstance(doc, MetatabDoc):
+        # This doesn't work for LaTex, b/c the formatter adds the prologue and epilogue to eery entry
+
+        d = [mk_cite(t) for t in terms]
+
+        cd = {e['name']: e for e in d}
+
+    else:
+
+        cd = {k: mk_cite(v, i) for i, (k, v) in enumerate(doc.items())}
+
+    # for k, v in cd.items():
+    #    print (k, v)
+
+    return PybtexEngine().format_from_string(safe_dump({'entries': cd}),
                                              style=MetatabStyle,
-                                             output_backend=MetatabHtmlBackend,
+                                             output_backend=output_backend,
                                              bib_format='yaml')
 
-def bibliography(doc):
 
-    entries = []
+def bibliography(doc, converters=[], format='html'):
+    terms = list(doc.get_section('Bibliography', []))
 
-    for t in doc.get_section('Bibliography', []):
-        entries.append(citation(t))
-
-    return '\n'.join(entries)
+    return _bibliography(doc, terms, converters, format)
 
 
+def data_sources(doc, converters=[], format='html'):
+    terms = list(doc.references()) + list(doc.resources())
+
+    return _bibliography(doc, terms, converters, format)
 
 
 def identity_block(doc):
@@ -349,6 +498,7 @@ def modtime_str(doc):
         modtime_str = ''
 
     return modtime_str
+
 
 def markdown(doc):
     """Markdown, specifically for the Notes field in a CKAN dataset"""

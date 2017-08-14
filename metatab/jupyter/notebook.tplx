@@ -1,0 +1,38 @@
+((*- extends 'article.tplx' -*))
+
+((* block docclass *))
+\documentclass[11pt]{article}
+\usepackage{authblk}
+((* endblock docclass *))
+
+((* block maketitle *))
+
+((*- if nb.metadata.metatab.author.name: -*))
+    \author{((( nb.metadata.metatab.author.name )))}
+((*- endif *))
+
+((*- if nb.metadata.metatab.author.organization : -*))
+    \affil{((( nb.metadata.metatab.author.organization )))}
+((*- else -*))
+    \affil{University of Nope}
+((*- endif *))
+
+((*- if nb.metadata.metatab.title: -*))
+    \title{((( nb.metadata.metatab.title )))}
+((*- endif *))
+\date{\today}
+\maketitle
+
+((*- if nb.metadata.metatab.description: -*))
+\begin{abstract}
+    ((( nb.metadata.metatab.description )))
+\end{abstract}
+((*- endif *))
+
+
+
+((* endblock maketitle *))
+
+% Disable input cells
+((* block input_group *))
+((* endblock input_group *))

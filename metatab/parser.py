@@ -82,9 +82,8 @@ class Term(object):
         self.row = row
         self.col = col
 
-
         if self.parent:
-            assert self.parent.record_term_lc == self.parent_term_lc, term
+            assert self.parent.record_term_lc == self.parent_term_lc, (term, self.parent.record_term_lc, self.parent_term_lc)
 
         # When converting to a dict, what dict to to use for the self.value value
         self.term_value_name = '@value'  # May be change in term parsing
@@ -284,6 +283,24 @@ class Term(object):
                 raise KeyError("Failed to find key '{}' in term '{}'".format(item, str(self)))
 
             return c
+
+    def __contains__(self, item):
+
+        if item.lower() == 'value':
+            return True
+
+        return  item.lower() in self.properties
+
+    def __getattr__(self, item):
+        """Maps values to attributes.
+        Only called if there *isn't* an attribute with this name
+        """
+        try:
+            # Normal child
+            return self.__getitem__(item).value
+        except KeyError:
+            raise AttributeError(item)
+
 
     def get(self, item, default = None):
         """Get a child"""

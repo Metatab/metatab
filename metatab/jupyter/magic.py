@@ -17,7 +17,7 @@ import docopt
 
 from IPython import get_ipython
 from IPython.core.magic import Magics, magics_class, line_magic, cell_magic
-from IPython.display import display_html, display, HTML
+from IPython.display import  display, HTML, Latex
 from collections import OrderedDict
 from metatab import MetatabDoc
 from metatab.cli.core import process_schemas
@@ -25,7 +25,7 @@ from metatab.generate import TextRowGenerator
 from os import makedirs, getcwd
 from os.path import join, abspath, dirname, exists, normpath
 from warnings import warn
-from metatab.html import bibliography
+from metatab.html import bibliography, data_sources
 
 from IPython.core.magic_arguments import (argument, magic_arguments,
                                           parse_argstring)
@@ -86,11 +86,10 @@ class MetatabMagic(Magics):
         inline_doc = MetatabDoc(TextRowGenerator("Declare: metatab-latest\n" + cell))
 
         extant_identifier = inline_doc.get_value('Root.Identifier')
+
         extant_name = inline_doc.get_value('Root.Name')
 
-        inline_doc['Root'].get_or_new_term('Root.Name')
-
-        inline_doc.update_name(force=True)
+        inline_doc.update_name(force=True, create_term=True)
 
         if not 'Resources' in inline_doc:
             inline_doc.new_section('Resources', ['Name', 'Description'])
@@ -226,7 +225,7 @@ class MetatabMagic(Magics):
         if not exists(dirname(path)):
             makedirs(dirname(path))
 
-        df = self.shell.user_ns[df_name]
+        df = self.shell.user_ns[df_name].fillna('')
 
         gen = PandasDataframeSource(SourceSpec(str(u)), df, cache=doc._cache)
 
@@ -313,21 +312,92 @@ class MetatabMagic(Magics):
             self.shell.user_ns['_notebook_dir'] = dirname(self.shell.user_ns['_notebook_path'])
 
     @magic_arguments()
+    @argument('--format', help="Format, html or latex. Defaults to 'all' ", default='all', nargs='?', )
+    @argument('converters', help="Class names for citation converters", nargs='*', )
     @line_magic
     def mt_bibliography(self, line):
         """Display, as HTML, the bibliography for the metatab document. With no argument,
          concatenate all doc, or with an arg, for only one. """
 
-        return HTML(bibliography(self.mt_doc))
+        args = parse_argstring(self.mt_bibliography, line)
+
+        def import_converter(name):
+            components = name.split('.')
+            mod = __import__(components[0])
+            for comp in components[1:]:
+                mod = getattr(mod, comp)
+            return mod
+
+        converters = [ import_converter(e) for e in args.converters ]
+
+        if args.format == 'html' or args.format == 'all':
+            display(HTML(bibliography(self.mt_doc, converters=converters, format='html')))
+
+        if args.format == 'latex' or args.format == 'all':
+            display(Latex(bibliography(self.mt_doc, converters=converters, format='latex')))
+
+    @magic_arguments()
+    @argument('--format', help="Format, html or latex. Defaults to 'all' ", default='all', nargs='?', )
+    @argument('converters', help="Class names for citation converters", nargs='*', )
+    @line_magic
+    def mt_data_references(self, line):
+        """Display, as HTML, the bibliography for the metatab document. With no argument,
+         concatenate all doc, or with an arg, for only one. """
+
+        args = parse_argstring(self.mt_bibliography, line)
+
+        def import_converter(name):
+            components = name.split('.')
+            mod = __import__(components[0])
+            for comp in components[1:]:
+                mod = getattr(mod, comp)
+            return mod
+
+        converters = [import_converter(e) for e in args.converters]
+
+        if args.format == 'html' or args.format == 'all':
+            display(HTML(data_sources(self.mt_doc, converters=converters, format='html')))
+
+        if args.format == 'latex' or args.format == 'all':
+            display(Latex(data_sources(self.mt_doc, converters=converters, format='latex')))
 
     @magic_arguments()
     @argument('lib_dir', help='Directory', nargs='?',)
     @line_magic
     def mt_lib_dir(self, line):
-        """Declare a source code directory and add it to the sys path. defaults to ./lib, which
-        may either be in the same dir as the Notebook, or one level up.
+        """Declare a source code directory and add it to the sys path
+
+        The argument may be a directory, a URL to a Metatab ZIP archive, or a reference to a
+        Root.Reference or Root.Resource term that references a Metatab ZIP Archive
+
+        If lib_dir is not specified, it defaults to 'lib'
+
+        If lib_dir is a directory, the target is either at the same level as the CWD or
+        one level up.
+
+        If lib_dir is a URL, it must point to a Metatab ZIP archive that has an interal Python
+        package directory. The URL may hav path elements after the ZIP archive to point
+        into the ZIP archive. For instance:
+
+            %mt_lib_dir http://s3.amazonaws.com/library.metatab.org/ipums.org-income_homevalue-5.zip
+
+        If lib_dir is anything else, it is a reference to the name of a Root.Reference or Root.Resource term that
+        references a Metatab ZIP Archive. For instance:
+
+            %%metatab
+            ...
+            Section: References
+            Reference: metatab+http://s3.amazonaws.com/library.metatab.org/ipums.org-income_homevalue-5.zip#income_homeval
+            ...
+
+
+            %mt_lib_dir incv
+            from lib.incomedist import *
 
         """
+
+        from rowgenerators import Url, download_and_cache, get_cache, SourceSpec
+        from os.path import splitext, basename
 
         args = parse_argstring(self.mt_lib_dir, line)
 
@@ -337,19 +407,54 @@ class MetatabMagic(Magics):
         else:
             lib_dir = args.lib_dir
 
-        lib_dir = normpath(lib_dir).lstrip('./')
+        u = Url(lib_dir)
 
-        if not '_lib_dirs' in self.shell.user_ns:
-            self.shell.user_ns['_lib_dirs'] = set()
+        # Assume files are actually directories
+        if u.proto == 'file':
 
-        for path in [ abspath(lib_dir), abspath(join('..',lib_dir))]:
-            if exists(path):
-                sys.path.append(path)
-                self.shell.user_ns['_lib_dirs'].add(lib_dir)
-                return
+            lib_dir = normpath(lib_dir).lstrip('./')
+
+            if not '_lib_dirs' in self.shell.user_ns:
+                self.shell.user_ns['_lib_dirs'] = set()
+
+            for path in [ abspath(lib_dir), abspath(join('..',lib_dir))]:
+                if exists(path) and path not in sys.path:
+                    sys.path.insert(0,path)
+                    self.shell.user_ns['_lib_dirs'].add(lib_dir)
+                    return
 
 
-        logger.error("Library directory does not exist: {} ".format(lib_dir))
+        # Assume URLS are to Metapack packages on the net
+        if (u.proto == 'https' or u.proto == 'http'):
+
+            cache = get_cache('metapack')
+
+            d = download_and_cache(SourceSpec(lib_dir), cache)
+
+            zip_path = d['sys_path']
+
+            # The path has to be a Metatab ZIP archive, and the root directory must be the same as
+            # the name of the path
+
+            pkg_name, _ = splitext(basename(zip_path))
+
+            lib_path = join(zip_path,pkg_name)
+
+            if lib_path not in sys.path:
+                sys.path.insert(0,lib_path)
+
+        # Assume anything else is a Metatab Reference term name
+        elif self.mt_doc and (self.mt_doc.reference(lib_dir) or self.mt_doc.resource(lib_dir) ) :
+
+            r = self.mt_doc.reference(lib_dir) or self.mt_doc.resource(lib_dir)
+
+
+            ur = Url(r.url).rebuild_url(fragment=False, proto=False, scheme_extension=False)
+
+            return self.mt_lib_dir(ur)
+
+        else:
+            logger.error("Can't find library directory: '{}' ".format(lib_dir))
 
 
     @line_magic

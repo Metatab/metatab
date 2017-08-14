@@ -105,6 +105,8 @@ EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination
 
 
 class Resource(Term):
+
+    # These property names should return null if they aren't actually set.
     _common_properties = 'url name description schema'.split()
 
     def __init__(self, term, base_url, package=None, env=None, code_path=None):
@@ -1225,19 +1227,19 @@ class MetatabDoc(object):
 
         self.ensure_identifier()
 
-        orig_name_t = self['Root'].find_first('Root.Name')
+        orig_name = self.find_first_value('Root.Name')
 
-        if not orig_name_t:
+        if not orig_name:
             if create_term:
-                orig_name_t = self['Root'].new_term('Root.Name', '')
+                self['Root'].new_term('Root.Name', '')
+                orig_name = ''
             else:
                 updates.append("No Root.Name, can't update name")
                 return updates
 
-        orig_name = orig_name_t.value
         identifier = self.get_value('Root.Identifier')
 
-        datasetname = orig_name_t.get_value('Name.Dataset', self.get_value('Root.Dataset'))
+        datasetname = self.get_value('Root.Dataset')
 
         if datasetname:
 
@@ -1267,6 +1269,7 @@ class MetatabDoc(object):
             # not set it to the identity.
             updates.append("No Root.Dataset, so can't update the name")
 
+
         return updates
 
     def _generate_identity_name(self):
@@ -1286,13 +1289,19 @@ class MetatabDoc(object):
         except (ValueError, TypeError):
             version = ver_value
 
+        # The Name.* version is deprecated, but still exists in some older
+        # files. It should be change to a deprecation warning
         origin = name_t.get_value('Name.Origin', self.get_value('Root.Origin'))
         time = name_t.get_value('Name.Time', self.get_value('Root.Time'))
         space = name_t.get_value('Name.Space', self.get_value('Root.Space'))
         grain = name_t.get_value('Name.Grain', self.get_value('Root.Grain'))
+        variant = name_t.get_value('Name.Variant', self.get_value('Root.Variant'))
 
-        parts = [slugify(str(e).replace('-', '_')) for e in (origin, datasetname, time, space, grain, version) if
-                 e and str(e).strip()]
+
+
+        parts = [slugify(str(e).replace('-', '_')) for e in (
+                    origin, datasetname, time, space, grain, variant, version)
+                    if e and str(e).strip()]
 
         return '-'.join(parts)
 
