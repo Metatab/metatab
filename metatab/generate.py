@@ -13,16 +13,17 @@ def generateRows(ref, cache=None):
     from inspect import isgenerator
     from six import string_types
 
-    if isinstance(ref, (list,tuple)):
+    if isinstance(ref, (list, tuple)):
         rg = MetatabRowGenerator(ref)
     elif isgenerator(ref):
         rg = MetatabRowGenerator(ref)
     elif isinstance(ref, string_types):
         rg = GenericRowGenerator(ref, cache=cache)
     else:
-        raise GenerateError("Cant figure out how to generate rows from ref: "+str(ref))
+        raise GenerateError("Cant figure out how to generate rows from ref: " + str(ref))
 
     return rg
+
 
 class MetatabRowGenerator(object):
     """An object that generates rows. The current implementation mostly just a wrapper around
@@ -46,6 +47,7 @@ class MetatabRowGenerator(object):
     def __iter__(self):
         for row in self._rows:
             yield row
+
 
 # FIXME: Can probably remove this class in favor of GenericRowGenerator
 class CsvUrlRowGenerator(MetatabRowGenerator):
@@ -88,6 +90,7 @@ class CsvUrlRowGenerator(MetatabRowGenerator):
             yield row
 
         self.close()
+
 
 # FIXME: Can probably remove this class in favor of GenericRowGenerator
 class CsvPathRowGenerator(MetatabRowGenerator):
@@ -136,6 +139,7 @@ class CsvPathRowGenerator(MetatabRowGenerator):
 
         self.close()
 
+
 # FIXME: Can probably remove this class in favor of GenericRowGenerator
 class CsvDataRowGenerator(MetatabRowGenerator):
     """Generate rows from CSV data, as a string
@@ -165,6 +169,7 @@ class CsvDataRowGenerator(MetatabRowGenerator):
         for row in csv.reader(f):
             yield row
 
+
 class GenericRowGenerator(MetatabRowGenerator):
     """Use generators from the rowgenerator package"""
 
@@ -183,21 +188,18 @@ class GenericRowGenerator(MetatabRowGenerator):
         pass
 
     def __iter__(self):
-
         from rowgenerators import SourceSpec
 
         spec = SourceSpec(url=self._url)
 
-
         for row in spec.get_generator(self._cache):
             yield row
+
 
 class TextRowGenerator(MetatabRowGenerator):
     """Return lines of text of a line-oriented metatab file, breaking them to be used as Metatab rows"""
 
-
     def __init__(self, ref, path=None):
-
 
         while True:
 
@@ -223,7 +225,6 @@ class TextRowGenerator(MetatabRowGenerator):
             except:
                 pass
 
-
             text = ref
             break
 
@@ -244,8 +245,6 @@ class TextRowGenerator(MetatabRowGenerator):
         import re
 
         for row in self._text_lines:
-            if re.match(r'^\s*#', row): # Skip comments
+            if re.match(r'^\s*#', row):  # Skip comments
                 continue
-            yield [e.strip() for e in row.split(':',1)]
-
-
+            yield [e.strip() for e in row.split(':', 1)]

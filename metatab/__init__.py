@@ -4,6 +4,8 @@
 Record objects for the Simple Data Package format.
 """
 
+DEFAULT_METATAB_FILE = 'metadata.csv'
+
 from .parser import *
 from .exc import *
 from .generate import *

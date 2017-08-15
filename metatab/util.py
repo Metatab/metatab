@@ -7,9 +7,13 @@ import logging
 import os
 import shutil
 import sys
-from genericpath import exists
+from genericpath import exists, isfile
 from os import makedirs
-from os.path import join, basename, dirname, isdir
+from os.path import join, basename, dirname, isdir, abspath
+
+from rowgenerators import reparse_url, parse_url_to_dict, unparse_url_dict, Url
+
+from metatab import DEFAULT_METATAB_FILE
 
 
 def declaration_path(name):
@@ -20,7 +24,7 @@ def declaration_path(name):
 
     d = dirname(metatab.declarations.__file__)
 
-    path = join(d,name)
+    path = join(d, name)
 
     if not exists(path):
         path = join(d, name + '.csv')
@@ -47,7 +51,7 @@ def slugify(value):
     return value
 
 
-def linkify(v, description = None, cwd_url=None):
+def linkify(v, description=None, cwd_url=None):
     from rowgenerators import Url
     from os.path import abspath
     if not v:
@@ -57,11 +61,11 @@ def linkify(v, description = None, cwd_url=None):
 
     target = 'target="_blank"'
 
-    if u.scheme in ('http','https','mailto'):
+    if u.scheme in ('http', 'https', 'mailto'):
 
         if description is None:
             description = v
-        return '<a href="{url}" {target} >{desc}</a>'.format(url=v, target=target, desc = description)
+        return '<a href="{url}" {target} >{desc}</a>'.format(url=v, target=target, desc=description)
 
     elif u.scheme == 'file':
 
@@ -70,31 +74,36 @@ def linkify(v, description = None, cwd_url=None):
     else:
         return v
 
+
 def flatten(d, sep='.'):
     """Flatten a data structure into tuples"""
+
     def _flatten(e, parent_key='', sep='.'):
         import collections
 
-        prefix = parent_key+sep if parent_key else ''
+        prefix = parent_key + sep if parent_key else ''
 
         if isinstance(e, collections.MutableMapping):
-            return tuple( (prefix+k2, v2) for k, v in e.items() for k2,v2 in _flatten(v,  k, sep ) )
+            return tuple((prefix + k2, v2) for k, v in e.items() for k2, v2 in _flatten(v, k, sep))
         elif isinstance(e, collections.MutableSequence):
-            return tuple( (prefix+k2, v2) for i, v in enumerate(e) for k2,v2 in _flatten(v,  str(i), sep ) )
+            return tuple((prefix + k2, v2) for i, v in enumerate(e) for k2, v2 in _flatten(v, str(i), sep))
         else:
             return (parent_key, (e,)),
 
-    return tuple( (k, v[0]) for k, v in _flatten(d, '', sep) )
+    return tuple((k, v[0]) for k, v in _flatten(d, '', sep))
+
 
 # From http://stackoverflow.com/a/2597440
 class Bunch(object):
-  def __init__(self, adict):
-    self.__dict__.update(adict)
+    def __init__(self, adict):
+        self.__dict__.update(adict)
+
 
 MP_DIR = '_metapack'
-DOWNLOAD_DIR = join(MP_DIR,'download')
-PACKAGE_DIR = join(MP_DIR,'package')
-OLD_DIR = join(MP_DIR,'old')
+DOWNLOAD_DIR = join(MP_DIR, 'download')
+PACKAGE_DIR = join(MP_DIR, 'package')
+OLD_DIR = join(MP_DIR, 'old')
+
 
 def make_dir_structure(base_dir):
     """Make the build directory structure. """
@@ -113,19 +122,19 @@ def make_dir_structure(base_dir):
     maybe_makedir(PACKAGE_DIR)
     maybe_makedir(OLD_DIR)
 
-def make_metatab_file(template='metatab'):
 
-    from os.path import  dirname
+def make_metatab_file(template='metatab'):
+    from os.path import dirname
     from rowgenerators.util import fs_join as join
     import metatab.templates
     from metatab.doc import MetatabDoc
 
-    template_path = join(dirname(metatab.templates.__file__),template+'.csv')
-
+    template_path = join(dirname(metatab.templates.__file__), template + '.csv')
 
     doc = MetatabDoc(template_path)
 
     return doc
+
 
 def scrape_urls_from_web_page(page_url):
     from bs4 import BeautifulSoup
@@ -162,8 +171,6 @@ def scrape_urls_from_web_page(page_url):
         if 'javascript' in url:
             continue
 
-
-
         if url.startswith('http'):
             pass
         elif url.startswith('/'):
@@ -177,8 +184,6 @@ def scrape_urls_from_web_page(page_url):
             url = os.path.join(page_url, url)
 
         base = os.path.basename(url)
-
-
 
         if '#' in base:
             continue
@@ -201,15 +206,17 @@ def scrape_urls_from_web_page(page_url):
         else:
             d['links'][text] = dict(url=url, description=text)
 
-
     return d
 
+
 import mimetypes
+
 mimetypes.init()
 mime_map = {v: k.strip('.') for k, v in mimetypes.types_map.items()}
 mime_map['application/x-zip-compressed'] = 'zip'
 mime_map['application/vnd.ms-excel'] = 'xls'
 mime_map['text/html'] = 'html'
+
 
 def guess_format(url):
     """Try to guess  the format of a resource, possibly with a HEAD request"""
@@ -222,8 +229,8 @@ def guess_format(url):
     # Guess_type fails for root urls like 'http://civicknowledge.com'
     if parts.get('path'):
         type, encoding = mimetypes.guess_type(url)
-    elif parts['scheme'] in ('http','https'):
-        type, encoding = 'text/html', None # Assume it is a root url
+    elif parts['scheme'] in ('http', 'https'):
+        type, encoding = 'text/html', None  # Assume it is a root url
     else:
         type, encoding = None, None
 
@@ -233,12 +240,13 @@ def guess_format(url):
             type = r.headers['Content-Type']
 
             if ';' in type:
-                type, encoding = [ e.strip() for e in type.split(';')]
+                type, encoding = [e.strip() for e in type.split(';')]
 
         except InvalidSchema:
-            pass # It's probably FTP
+            pass  # It's probably FTP
 
     return type, mime_map.get(type)
+
 
 def enumerate_contents(url, cache, callback=None):
     import requests
@@ -248,7 +256,7 @@ def enumerate_contents(url, cache, callback=None):
 
     if mt == 'text/html':
         d = scrape_urls_from_web_page(url)
-        urls = [ v['url'] for k, v in d['sources'].items() ]
+        urls = [v['url'] for k, v in d['sources'].items()]
 
     elif isinstance(url, (list, tuple)):
         urls = url
@@ -272,12 +280,11 @@ def walk_up(bottom):
 
     bottom = path.realpath(bottom)
 
-    #get files in current dir
+    # get files in current dir
     try:
         names = os.listdir(bottom)
     except Exception as e:
         raise e
-
 
     dirs, nondirs = [], []
     for name in names:
@@ -299,9 +306,8 @@ def walk_up(bottom):
 
 
 def ensure_dir(path):
-
     if path and not exists(path):
-            makedirs(path)
+        makedirs(path)
 
 
 def copytree(src, dst, symlinks=False, ignore=None):
@@ -320,7 +326,6 @@ debug_logger = logging.getLogger('debug')
 
 
 def cli_init(log_level=logging.INFO):
-
     out_hdlr = logging.StreamHandler(sys.stdout)
     out_hdlr.setFormatter(logging.Formatter('%(message)s'))
     out_hdlr.setLevel(log_level)
@@ -335,13 +340,81 @@ def cli_init(log_level=logging.INFO):
 
 
 def prt(*args, **kwargs):
-    logger.info(' '.join(str(e) for e in args),**kwargs)
+    logger.info(' '.join(str(e) for e in args), **kwargs)
 
 
 def warn(*args, **kwargs):
-    logger_err.warn(' '.join(str(e) for e in args),**kwargs)
+    logger_err.warn(' '.join(str(e) for e in args), **kwargs)
 
 
 def err(*args, **kwargs):
-    logger_err.critical(' '.join(str(e) for e in args),**kwargs)
+    logger_err.critical(' '.join(str(e) for e in args), **kwargs)
     sys.exit(1)
+
+
+def get_cache(clean=False):
+    from rowgenerators.util import get_cache, clean_cache
+
+    cache = get_cache('metapack')
+
+    if clean:
+        clean_cache(cache)
+
+    return cache
+
+
+def resolve_package_metadata_url(ref):
+    """Re-write a url to a resource to include the likely refernce to the
+    internal Metatab metadata"""
+
+    du = Url(ref)
+
+    if du.resource_format == 'zip':
+        package_url = reparse_url(ref, fragment=False)
+        metadata_url = reparse_url(ref, fragment=DEFAULT_METATAB_FILE)
+
+    elif du.target_format == 'xlsx' or du.target_format == 'xls':
+        package_url = reparse_url(ref, fragment=False)
+        metadata_url = reparse_url(ref, fragment='meta')
+
+    elif du.resource_file == DEFAULT_METATAB_FILE:
+        metadata_url = reparse_url(ref)
+        package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']), fragment=False) + '/'
+
+    elif du.target_format == 'csv':
+        package_url = reparse_url(ref, fragment=False)
+        metadata_url = reparse_url(ref)
+
+    elif du.proto == 'file':
+        p = parse_url_to_dict(ref)
+
+        if isfile(p['path']):
+            metadata_url = reparse_url(ref)
+            package_url = reparse_url(ref, path=dirname(p['path']), fragment=False)
+        else:
+
+            p['path'] = join(p['path'], DEFAULT_METATAB_FILE)
+            package_url = reparse_url(ref, fragment=False, path=p['path'].rstrip('/') + '/')
+            metadata_url = unparse_url_dict(p)
+
+        # Make all of the paths absolute. Saves a lot of headaches later.
+        package_url = reparse_url(package_url, path=abspath(parse_url_to_dict(package_url)['path']))
+        metadata_url = reparse_url(metadata_url, path=abspath(parse_url_to_dict(metadata_url)['path']))
+
+    else:
+        metadata_url = join(ref, DEFAULT_METATAB_FILE)
+        package_url = reparse_url(ref, fragment=False)
+
+    # raise PackageError("Can't determine package URLs for '{}'".format(ref))
+
+    return package_url, metadata_url
+
+
+def open_package(ref, cache=None, clean_cache=False):
+    from metatab.doc import MetatabDoc
+
+    package_url, metadata_url = resolve_package_metadata_url(ref)
+
+    cache = cache if cache else get_cache()
+
+    return MetatabDoc(metadata_url, package_url=package_url, cache=cache)

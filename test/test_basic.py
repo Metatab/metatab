@@ -4,18 +4,19 @@ import json
 import unittest
 
 from metatab import IncludeError
-from metatab import MetatabRowGenerator, TermParser, CsvPathRowGenerator, parse_file
-from metatab.doc import MetatabDoc
+from metatab import MetatabRowGenerator
+
 from metatab.util import flatten, declaration_path
-from metatab import TermParser, CsvPathRowGenerator, Term
+from metatab import TermParser, CsvPathRowGenerator
+from terms import Term
 from collections import defaultdict
 from metatab.doc import Resource
 import csv
 from os.path import dirname
-from metatab.doc import open_package
+from util import open_package
 import json
 from os.path import exists
-from metatab import parse_file, MetatabDoc
+from metatab import MetatabDoc
 
 def test_data(*paths):
     from os.path import dirname, join, abspath

@@ -15,8 +15,8 @@ type_map = {
     'float': 'number'
 }
 
-def convert_to_datapackage(doc):
 
+def convert_to_datapackage(doc):
     dp = doc['root'].as_dict()
 
     try:
@@ -33,7 +33,7 @@ def convert_to_datapackage(doc):
     try:
         table_schemas = {t.value: t.as_dict()['column'] for t in doc['schema']}
     except KeyError as e:
-        raise ConversionError("Failed to get schemas: "+str(e))
+        raise ConversionError("Failed to get schemas: " + str(e))
 
     file_resources = [fr.properties for fr in doc['resources'] if fr.term_is('root.datafile')]
 
@@ -42,16 +42,17 @@ def convert_to_datapackage(doc):
     for r in file_resources:
 
         try:
-            columns = table_schemas[r['name']] if r.get('name','<none>') in table_schemas else table_schemas[r['table']]
+            columns = table_schemas[r['name']] if r.get('name', '<none>') in table_schemas else table_schemas[
+                r['table']]
         except KeyError as e:
             continue
 
         def mkdict(c):
             d = {}
 
-            for prop in ('name','title','description'):
+            for prop in ('name', 'title', 'description'):
                 if c.get(prop):
-                    d[prop]=c[prop]
+                    d[prop] = c[prop]
 
             d['type'] = type_map.get(c.get('datatype'), c.get('datatype'))
 
@@ -60,11 +61,9 @@ def convert_to_datapackage(doc):
         dr = dict(
             path=r['url'],
             name=r['name'],
-            schema={ 'fields': [ mkdict(c) for c in columns] }
+            schema={'fields': [mkdict(c) for c in columns]}
         )
 
         dp['resources'].append(dr)
 
     return dp
-
-

@@ -5,27 +5,24 @@
 CLI program for managing Metatab files
 """
 
-
 import json
 import sys
-
-from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
-from metatab.util import prt,  err, cli_init
-
+import six
+from uuid import uuid4
+from genericpath import exists
 from rowgenerators import get_cache, Url
 from rowgenerators.util import clean_cache
-from genericpath import exists
-from uuid import uuid4
-import six
-from util import prt, err, warn, make_metatab_file
 
+from metatab._meta import __version__
+from metatab import  DEFAULT_METATAB_FILE, MetatabDoc
+from metatab.util import prt, err, cli_init, make_metatab_file, resolve_package_metadata_url
 
 
 def metatab():
     import argparse
     parser = argparse.ArgumentParser(
         prog='metatab',
-        description='Matatab file parser, version {}'.format(_meta.__version__))
+        description='Matatab file parser, version {}'.format(__version__))
 
     parser.add_argument('-C', '--clean-cache', default=False, action='store_true',
                         help="Clean the download cache")
@@ -101,13 +98,12 @@ def metatab():
             doc = MetatabDoc(metadata_url, cache=cache)
         except OSError as e:
             err("Failed to open Metatab doc: {}".format(e))
-            return # Never reached
+            return  # Never reached
 
         if resource:
             dump_resource(doc, resource, limit)
         else:
             dump_resources(doc)
-
 
         exit(0)
 
@@ -127,7 +123,7 @@ def metatab():
         try:
             doc = MetatabDoc(metadata_url, cache=cache)
         except IOError as e:
-            raise
+
             err("Failed to open '{}': {}".format(metadata_url, e))
 
     if args.terms:
@@ -147,7 +143,6 @@ def metatab():
         dump_schema(doc, args.schema)
 
     exit(0)
-
 
 
 def dump_resources(doc):
@@ -179,7 +174,6 @@ def dump_resource(doc, name, lines=None):
             for error in errors:
                 warn("    ", error)
 
-
     try:
         if lines and lines <= 20:
             try:
@@ -201,7 +195,6 @@ def dump_resource(doc, name, lines=None):
                 w.writerow(row)
 
     except CasterExceptionError as e:  # Really bad errors, not just casting problems.
-        raise e
         err(e)
     except TooManyCastingErrors as e:
         dump_errors(e.errors)

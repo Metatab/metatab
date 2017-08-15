@@ -5,624 +5,26 @@
 Generate rows from a variety of paths, references or other input
 """
 import collections
+import logging
 from collections import OrderedDict, MutableSequence
-from itertools import islice
-from os.path import isfile, dirname, join
+from os.path import dirname, getmtime
+from time import time
 
 import six
 import unicodecsv as csv
-
-from metatab import (TermParser, SectionTerm, Term, generateRows, MetatabError,
-                     CsvPathRowGenerator, RootSectionTerm)
-from metatab.util import linkify, slugify
-from metatab.exc import MetatabError
-from rowgenerators import RowGenerator, Url, SelectiveRowGenerator
+from rowgenerators import Url
 from rowgenerators.exceptions import SourceError
-from rowgenerators.util import reparse_url, parse_url_to_dict, unparse_url_dict
-from rowpipe import RowProcessor
-from rowgenerators import Url, DownloadError
-from os.path import dirname, abspath, isdir, getmtime
-from time import time
+
+from metatab import DEFAULT_METATAB_FILE
+from metatab.parser import TermParser
+from metatab.generate import generateRows, CsvPathRowGenerator
+from metatab.exc import MetatabError
+from metatab.util import linkify, slugify
+from .terms import SectionTerm, RootSectionTerm, Resource, Reference
+from .util import get_cache
 from .exc import PackageError
 
-import logging
-
 logger = logging.getLogger('doc')
-
-DEFAULT_METATAB_FILE = 'metadata.csv'
-
-def get_cache(clean=False):
-    from rowgenerators.util import get_cache, clean_cache
-
-    cache = get_cache('metapack')
-
-    if clean:
-        clean_cache(cache)
-
-    return cache
-
-
-def resolve_package_metadata_url(ref):
-    """Re-write a url to a resource to include the likely refernce to the
-    internal Metatab metadata"""
-
-    du = Url(ref)
-
-    if du.resource_format == 'zip':
-        package_url = reparse_url(ref, fragment=False)
-        metadata_url = reparse_url(ref, fragment=DEFAULT_METATAB_FILE)
-
-    elif du.target_format == 'xlsx' or du.target_format == 'xls':
-        package_url = reparse_url(ref, fragment=False)
-        metadata_url = reparse_url(ref, fragment='meta')
-
-    elif du.resource_file == DEFAULT_METATAB_FILE:
-        metadata_url = reparse_url(ref)
-        package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']), fragment=False) + '/'
-
-    elif du.target_format == 'csv':
-        package_url = reparse_url(ref, fragment=False)
-        metadata_url = reparse_url(ref)
-
-    elif du.proto == 'file':
-        p = parse_url_to_dict(ref)
-
-        if isfile(p['path']):
-            metadata_url = reparse_url(ref)
-            package_url = reparse_url(ref, path=dirname(p['path']), fragment=False)
-        else:
-
-            p['path'] = join(p['path'], DEFAULT_METATAB_FILE)
-            package_url = reparse_url(ref, fragment=False, path=p['path'].rstrip('/') + '/')
-            metadata_url = unparse_url_dict(p)
-
-        # Make all of the paths absolute. Saves a lot of headaches later.
-        package_url = reparse_url(package_url, path=abspath(parse_url_to_dict(package_url)['path']))
-        metadata_url = reparse_url(metadata_url, path=abspath(parse_url_to_dict(metadata_url)['path']))
-
-    else:
-        metadata_url = join(ref, DEFAULT_METATAB_FILE)
-        package_url = reparse_url(ref, fragment=False)
-
-    # raise PackageError("Can't determine package URLs for '{}'".format(ref))
-
-    return package_url, metadata_url
-
-
-def open_package(ref, cache=None, clean_cache=False):
-    from rowgenerators.util import clean_cache as rg_clean_cache
-    package_url, metadata_url = resolve_package_metadata_url(ref)
-
-    cache = cache if cache else get_cache()
-
-    return MetatabDoc(metadata_url, package_url=package_url, cache=cache)
-
-
-EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination table but not in the source
-
-
-class Resource(Term):
-
-    # These property names should return null if they aren't actually set.
-    _common_properties = 'url name description schema'.split()
-
-    def __init__(self, term, base_url, package=None, env=None, code_path=None):
-
-        super(Resource, self).__init__(term.term, term.value, term.args,
-                                       term.row, term.col,
-                                       term.file_name, term.file_type,
-                                       term.parent, term.doc, term.section)
-
-        self._orig_term = term
-        self.base_url = base_url
-        self.package = package
-
-        self.code_path = code_path
-
-        self._parent_term = term
-        self.term_value_name = term.term_value_name
-        self.children = term.children
-
-        self.env = env if env is not None else {}
-
-        self.errors = {}  # Typecasting errors
-
-        self.__initialised = True
-
-    @property
-    def _self_url(self):
-        try:
-            if self.url:
-                return self.url
-        finally:  # WTF? No idea, probably wrong.
-            return self.value
-
-    def _resolved_url(self):
-        """Return a URL that properly combines the base_url and a possibly relative
-        resource url"""
-
-        from rowgenerators.generators import PROTO_TO_SOURCE_MAP
-
-        if self.base_url:
-            u = Url(self.base_url)
-
-        else:
-            u = Url(self.doc.package_url)  # Url(self.doc.ref)
-
-        if not self._self_url:
-            return None
-
-        nu = u.component_url(self._self_url)
-
-        # For some URLs, we ned to put the proto back on.
-        su = Url(self._self_url)
-
-        if not su.reparse:
-            return su
-
-        if su.proto in PROTO_TO_SOURCE_MAP().keys():
-            nu = reparse_url(nu, scheme_extension=su.proto)
-
-        assert nu
-        return nu
-
-    def __contains__(self, item):
-
-        if item.lower() == 'value':
-            return True
-
-        return item.lower() in self._common_properties or item.lower() in self.properties
-
-    def __getattr__(self, item):
-        """Maps values to attributes.
-        Only called if there *isn't* an attribute with this name
-        """
-        try:
-            # Normal child
-            return self.__getitem__(item).value
-        except KeyError:
-            if item.lower() in self._common_properties:
-                return None
-            elif item == 'resolved_url':
-                # Looks like properties don't work properly with this method
-                return self._resolved_url()
-            else:
-                raise AttributeError(item)
-
-    def __setattr__(self, item, value):
-        """ """
-
-        if '_Resource__initialised' not in self.__dict__:
-            # Not initialized yet; set attributes normally.
-            assert item != 'url'
-            return object.__setattr__(self, item, value)
-
-        elif item in self.__dict__ and not (item.lower() == self.term_value_name.lower() or item.lower() == 'value'):
-
-            assert item != 'url'
-            object.__setattr__(self, item, value)
-
-        elif item.lower() == self.term_value_name.lower() or item.lower() == 'value':
-            object.__setattr__(self, 'value', value)
-            self._orig_term.value = value
-
-        else:
-            # Set a property, which is also a child term.
-            self.__setitem__(item, value)
-
-    def get(self, attr, default=None):
-
-        try:
-            return self.__getattr__(attr)
-        except AttributeError:
-            return default
-
-    def new_child(self, term, value, **kwargs):
-        raise NotImplementedError("DOn't create children from resources. ")
-
-    def _name_for_col_term(self, c, i):
-
-        altname = c.get_value('altname')
-        name = c.value if c.value != EMPTY_SOURCE_HEADER else None
-        default = "col{}".format(i)
-
-        for n in [altname, name, default]:
-            if n:
-                return n
-
-    @property
-    def schema_name(self):
-        """The value of the Name or Schema property"""
-        return self.get_value('schema', self.get_value('name'))
-
-    @property
-    def schema_table(self):
-        """Deprecated. Use schema_term()"""
-        return self.schema_term
-
-    @property
-    def schema_term(self):
-        """Return the Table term for this resource, which is referenced either by the `table` property or the
-        `schema` property"""
-
-        t = self.doc.find_first('Root.Table', value=self.get_value('name'))
-        frm = 'name'
-
-        if not t:
-            t = self.doc.find_first('Root.Table', value=self.get_value('schema'))
-            frm = 'schema'
-
-        if not t:
-            frm = None
-
-        return t, frm
-
-    @property
-    def headers(self):
-        """Return the headers for the resource. Returns the AltName, if specified; if not, then the
-        Name, and if that is empty, a name based on the column position. These headers
-        are specifically applicable to the output table, and may not apply to the resource source. FOr those headers,
-        use source_headers"""
-
-        t, _ = self.schema_term
-
-        if t:
-            return [self._name_for_col_term(c, i)
-                    for i, c in enumerate(t.children, 1) if c.term_is("Table.Column")]
-        else:
-            return None
-
-    @property
-    def source_headers(self):
-        """"Returns the headers for the resource source. Specifically, does not include any header that is
-        the EMPTY_SOURCE_HEADER value of _NONE_"""
-
-        t, _ = self.schema_term
-
-        if t:
-            return [self._name_for_col_term(c, i)
-                    for i, c in enumerate(t.children, 1) if c.term_is("Table.Column")
-                    and c.get_value('name') != EMPTY_SOURCE_HEADER
-                    ]
-        else:
-            return None
-
-    def columns(self):
-
-        t, _ = self.schema_term
-
-        if not t:
-            return
-
-        for i, c in enumerate(t.children):
-
-            if c.term_is("Table.Column"):
-
-                # This code originally used c.properties,
-                # but that fails for the line oriented form, where the
-                # sections don't have args, so there are no properties.
-                p = {}
-
-                for cc in c.children:
-                    p[cc.record_term_lc] = cc.value
-
-                p['name'] = c.value
-
-                p['header'] = self._name_for_col_term(c, i)
-                yield p
-
-    def row_processor_table(self):
-        """Create a row processor from the schema, to convert the text velus from the
-        CSV into real types"""
-        from rowpipe.table import Table
-
-        type_map = {
-            None: None,
-            'string': 'str',
-            'text': 'str',
-            'number': 'float',
-            'integer': 'int'
-        }
-
-        def map_type(v):
-            return type_map.get(v, v)
-
-        doc = self.doc
-
-        table_term = doc.find_first('Root.Table', value=self.get_value('name'))
-
-        if not table_term:
-            table_term = doc.find_first('Root.Table', value=self.get_value('schema'))
-
-        if table_term:
-
-            t = Table(self.get_value('name'))
-
-            col_n = 0
-
-            for c in table_term.children:
-                if c.term_is('Table.Column'):
-                    t.add_column(self._name_for_col_term(c, col_n),
-                                 datatype=map_type(c.get_value('datatype')),
-                                 valuetype=map_type(c.get_value('valuetype')),
-                                 transform=c.get_value('transform')
-                                 )
-                    col_n += 1
-
-            return t
-
-        else:
-            return None
-
-    @property
-    def row_generator(self):
-        return self._row_generator()
-
-    def _row_generator(self):
-
-        d = self.properties
-
-        d['url'] = self.resolved_url
-        d['target_format'] = d.get('format')
-        d['target_segment'] = d.get('segment')
-        d['target_file'] = d.get('file')
-        d['encoding'] = d.get('encoding', 'utf8')
-
-        generator_args = dict(d.items())
-        # For ProgramSource generator, These become values in a JSON encoded dict in the PROPERTIE env var
-        generator_args['working_dir'] = self._doc.doc_dir
-        generator_args['metatab_doc'] = self._doc.ref
-        generator_args['metatab_package'] = str(self._doc.package_url)
-
-        # These become their own env vars.
-        generator_args['METATAB_DOC'] = self._doc.ref
-        generator_args['METATAB_WORKING_DIR'] = self._doc.doc_dir
-        generator_args['METATAB_PACKAGE'] = str(self._doc.package_url)
-
-        d['cache'] = self._doc._cache
-        d['working_dir'] = self._doc.doc_dir
-        d['generator_args'] = generator_args
-
-        return RowGenerator(**d)
-
-    def _get_header(self):
-        """Get the header from the deinfed header rows, for use  on references or resources where the schema
-        has not been run"""
-
-        try:
-            header_lines = [int(e) for e in str(self.get_value('headerlines', 0)).split(',')]
-        except ValueError as e:
-            header_lines = [0]
-
-        # We're processing the raw datafile, with no schema.
-        header_rows = islice(self._row_generator(), min(header_lines), max(header_lines) + 1)
-
-        from tableintuit import RowIntuiter
-        headers = RowIntuiter.coalesce_headers(header_rows)
-
-        return headers
-
-    def __iter__(self):
-        """Iterate over the resource's rows"""
-
-        headers = self.headers
-
-        # There are several args for SelectiveRowGenerator, but only
-        # start is really important.
-        try:
-            start = int(self.get_value('startline', 1))
-        except ValueError as e:
-            start = 1
-
-        if headers:  # There are headers, so use them, and create a RowProcess to set data types
-            yield headers
-
-            rg = RowProcessor(islice(self._row_generator(), start, None),
-                              self.row_processor_table(),
-                              source_headers=self.source_headers,
-                              env=self.env,
-                              code_path=self.code_path)
-
-        else:
-            headers = self._get_header()  # Try to get the headers from defined header lines
-
-            yield headers
-            rg = islice(self._row_generator(), start, None)
-
-        if six.PY3:
-            # Would like to do this, but Python2 can't handle the syntax
-            # yield from rg
-            for row in rg:
-                yield row
-        else:
-            for row in rg:
-                yield row
-
-        try:
-            self.errors = rg.errors if rg.errors else {}
-        except AttributeError:
-            self.errors = {}
-
-    @property
-    def iterdict(self):
-        """Iterate over the resource in dict records"""
-
-        headers = None
-
-        for row in self:
-
-            if headers is None:
-                headers = row
-                continue
-
-            yield dict(zip(headers, row))
-
-    def _upstream_dataframe(self, limit=None):
-
-        from rowgenerators.generators import MetapackSource
-
-        rg = self.row_generator
-
-        # Maybe generator has it's own Dataframe method()
-        try:
-            return rg.generator.dataframe()
-        except AttributeError:
-            pass
-
-        # If the source is another package, use that package's dataframe()
-        if isinstance(rg.generator, MetapackSource):
-            try:
-                return rg.generator.resource.dataframe(limit=limit)
-            except AttributeError:
-                if rg.generator.package is None:
-                    raise PackageError("Failed to get reference package for {}".format(rg.generator.spec.resource_url))
-                if rg.generator.resource is None:
-                    raise PackageError(
-                        "Failed to get reference resource for '{}' ".format(rg.generator.spec.target_segment))
-                else:
-                    raise
-
-        return None
-
-    def _convert_geometry(self, df):
-
-        if 'geometry' in df.columns:
-
-            try:
-                import geopandas as gpd
-                shapes = [row['geometry'].shape for i, row in df.iterrows()]
-                df['geometry'] = gpd.GeoSeries(shapes)
-            except ImportError:
-                raise
-                pass
-
-    def dataframe(self, limit=None):
-        """Return a pandas datafrome from the resource"""
-
-        raise NotImplementedError()
-
-        #from .pands import MetatabDataFrame
-
-        d = self.properties
-
-        df = self._upstream_dataframe(limit)
-
-        if df is not None:
-            return df
-
-        rg = self.row_generator
-
-        # Just normal data, so use the iterator in this object.
-        headers = next(islice(self, 0, 1))
-        data = islice(self, 1, None)
-
-        #df = MetatabDataFrame(list(data), columns=headers, metatab_resource=self)
-
-        self.errors = df.metatab_errors = rg.errors if hasattr(rg, 'errors') and rg.errors else {}
-
-        return df
-
-    @property
-    def sub_package(self):
-        """For references to Metapack resoruces, the original package"""
-        from rowgenerators.generators import MetapackSource
-
-        rg = self.row_generator
-
-        if isinstance(rg.generator, MetapackSource):
-            return rg.generator.package
-        else:
-            return None
-
-    @property
-    def sub_resource(self):
-        """For references to Metapack resoruces, the original package"""
-        from rowgenerators.generators import MetapackSource
-
-        rg = self.row_generator
-
-        if isinstance(rg.generator, MetapackSource):
-            return rg.generator.resource
-        else:
-            return None
-
-    def _repr_html_(self):
-        from rowgenerators.generators import MetapackSource
-
-        try:
-            return self.sub_resource._repr_html_()
-        except AttributeError:
-            pass
-        except DownloadError:
-            pass
-
-        return ("<h3><a name=\"resource-{name}\"></a>{name}</h3><p><a target=\"_blank\" href=\"{url}\">{url}</a></p>" \
-                .format(name=self.name, url=self.resolved_url)) + \
-               "<table>\n" + \
-               "<tr><th>Header</th><th>Type</th><th>Description</th></tr>" + \
-               '\n'.join(
-                   "<tr><td>{}</td><td>{}</td><td>{}</td></tr> ".format(c.get('header', ''),
-                                                                        c.get('datatype', ''),
-                                                                        c.get('description', ''))
-                   for c in self.columns()) + \
-               '</table>'
-
-    @property
-    def markdown(self):
-
-        raise NotImplementedError()
-
-        #from .html import ckan_resource_markdown
-        #return ckan_resource_markdown(self)
-
-
-class Reference(Resource):
-    def __init__(self, term, base_url, package=None, env=None, code_path=None):
-        super().__init__(term, base_url, package, env, code_path)
-
-    def dataframe(self, limit=None):
-        """Return a Pandas Dataframe using read_csv or read_excel"""
-
-        from rowgenerators import download_and_cache
-
-        raise NotImplementedError()
-
-        #from pandas import read_csv
-        #from .pands import MetatabDataFrame, MetatabSeries
-
-        df = self._upstream_dataframe(limit)
-
-        if df is not None:
-            self._convert_geometry(df)
-            return df
-
-        rg = self.row_generator
-
-        # Download, cache and possibly extract an inner file.
-        info = download_and_cache(rg.generator.spec, self._doc._cache, logger=None, working_dir='', callback=None)
-
-        try:
-            skip = int(self.get_value('startline', 1)) - 1
-        except ValueError as e:
-            skip = 0
-
-        #df = read_csv(info['sys_path'],skiprows=skip)
-        #df.__class__ = MetatabDataFrame
-
-
-
-        df.columns = self._get_header()
-
-
-        df.metatab_resource = self
-        df.metatab_errors = {}
-
-        for c in df.columns:
-            #df[c].__class__ = MetatabSeries
-            pass
-
-
-        return df
 
 
 class MetatabDoc(object):
@@ -691,6 +93,10 @@ class MetatabDoc(object):
 
         return u.parts.path
 
+    @property
+    def cache(self):
+        """Return the file cache used by this document"""
+        return self._cache
 
     @property
     def mtime(self):
@@ -721,7 +127,7 @@ class MetatabDoc(object):
             verterm = doc.find_first('Root.Version')
 
         if not verterm:
-            verterm = doc['Root'].new_term('Root.Version',1)
+            verterm = doc['Root'].new_term('Root.Version', 1)
 
         if isinstance(ver, six.string_types) and (ver[0] == '+' or ver[0] == '-'):
             try:
@@ -793,16 +199,8 @@ class MetatabDoc(object):
 
         assert t.section or t.join_lc == 'root.root', t
 
-    def add_datafile(self, url, name, schema=None, title=None, description=None,
-                     startline=None, encoding=None, headers=None):
-        pass
-
-    def add_contact(self):
-        pass
-
     def remove_term(self, t):
         """Only removes top-level terms. CHild terms can be removed at the parent. """
-
 
         try:
             self.terms.remove(t)
@@ -847,7 +245,6 @@ class MetatabDoc(object):
             s.args = self.decl_sections[name.lower()]['args']
 
         return s
-
 
     def get_or_new_section(self, name, params=None):
         """Create a new section or return an existing one of the same name"""
@@ -910,7 +307,6 @@ class MetatabDoc(object):
         """
 
         import itertools
-        import sys
         if kwargs:  # Look for terms with particular property values
 
             terms = self.find(term, value, section)
@@ -1020,8 +416,6 @@ class MetatabDoc(object):
 
             yield resource_term
 
-
-
     def resource(self, name=None, term='Root.Datafile', section='Resources', env=None,
                  clz=Resource, code_path=None):
         """
@@ -1080,7 +474,7 @@ class MetatabDoc(object):
         """
         from collections import namedtuple
 
-        Dist = namedtuple('Dist','type url term')
+        Dist = namedtuple('Dist', 'type url term')
 
         def dist_type(url):
 
@@ -1111,7 +505,6 @@ class MetatabDoc(object):
                 dists.append(Dist(t, u, d))
 
         return dists
-
 
     def load_terms(self, terms):
         """Create a builder from a sequence of terms, usually a TermInterpreter"""
@@ -1154,7 +547,7 @@ class MetatabDoc(object):
 
     def load_rows(self, row_generator):
 
-        term_interp = TermParser(row_generator)
+        term_interp = TermParser(self, row_generator)
 
         return self.load_terms(term_interp)
 
@@ -1272,7 +665,6 @@ class MetatabDoc(object):
             # not set it to the identity.
             updates.append("No Root.Dataset, so can't update the name")
 
-
         return updates
 
     def _generate_identity_name(self):
@@ -1300,11 +692,9 @@ class MetatabDoc(object):
         grain = name_t.get_value('Name.Grain', self.get_value('Root.Grain'))
         variant = name_t.get_value('Name.Variant', self.get_value('Root.Variant'))
 
-
-
         parts = [slugify(str(e).replace('-', '_')) for e in (
-                    origin, datasetname, time, space, grain, variant, version)
-                    if e and str(e).strip()]
+            origin, datasetname, time, space, grain, variant, version)
+                 if e and str(e).strip()]
 
         return '-'.join(parts)
 
@@ -1516,12 +906,12 @@ class MetatabDoc(object):
 
     @property
     def html(self):
-        raise NotImplementedErroc()
-        #from .html import html
-        #return html(self)
+        raise NotImplementedError()
+        # from .html import html
+        # return html(self)
 
     @property
     def markdown(self):
         raise NotImplementedError()
-        from .html import markdown
+        # from .html import markdown
         return markdown(self)
