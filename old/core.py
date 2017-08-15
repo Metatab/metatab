@@ -1,45 +1,13 @@
-import sys
 from itertools import islice
-from uuid import uuid4
+from os.path import join
 
 import six
-from genericpath import exists
-from metatab import _meta, MetatabDoc
-from metatab.util import make_metatab_file
-from rowgenerators import Url, SelectiveRowGenerator
-from os.path import join
 from metatab.package import  DEFAULT_METATAB_FILE
-import logging
-
+from rowgenerators import Url, SelectiveRowGenerator
 from tableintuit import TypeIntuiter
 
-logger = logging.getLogger('user')
-logger_err = logging.getLogger('cli-errors')
-debug_logger = logging.getLogger('debug')
-
-def cli_init(log_level=logging.INFO):
-
-    out_hdlr = logging.StreamHandler(sys.stdout)
-    out_hdlr.setFormatter(logging.Formatter('%(message)s'))
-    out_hdlr.setLevel(log_level)
-    logger.addHandler(out_hdlr)
-    logger.setLevel(log_level)
-
-    out_hdlr = logging.StreamHandler(sys.stderr)
-    out_hdlr.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
-    out_hdlr.setLevel(logging.WARN)
-    logger_err.addHandler(out_hdlr)
-    logger_err.setLevel(logging.WARN)
-
-def prt(*args, **kwargs):
-    logger.info(' '.join(str(e) for e in args),**kwargs)
-
-def warn(*args, **kwargs):
-    logger_err.warn(' '.join(str(e) for e in args),**kwargs)
-
-def err(*args, **kwargs):
-    logger_err.critical(' '.join(str(e) for e in args),**kwargs)
-    sys.exit(1)
+from metatab import _meta, MetatabDoc
+from util import prt, warn, err
 
 
 def load_plugins(parser):
@@ -71,17 +39,6 @@ def metatab_info(cache):
     prt(tabulate(table))
 
 
-def new_metatab_file(mt_file, template):
-    template = template if template else 'metatab'
-
-    if not exists(mt_file):
-        doc = make_metatab_file(template)
-
-        doc['Root']['Identifier'] = str(uuid4())
-
-        doc.write_csv(mt_file)
-
-
 def find_files(base_path, types):
     from os import walk
     from os.path import join, splitext
@@ -102,96 +59,6 @@ def find_files(base_path, types):
 def get_lib_module_dict(doc):
     return doc.get_lib_module_dict()
 
-
-def dump_resources(doc):
-    for r in doc.resources():
-        prt(r.name, r.resolved_url)
-
-
-def dump_resource(doc, name, lines=None):
-    import unicodecsv as csv
-    import sys
-    from itertools import islice
-    from tabulate import tabulate
-    from rowpipe.exceptions import CasterExceptionError, TooManyCastingErrors
-
-    r = doc.resource(name=name)
-
-    if not r:
-        err("Did not get resource for name '{}'".format(name))
-
-    # WARNING! This code will not generate errors if line is set ( as for the -H
-    # option because the errors are tansfered from the row pipe to the resource after the
-    # iterator is exhausted
-
-    gen = islice(r, 1, lines)
-
-    def dump_errors(error_set):
-        for col, errors in error_set.items():
-            warn("Errors in casting column '{}' in resource '{}' ".format(col, r.name))
-            for error in errors:
-                warn("    ", error)
-
-
-    try:
-        if lines and lines <= 20:
-            try:
-                prt(tabulate(list(gen), list(r.headers)))
-            except TooManyCastingErrors as e:
-                dump_errors(e.errors)
-                err(e)
-
-        else:
-
-            w = csv.writer(sys.stdout if six.PY2 else sys.stdout.buffer)
-
-            if r.headers:
-                w.writerow(r.headers)
-            else:
-                warn("No headers for resource '{}'; have schemas been generated? ".format(name))
-
-            for row in gen:
-                w.writerow(row)
-
-    except CasterExceptionError as e:  # Really bad errors, not just casting problems.
-        raise e
-        err(e)
-    except TooManyCastingErrors as e:
-        dump_errors(e.errors)
-        err(e)
-
-    dump_errors(r.errors)
-
-
-
-def dump_schema(doc, name):
-    from tabulate import tabulate
-
-    t = get_table(doc, name)
-
-    rows = []
-    header = 'name altname datatype description'.split()
-    for c in t.children:
-        cp = c.properties
-        rows.append([cp.get(h) for h in header])
-
-    prt(tabulate(rows, header))
-
-
-def get_table(doc, name):
-    t = doc.find_first('Root.Table', value=name)
-
-    if not t:
-
-        table_names = ["'" + t.value + "'" for t in doc.find('Root.Table')]
-
-        if not table_names:
-            table_names = ["<No Tables>"]
-
-        err("Did not find schema for table name '{}' Tables are: {}"
-            .format(name, " ".join(table_names)))
-
-    return t
 
 PACKAGE_PREFIX = '_packages'
 

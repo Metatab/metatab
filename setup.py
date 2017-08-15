@@ -63,7 +63,6 @@ class sdist(sdist_module.sdist):
 
 # Setup a directory for a fake package for importing plugins
 
-
 setup(
     name='metatab',
     version=ps_meta.__version__,
@@ -90,21 +89,11 @@ setup(
 
     ],
 
-
     entry_points={
         'console_scripts': [
-            'metatab=metatab.cli.metatab:metatab',
-            'metapack=metatab.cli.metapack:metapack',
-            'metakan=metatab.cli.metakan:metakan',
-            'metasync=metatab.cli.metasync:metasync',
-            'metaworld=metatab.cli.metaworld:metaworld',
-            'metaaws=metatab.cli.metaaws:metaaws',
-            'metasql=metatab.cli.metasql:metasql'
+            'metatab=metatab.cli:metatab'
 
-        ],
-        'nbconvert.exporters': [
-            'metapack = metatab.jupyter:MetapackExporter',
-        ],
+        ]
     },
 
     include_package_data=True,
@@ -124,5 +113,4 @@ setup(
     cmdclass={
         'sdist': sdist,
     },
-
 )

@@ -9,7 +9,7 @@ from .exc import IncludeError, GenerateError
 
 
 def generateRows(ref, cache=None):
-
+    """Return a row generator for a reference"""
     from inspect import isgenerator
     from six import string_types
 

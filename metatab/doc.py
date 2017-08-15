@@ -31,9 +31,6 @@ logger = logging.getLogger('doc')
 
 DEFAULT_METATAB_FILE = 'metadata.csv'
 
-BACKUP_METATAB_FILE = 'metadata.xlsx'
-
-
 def get_cache(clean=False):
     from rowgenerators.util import get_cache, clean_cache
 
@@ -502,7 +499,9 @@ class Resource(Term):
     def dataframe(self, limit=None):
         """Return a pandas datafrome from the resource"""
 
-        from .pands import MetatabDataFrame
+        raise NotImplementedError()
+
+        #from .pands import MetatabDataFrame
 
         d = self.properties
 
@@ -517,11 +516,9 @@ class Resource(Term):
         headers = next(islice(self, 0, 1))
         data = islice(self, 1, None)
 
-        df = MetatabDataFrame(list(data), columns=headers, metatab_resource=self)
+        #df = MetatabDataFrame(list(data), columns=headers, metatab_resource=self)
 
         self.errors = df.metatab_errors = rg.errors if hasattr(rg, 'errors') and rg.errors else {}
-
-
 
         return df
 
@@ -573,8 +570,10 @@ class Resource(Term):
     @property
     def markdown(self):
 
-        from .html import ckan_resource_markdown
-        return ckan_resource_markdown(self)
+        raise NotImplementedError()
+
+        #from .html import ckan_resource_markdown
+        #return ckan_resource_markdown(self)
 
 
 class Reference(Resource):
@@ -584,9 +583,12 @@ class Reference(Resource):
     def dataframe(self, limit=None):
         """Return a Pandas Dataframe using read_csv or read_excel"""
 
-        from pandas import read_csv
         from rowgenerators import download_and_cache
-        from .pands import MetatabDataFrame, MetatabSeries
+
+        raise NotImplementedError()
+
+        #from pandas import read_csv
+        #from .pands import MetatabDataFrame, MetatabSeries
 
         df = self._upstream_dataframe(limit)
 
@@ -604,19 +606,20 @@ class Reference(Resource):
         except ValueError as e:
             skip = 0
 
-        df = read_csv(
-            info['sys_path'],
-            skiprows=skip
-        )
+        #df = read_csv(info['sys_path'],skiprows=skip)
+        #df.__class__ = MetatabDataFrame
+
+
 
         df.columns = self._get_header()
 
-        df.__class__ = MetatabDataFrame
+
         df.metatab_resource = self
         df.metatab_errors = {}
 
         for c in df.columns:
-            df[c].__class__ = MetatabSeries
+            #df[c].__class__ = MetatabSeries
+            pass
 
 
         return df
@@ -1513,10 +1516,12 @@ class MetatabDoc(object):
 
     @property
     def html(self):
-        from .html import html
-        return html(self)
+        raise NotImplementedErroc()
+        #from .html import html
+        #return html(self)
 
     @property
     def markdown(self):
+        raise NotImplementedError()
         from .html import markdown
         return markdown(self)

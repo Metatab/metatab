@@ -7,7 +7,7 @@ from metatab import IncludeError
 from metatab import MetatabRowGenerator, TermParser, CsvPathRowGenerator, parse_file
 from metatab.doc import MetatabDoc
 from metatab.util import flatten, declaration_path
-from metatab import TermParser, CsvPathRowGenerator, Serializer, Term
+from metatab import TermParser, CsvPathRowGenerator, Term
 from collections import defaultdict
 from metatab.doc import Resource
 import csv

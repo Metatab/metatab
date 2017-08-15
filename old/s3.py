@@ -6,7 +6,7 @@
 """
 import boto3
 import six
-from metatab.cli.core import prt, err
+from metatab.util import prt, err
 from os.path import join
 from rowgenerators import parse_url_to_dict
 

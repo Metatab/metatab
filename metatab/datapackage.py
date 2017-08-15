@@ -5,7 +5,7 @@
 Convert Metatab terms into datapackage.json file
 """
 
-from .exc import ConversionError
+from metatab.exc import ConversionError
 
 type_map = {
     'str': 'string',

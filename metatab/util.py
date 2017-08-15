@@ -3,11 +3,13 @@
 
 """Classes to build a Metatab document
 """
+import logging
 import os
 import shutil
+import sys
 from genericpath import exists
 from os import makedirs
-from os.path import join, basename, dirname
+from os.path import join, basename, dirname, isdir
 
 
 def declaration_path(name):
@@ -310,3 +312,36 @@ def copytree(src, dst, symlinks=False, ignore=None):
             shutil.copytree(s, d, symlinks, ignore)
         else:
             shutil.copy2(s, d)
+
+
+logger = logging.getLogger('user')
+logger_err = logging.getLogger('cli-errors')
+debug_logger = logging.getLogger('debug')
+
+
+def cli_init(log_level=logging.INFO):
+
+    out_hdlr = logging.StreamHandler(sys.stdout)
+    out_hdlr.setFormatter(logging.Formatter('%(message)s'))
+    out_hdlr.setLevel(log_level)
+    logger.addHandler(out_hdlr)
+    logger.setLevel(log_level)
+
+    out_hdlr = logging.StreamHandler(sys.stderr)
+    out_hdlr.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+    out_hdlr.setLevel(logging.WARN)
+    logger_err.addHandler(out_hdlr)
+    logger_err.setLevel(logging.WARN)
+
+
+def prt(*args, **kwargs):
+    logger.info(' '.join(str(e) for e in args),**kwargs)
+
+
+def warn(*args, **kwargs):
+    logger_err.warn(' '.join(str(e) for e in args),**kwargs)
+
+
+def err(*args, **kwargs):
+    logger_err.critical(' '.join(str(e) for e in args),**kwargs)
+    sys.exit(1)
