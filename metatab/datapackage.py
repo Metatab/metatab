@@ -35,7 +35,7 @@ def convert_to_datapackage(doc):
     except KeyError as e:
         raise ConversionError("Failed to get schemas: " + str(e))
 
-    file_resources = [fr.properties for fr in doc['resources'] if fr.term_is('root.datafile')]
+    file_resources = [fr.arg_props for fr in doc['resources'] if fr.term_is('root.datafile')]
 
     dp['resources'] = []
 

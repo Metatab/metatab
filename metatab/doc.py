@@ -12,15 +12,15 @@ from time import time
 
 import six
 import unicodecsv as csv
-from rowgenerators import Url
+from rowgenerators.urls import Url
 from rowgenerators.exceptions import SourceError
 
 from metatab import DEFAULT_METATAB_FILE
 from metatab.parser import TermParser
-from metatab.generate import generateRows, CsvPathRowGenerator
+from metatab.generate import CsvPathRowGenerator, WebResolver
 from metatab.exc import MetatabError
 from metatab.util import linkify, slugify
-from .terms import SectionTerm, RootSectionTerm, Resource, Reference
+from .terms import SectionTerm, RootSectionTerm, Resource
 from .util import get_cache
 from .exc import PackageError
 
@@ -28,7 +28,7 @@ logger = logging.getLogger('doc')
 
 
 class MetatabDoc(object):
-    def __init__(self, ref=None, decl=None, package_url=None, cache=None, clean_cache=False):
+    def __init__(self, ref=None, decl=None, package_url=None, cache=None, resolver = None, clean_cache=False):
 
         self._cache = cache if cache else get_cache()
 
@@ -39,6 +39,8 @@ class MetatabDoc(object):
         self.sections = OrderedDict()
         self.errors = []
         self.package_url = package_url
+
+        self.resolver = resolver or WebResolver()
 
         if decl is None:
             self.decls = []
@@ -74,6 +76,8 @@ class MetatabDoc(object):
                                     file_name=None, parent=None)
             self.add_section(self.root)
             self._mtime = time()
+
+
 
     @property
     def ref(self):
@@ -158,7 +162,7 @@ class MetatabDoc(object):
 
     def load_declarations(self, decls):
 
-        term_interp = TermParser(generateRows([['Declare', dcl] for dcl in decls], cache=self._cache), doc=self)
+        term_interp = TermParser(self.resolver.get_row_generator([['Declare', dcl] for dcl in decls], cache=self._cache), doc=self)
         list(term_interp)
         dd = term_interp.declare_dict
 
@@ -409,7 +413,7 @@ class MetatabDoc(object):
             if name and t.get_value('name') != name:
                 continue
 
-            if not 'url' in t.properties:
+            if not 'url' in t.arg_props:
                 pass
 
             resource_term = clz(t, base_url, env=env, code_path=code_path)
@@ -443,6 +447,10 @@ class MetatabDoc(object):
             r = resources[0]
             return r
 
+    def resolve_url(self, url):
+        """Resolve an application specific URL to a web URL"""
+        return url
+
     def references(self, name=None, term='Root.Reference', section='References', env=None, code_path=None):
         """
         Like resources(), but by default looks for Root.Reference terms in the References section
@@ -466,7 +474,7 @@ class MetatabDoc(object):
         :return:
         """
 
-        return self.resource(name=name, term=term, section=section, env=env, clz=Reference)
+        return self.resource(name=name, term=term, section=section, env=env, clz=Resource)
 
     def distributions(self, type=False):
         """"Return a dict of distributions, or if type is specified, just the first of that type
@@ -814,104 +822,3 @@ class MetatabDoc(object):
 
         return u.parts.path
 
-    def _repr_html_(self, **kwargs):
-        """Produce HTML for Jupyter Notebook"""
-
-        def resource_repr(r, anchor=kwargs.get('anchors', False)):
-            return "<p><strong>{name}</strong> - <a target=\"_blank\" href=\"{url}\">{url}</a> {description}</p>" \
-                .format(name='<a href="#resource-{name}">{name}</a>'.format(name=r.name) if anchor else r.name,
-                        description=r.get_value('description', ''),
-                        url=r.resolved_url)
-
-        def documentation():
-
-            out = ''
-
-            try:
-                self['Documentation']
-            except KeyError:
-                return ''
-
-            try:
-                for t in self['Documentation']:
-
-                    if t.get_value('url'):
-
-                        out += ("\n<p><strong>{} </strong>{}</p>"
-                                .format(linkify(t.get_value('url'), t.get_value('title')),
-                                        t.get_value('description')
-                                        ))
-
-                    else:  # Mostly for notes
-                        out += ("\n<p><strong>{}: </strong>{}</p>"
-                                .format(t.record_term.title(), t.value))
-
-
-            except KeyError:
-                raise
-                pass
-
-            return out
-
-        def contacts():
-
-            out = ''
-
-            try:
-                self['Contacts']
-            except KeyError:
-                return ''
-
-            try:
-
-                for t in self['Contacts']:
-                    name = t.get_value('name', 'Name')
-                    email = "mailto:" + t.get_value('email') if t.get_value('email') else None
-
-                    web = t.get_value('url')
-                    org = t.get_value('organization', web)
-
-                    out += ("\n<p><strong>{}: </strong>{}</p>"
-                            .format(t.record_term.title(),
-                                    (linkify(email, name) or '') + " " + (linkify(web, org) or '')
-                                    ))
-
-            except KeyError:
-                pass
-
-            return out
-
-        return """
-<h1>{title}</h1>
-<p>{name}</p>
-<p>{description}</p>
-<p>{ref}</p>
-<h2>Documentation</h2>
-{doc}
-<h2>Contacts</h2>
-{contact}
-<h2>Resources</h2>
-<ol>
-{resources}
-</ol>
-""".format(
-            title=self.find_first_value('Root.Title', section='Root'),
-            name=self.find_first_value('Root.Name', section='Root'),
-            ref=self.ref,
-            description=self.find_first_value('Root.Description', section='Root'),
-            doc=documentation(),
-            contact=contacts(),
-            resources='\n'.join(["<li>" + resource_repr(r) + "</li>" for r in self.resources()])
-        )
-
-    @property
-    def html(self):
-        raise NotImplementedError()
-        # from .html import html
-        # return html(self)
-
-    @property
-    def markdown(self):
-        raise NotImplementedError()
-        # from .html import markdown
-        return markdown(self)

@@ -18,11 +18,12 @@ from .terms import Term, SectionTerm, RootSectionTerm
 
 import six
 
-from .exc import IncludeError, DeclarationError, ParserError
-from .generate import generateRows, CsvPathRowGenerator, MetatabRowGenerator
+from .exc import IncludeError, DeclarationError, ParserError, GenerateError
+from .generate import MetatabRowGenerator
 from os.path import dirname, join, exists
 from .util import declaration_path
-from rowgenerators import SourceError
+from .generate import WebResolver
+
 
 # Python2 doesn't have FileNotFoundError
 try:
@@ -34,7 +35,7 @@ except NameError:
 class TermParser(object):
     """Takes a stream of terms and sets the parameter map, valid term names, etc """
 
-    def __init__(self, ref, doc, remove_special=True):
+    def __init__(self, ref,  resolver=None, doc=None, remove_special=True):
         """
         :param term_gen: an an iterator that generates terms
         :param remove_special: If true ( default ) remove the special terms from the stream
@@ -63,10 +64,17 @@ class TermParser(object):
 
         self.install_declare_terms()
 
+        self.resolver = resolver or WebResolver()
+
+
     @property
     def path(self):
         """Return the path from the row generator, if it is avilable"""
         return self._path
+
+    @property
+    def doc(self):
+        return self._doc
 
     @property
     def declared_sections(self):
@@ -151,8 +159,7 @@ class TermParser(object):
 
         return errors
 
-    @classmethod
-    def find_declare_doc(cls, d, name):
+    def find_declare_doc(self, d, name):
         """Given a name, try to resolve the name to a path or URL to
         a declaration document. It will try:
 
@@ -183,23 +190,12 @@ class TermParser(object):
         elif exists(name):
             return name
         else:
-            import requests
-            from requests.exceptions import InvalidSchema
-            url = METATAB_ASSETS_URL + name + '.csv'
-            try:
-                # See if it exists online in the official repo
-                r = requests.head(url, allow_redirects=False)
-                if r.status_code == requests.codes.ok:
-                    return url
-
-            except InvalidSchema:
-                pass  # It's probably FTP
+            return self.resolver.find_decl_doc(name)
 
 
         raise IncludeError("No local declaration file for '{}'".format(name))
 
-    @classmethod
-    def find_include_doc(cls, d, name):
+    def find_include_doc(self, d, name):
         """Resolve a name or path for an include doc to a an absolute path or url
         :param name:
         """
@@ -218,8 +214,7 @@ class TermParser(object):
 
         return path
 
-    @classmethod
-    def generate_terms(cls, ref, root, doc=None, file_type=None):
+    def generate_terms(self, ref, root, file_type=None):
         """An generator that yields term objects, handling includes and argument
         children.
         :param file_type:
@@ -235,7 +230,7 @@ class TermParser(object):
             row_gen = ref
             ref = row_gen.path
         else:
-            row_gen = generateRows(ref, cache=doc.cache)
+            row_gen = self.resolver.get_row_generator(ref, cache=self.doc.cache)
 
             if not isinstance(ref, six.string_types):
                 ref = six.text_type(ref)
@@ -254,15 +249,14 @@ class TermParser(object):
                                     term_args=row[2:] if len(row) > 2 else [],
                                     row=line_n,
                                     col=1,
-                                    file_name=ref, file_type=file_type, doc=doc)
+                                    file_name=ref, file_type=file_type, doc=self.doc)
                 else:
                     t = Term(row[0].lower(),
                              row[1] if len(row) > 1 else '',
                              row[2:] if len(row) > 2 else [],
                              row=line_n,
                              col=1,
-                             file_name=ref, file_type=file_type, doc=doc)
-
+                             file_name=ref, file_type=file_type, doc=self.doc)
 
                 if t.value and str(t.value).startswith('#'): # Comments are ignored
                     continue
@@ -270,9 +264,9 @@ class TermParser(object):
                 if t.term_is('include') or t.term_is('declare'):
 
                     if t.term_is('include'):
-                        resolved = cls.find_include_doc(dirname(ref), t.value.strip())
+                        resolved = self.find_include_doc(dirname(ref), t.value.strip())
                     else:
-                        resolved = cls.find_declare_doc(dirname(ref), t.value.strip())
+                        resolved = self.find_declare_doc(dirname(ref), t.value.strip())
 
                     if ref == resolved:
                         raise IncludeError("Include loop for '{}' ".format(resolved))
@@ -280,7 +274,7 @@ class TermParser(object):
                     yield t
 
                     try:
-                        for t in cls.generate_terms(resolved, root, doc, file_type=t.record_term_lc):
+                        for t in self.generate_terms(resolved, root, file_type=t.record_term_lc):
                             yield t
 
                         if last_section:
@@ -290,7 +284,7 @@ class TermParser(object):
                         e.term = t
                         raise
 
-                    except (OSError, FileNotFoundError, SourceError) as e:
+                    except (OSError, FileNotFoundError, GenerateError) as e:
                         e = IncludeError("Failed to Include; {}".format(e))
                         e.term = t
                         raise e
@@ -336,7 +330,7 @@ class TermParser(object):
 
         try:
 
-            for i, t in enumerate(self.generate_terms(self._ref, root, self._doc)):
+            for i, t in enumerate(self.generate_terms(self._ref, root)):
 
                 # Substitute synonyms
                 if t.join_lc in self.synonyms:
@@ -487,7 +481,7 @@ class TermParser(object):
 
         term_name = Term.normalize_term(t.value)
 
-        td = {k: v for k, v in t.properties.items() if v.strip()}
+        td = {k: v for k, v in t.arg_props.items() if v.strip()}
         td['values'] = {}
         td['term'] = t.value
 
@@ -519,7 +513,7 @@ class TermParser(object):
 
         vs_name = t.parent.join_lc
         value = t.value
-        disp_value = t.properties.get('displayvalue')
+        disp_value = t.arg_props.get('displayvalue')
 
         for k, v in self._declared_terms.items():
             if 'valuesetname' in v and vs_name == v['valuesetname'].lower():

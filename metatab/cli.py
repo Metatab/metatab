@@ -211,7 +211,7 @@ def dump_schema(doc, name):
     rows = []
     header = 'name altname datatype description'.split()
     for c in t.children:
-        cp = c.properties
+        cp = c.arg_props
         rows.append([cp.get(h) for h in header])
 
     prt(tabulate(rows, header))

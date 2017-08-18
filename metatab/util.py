@@ -11,7 +11,7 @@ from genericpath import exists, isfile
 from os import makedirs
 from os.path import join, basename, dirname, isdir, abspath
 
-from rowgenerators import reparse_url, parse_url_to_dict, unparse_url_dict, Url
+#from rowgenerators import reparse_url, parse_url_to_dict, unparse_url_dict, Url
 
 from metatab import DEFAULT_METATAB_FILE
 
@@ -19,10 +19,10 @@ from metatab import DEFAULT_METATAB_FILE
 def declaration_path(name):
     """Return the path to an included declaration"""
     from os.path import dirname, join, exists
-    import metatab.declarations
+    import  metatab_declarations
     from metatab.exc import IncludeError
 
-    d = dirname(metatab.declarations.__file__)
+    d = dirname(metatab_declarations.__file__)
 
     path = join(d, name)
 
@@ -363,58 +363,3 @@ def get_cache(clean=False):
     return cache
 
 
-def resolve_package_metadata_url(ref):
-    """Re-write a url to a resource to include the likely refernce to the
-    internal Metatab metadata"""
-
-    du = Url(ref)
-
-    if du.resource_format == 'zip':
-        package_url = reparse_url(ref, fragment=False)
-        metadata_url = reparse_url(ref, fragment=DEFAULT_METATAB_FILE)
-
-    elif du.target_format == 'xlsx' or du.target_format == 'xls':
-        package_url = reparse_url(ref, fragment=False)
-        metadata_url = reparse_url(ref, fragment='meta')
-
-    elif du.resource_file == DEFAULT_METATAB_FILE:
-        metadata_url = reparse_url(ref)
-        package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']), fragment=False) + '/'
-
-    elif du.target_format == 'csv':
-        package_url = reparse_url(ref, fragment=False)
-        metadata_url = reparse_url(ref)
-
-    elif du.proto == 'file':
-        p = parse_url_to_dict(ref)
-
-        if isfile(p['path']):
-            metadata_url = reparse_url(ref)
-            package_url = reparse_url(ref, path=dirname(p['path']), fragment=False)
-        else:
-
-            p['path'] = join(p['path'], DEFAULT_METATAB_FILE)
-            package_url = reparse_url(ref, fragment=False, path=p['path'].rstrip('/') + '/')
-            metadata_url = unparse_url_dict(p)
-
-        # Make all of the paths absolute. Saves a lot of headaches later.
-        package_url = reparse_url(package_url, path=abspath(parse_url_to_dict(package_url)['path']))
-        metadata_url = reparse_url(metadata_url, path=abspath(parse_url_to_dict(metadata_url)['path']))
-
-    else:
-        metadata_url = join(ref, DEFAULT_METATAB_FILE)
-        package_url = reparse_url(ref, fragment=False)
-
-    # raise PackageError("Can't determine package URLs for '{}'".format(ref))
-
-    return package_url, metadata_url
-
-
-def open_package(ref, cache=None, clean_cache=False):
-    from metatab.doc import MetatabDoc
-
-    package_url, metadata_url = resolve_package_metadata_url(ref)
-
-    cache = cache if cache else get_cache()
-
-    return MetatabDoc(metadata_url, package_url=package_url, cache=cache)

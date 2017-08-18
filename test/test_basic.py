@@ -8,12 +8,9 @@ from metatab import MetatabRowGenerator
 
 from metatab.util import flatten, declaration_path
 from metatab import TermParser, CsvPathRowGenerator
-from terms import Term
+from metatab.terms import Term
 from collections import defaultdict
-from metatab.doc import Resource
-import csv
-from os.path import dirname
-from util import open_package
+
 import json
 from os.path import exists
 from metatab import MetatabDoc
@@ -288,20 +285,6 @@ class MyTestCase(unittest.TestCase):
         for sname, s in doc.sections.items():
             print(sname, s.value)
 
-    def test_generic_row_generation(self):
-        from metatab import GenericRowGenerator
-
-        url = 'gs://14_nfiTtSiMSjDes6BSiLU-Gsqy8DIdUxpMaH6DswcVQ'
-
-        doc = MetatabDoc(url)
-
-        self.assertEquals('Registered Voters, By County',doc.find_first('root.title').value)
-
-        url = 'http://assets.metatab.org/examples/example-package.xls#meta'
-
-        doc = MetatabDoc(url)
-
-        self.assertEquals('17289303-73fa-437b-97da-2e1ed2cd01fd', doc.find_first('root.identifier').value)
 
     @unittest.skip('datapackage-1.0.0a2 seems to be missing a file')
     def test_datapackage_declare(self):
@@ -409,27 +392,6 @@ class MyTestCase(unittest.TestCase):
 
         self.assertEquals(144, (len(list(doc.all_terms))))
 
-    def test_resolved_url(self):
-
-
-        with open(test_data('resolve_urls.csv')) as f:
-            for row in csv.DictReader(f):
-                doc = open_package(test_data(row['doc']))
-
-                base = dirname(doc._ref)
-                rs = doc['Resources']
-
-                t = rs.new_term('Root.Datafile', row['resource_url'])
-                t.term_value_name = 'url'
-
-                if row['base_url']:
-                    r = Resource(t, row['base_url'])
-                else:
-                    r = Resource(t, doc.package_url if doc.package_url else doc._ref)
-
-                #print(r.resolved_url.replace(base, '<base>'), row['url'].replace("file:",''))
-                self.assertEquals(r.resolved_url.replace(base, '<base>').replace('file:',''),
-                                  row['url'].replace('file:',''))
 
     def test_versions(self):
 
@@ -443,28 +405,48 @@ class MyTestCase(unittest.TestCase):
 
     def test_acessors(self):
 
-        doc = MetatabDoc(test_data('civicknowledge.com-rcfe_affordability-2015.csv'))
+        doc = MetatabDoc(test_data('properties.csv'))
 
-        t = doc.find_first('Root.Reference')
+        c = doc.find_first('Root.Citation',name='ipums')
 
-        self.assertIn('name', t.properties)
-        self.assertIn('url', t.properties)
+        # Arg_props not include Author, Title or Year, which are children, but not arg props
+        self.assertEquals(['type', 'month', 'publisher', 'journal', 'version', 'volume',
+                           'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name'],
+                          list(c.arg_props.keys()))
 
-        print([name for name, value in vars(t.__class__).items() if isinstance(value, property)])
 
-        self.assertEqual(t.name,'B09020')
-        self.assertEqual(t.url,'censusreporter:B09020/140/05000US06073')
+        # Props includes just the children that actually have values
+        self.assertEquals(['type', 'publisher', 'version', 'accessdate', 'url', 'doi', 'author', 'title', 'year'],
+                          list(c.props.keys()))
 
-        self.assertEqual(t.join,'root.reference')
+        # All props includes values for all of the children and all of the property args
+        self.assertEquals(['type', 'month', 'publisher', 'journal', 'version', 'volume',
+                           'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name', 'author', 'title', 'year'],
+                          list(c.all_props.keys()))
 
-        r = doc.reference(t.name)
+        # Attribute acessors
+        self.assertEqual('dataset', c.type)
+        self.assertEqual('2017', c.year)
+        self.assertEqual('Integrated Public Use Microdata Series', c.title)
+        self.assertEqual('University of Minnesota', c.publisher)
 
-        self.assertIn('name', r.properties)
-        self.assertIn('url', r.properties)
+        # These are properties of Term
+        self.assertEqual(c.join,'root.citation')
+        self.assertTrue(c.term_is('Root.Citation'))
 
-        self.assertEqual(r.name,'B09020')
-        self.assertEqual(r.url,'censusreporter:B09020/140/05000US06073')
+        # Item style acessors
+        self.assertEqual('dataset', c['type'].value)
+        self.assertTrue(c['type'].term_is('Citation.Type'))
+        self.assertEqual('2017', c['year'].value)
+        self.assertEqual('Integrated Public Use Microdata Series', c['title'].value)
+        self.assertEqual('University of Minnesota', c['publisher'].value)
+        self.assertTrue(c['publisher'].term_is('Citation.Publisher'))
 
+        c.foo = 'bar'
+
+        c.type = 'foobar'
+        self.assertEqual('foobar', c.type)
+        self.assertEqual('foobar', c['type'].value)
 
 if __name__ == '__main__':
     unittest.main()

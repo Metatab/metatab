@@ -6,23 +6,51 @@ Generate rows from a variety of paths, references or other input
 """
 
 from .exc import IncludeError, GenerateError
+from os.path import exists
 
 
-def generateRows(ref, cache=None):
-    """Return a row generator for a reference"""
-    from inspect import isgenerator
-    from six import string_types
+class WebResolver(object):
 
-    if isinstance(ref, (list, tuple)):
-        rg = MetatabRowGenerator(ref)
-    elif isgenerator(ref):
-        rg = MetatabRowGenerator(ref)
-    elif isinstance(ref, string_types):
-        rg = GenericRowGenerator(ref, cache=cache)
-    else:
+    def fetch_row_source(self, url):
+        pass
+
+    def find_decl_doc(self, name):
+
+
+        raise IncludeError(name)
+
+        import requests
+        from requests.exceptions import InvalidSchema
+        url = METATAB_ASSETS_URL + name + '.csv'
+        try:
+            # See if it exists online in the official repo
+            r = requests.head(url, allow_redirects=False)
+            if r.status_code == requests.codes.ok:
+                return url
+
+        except InvalidSchema:
+            pass  # It's probably FTP
+
+
+    def get_row_generator(self, ref, cache=None):
+
+        """Return a row generator for a reference"""
+        from inspect import isgenerator
+
+        if isinstance(ref, (list, tuple)):
+            return MetatabRowGenerator(ref)
+        elif isgenerator(ref):
+            return MetatabRowGenerator(ref)
+        elif isinstance(ref, str):
+            if exists(ref):
+                return CsvPathRowGenerator(ref)
+            elif ref.startswith("http"):
+                return CsvUrlRowGenerator(ref)
+        elif isinstance(ref, bytes):
+            return CsvDataRowGenerator(ref)
+
         raise GenerateError("Cant figure out how to generate rows from ref: " + str(ref))
 
-    return rg
 
 
 class MetatabRowGenerator(object):
@@ -188,6 +216,7 @@ class GenericRowGenerator(MetatabRowGenerator):
         pass
 
     def __iter__(self):
+        raise NotImplementedError()
         from rowgenerators import SourceSpec
 
         spec = SourceSpec(url=self._url)
@@ -248,3 +277,5 @@ class TextRowGenerator(MetatabRowGenerator):
             if re.match(r'^\s*#', row):  # Skip comments
                 continue
             yield [e.strip() for e in row.split(':', 1)]
+
+

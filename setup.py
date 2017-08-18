@@ -46,16 +46,18 @@ setup(
     install_requires=[
         'six',
         'unicodecsv',
-        'pyyaml',
-        'datapackage',
-        'bs4',
-        'markdown',
-        'ckanapi',
-        'boto3',
+        #'pyyaml',
+        #'datapackage',
+        #'bs4',
+        #'markdown',
+        #'ckanapi',
+        #'boto3',
         'rowgenerators>=0.3.2',
-        'rowpipe>=0.1.2',
-        'tableintuit>=0.0.6',
-        'geoid>=1.0.4'
+        #'rowpipe>=0.1.2',
+        #'tableintuit>=0.0.6',
+        #'geoid>=1.0.4'
+        #'metatabdecl',
+        'deprecation'
 
     ],
 
@@ -74,8 +76,8 @@ setup(
     license='BSD',
     classifiers=classifiers,
     extras_require={
-        'test': ['datapackage'],
-        'geo': ['fiona','shapely','pyproj'],
+       'datapackage': ['datapackage'],
+       # 'geo': ['fiona','shapely','pyproj'],
 
     }
 )
