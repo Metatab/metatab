@@ -54,6 +54,7 @@ def convert_notebook(m):
     from metatab.jupyter.exporters import PackageExporter, DocumentationExporter
     from nbconvert.writers import FilesWriter
     from os.path import normpath
+    from nbconvert.preprocessors.execute import CellExecutionError
 
     prt('Convert notebook to Metatab source package')
     nb_path = Url(m.mt_file).parts.path
@@ -62,19 +63,16 @@ def convert_notebook(m):
 
     pe = PackageExporter(config=c, log=logger)
 
-    prt('Runing the notebook')
-    output, resources = pe.from_filename(nb_path)
+    prt('Running the notebook')
 
-    fw = FilesWriter()
-    fw.build_directory = pe.output_dir
-
-    fw.write(output, resources, notebook_name=DEFAULT_METATAB_FILE)
+    pe.run(nb_path)
 
     de = DocumentationExporter(config=c, log=logger, metadata=doc_metadata(pe.doc))
 
     prt('Exporting documentation')
     output, resources = de.from_filename(nb_path)
 
+    fw = FilesWriter()
     fw.build_directory = join(pe.output_dir,'docs')
     fw.write(output, resources, notebook_name='notebook')
 
@@ -83,7 +81,6 @@ def convert_notebook(m):
     doc = MetatabDoc(new_mt_file)
 
     de.update_metatab(doc, resources)
-
 
     for lib_dir in pe.lib_dirs:
 

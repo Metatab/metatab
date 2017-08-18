@@ -409,6 +409,11 @@ class MetatabMagic(Magics):
 
         u = Url(lib_dir)
 
+        try:
+            doc = self.mt_doc
+        except KeyError:
+            doc = None
+
         # Assume files are actually directories
         if u.proto == 'file':
 
@@ -422,7 +427,6 @@ class MetatabMagic(Magics):
                     sys.path.insert(0,path)
                     self.shell.user_ns['_lib_dirs'].add(lib_dir)
                     return
-
 
         # Assume URLS are to Metapack packages on the net
         if (u.proto == 'https' or u.proto == 'http'):
@@ -444,18 +448,15 @@ class MetatabMagic(Magics):
                 sys.path.insert(0,lib_path)
 
         # Assume anything else is a Metatab Reference term name
-        elif self.mt_doc and (self.mt_doc.reference(lib_dir) or self.mt_doc.resource(lib_dir) ) :
+        elif doc and (self.mt_doc.reference(lib_dir) or self.mt_doc.resource(lib_dir)):
 
             r = self.mt_doc.reference(lib_dir) or self.mt_doc.resource(lib_dir)
-
-
             ur = Url(r.url).rebuild_url(fragment=False, proto=False, scheme_extension=False)
 
             return self.mt_lib_dir(ur)
 
         else:
             logger.error("Can't find library directory: '{}' ".format(lib_dir))
-
 
     @line_magic
     def mt_show_libdirs(self, line):

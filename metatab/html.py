@@ -559,6 +559,8 @@ def html(doc):
         width: 80px;
     }}
 
+    img[alt=doc_img] {{ max-width: 250px; max-height: 250px}}
+
     </style>
     <title>{title}</title>
 </head>

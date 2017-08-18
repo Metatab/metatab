@@ -191,7 +191,7 @@ class ExtractFinalMetatabDoc(Preprocessor):
                 for name, s in self.doc.sections.items():
                     try:
                         s.args = self.doc.decl_sections[name.lower()]['args']
-                    except KeyError:
+                    except KeyError as e:
                         pass
 
         return cell, resources

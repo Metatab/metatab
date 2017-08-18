@@ -13,23 +13,29 @@ import io
 import metatab
 import metatab.jupyter
 import nbformat
-from metatab.exc import MetapackError
+from metatab.exc import MetapackError, NotebookError
 from metatab.jupyter.markdown import MarkdownExporter
 from nbconvert.exporters import Exporter
 from nbconvert.exporters.html import HTMLExporter
 from nbconvert.exporters.pdf import PDFExporter
 from nbconvert.exporters.latex import LatexExporter
+from nbconvert.exporters.exporter import ResourcesDict
 from nbconvert.preprocessors import ExecutePreprocessor
 from nbconvert.preprocessors import ExtractOutputPreprocessor
 from nbconvert.preprocessors.execute import CellExecutionError
+from nbconvert.writers import FilesWriter
 from os import getcwd
 from os.path import dirname, join, abspath
 from traitlets import List
 from traitlets.config import Unicode, Config, Dict
 from .preprocessors import (AddEpilog, ExtractInlineMetatabDoc, RemoveMetatab,
                             ExtractFinalMetatabDoc, ExtractMetatabTerms, ExtractLibDirs)
+from ipython_genutils import text, py3compat
 
 from metatab.util import ensure_dir
+from metatab import DEFAULT_METATAB_FILE
+import os
+import datetime
 
 def write_files(self, resources):
     self.log.info('Base dir: {}'.format(self.output_dir))
@@ -62,13 +68,51 @@ class MetatabExporter(Exporter):
     def from_file(self, file_stream, resources=None, **kw):
         return super().from_file(file_stream, resources, **kw)
 
-    def from_filename(self, filename, resources=None, **kw):
+
+    def _setup_file_metatadata(self, filename, resources):
 
         if not self.notebook_dir:
             self.notebook_dir = dirname(abspath(filename))
 
-        return super().from_filename(filename, resources, **kw)
+        if resources is None:
+            resources = ResourcesDict()
+        if not 'metadata' in resources or resources['metadata'] == '':
+            resources['metadata'] = ResourcesDict()
+        path, basename = os.path.split(filename)
+        notebook_name = basename[:basename.rfind('.')]
+        resources['metadata']['name'] = notebook_name
+        resources['metadata']['path'] = path
 
+        modified_date = datetime.datetime.fromtimestamp(os.path.getmtime(filename))
+        resources['metadata']['modified_date'] = modified_date.strftime(text.date_format)
+
+    def from_filename(self, filename, resources=None, **kw):
+        """
+        Convert a notebook from a notebook file.
+
+        Parameters
+        ----------
+        filename : str
+            Full filename of the notebook file to open and convert.
+        resources : dict
+          Additional resources that can be accessed read/write by
+          preprocessors and filters.
+        `**kw`
+          Ignored
+
+        """
+        # Convert full filename string to unicode
+        # In python 2.7.x if filename comes as unicode string,
+        # just skip converting it.
+
+        if isinstance(filename, str):
+            filename = py3compat.str_to_unicode(filename)
+
+        # Pull the metadata from the filesystem.
+        self._setup_file_metatadata(filename, resources)
+
+        with io.open(filename, encoding='utf-8') as f:
+            return self.from_file(f, resources=resources, **kw)
 
 
 class DocumentationExporter(MetatabExporter):
@@ -202,15 +246,15 @@ class PackageExporter(MetatabExporter):
 
     file_extension = ''
 
-    _preprocessors = List([
-
-    ])
-
     extra_terms = [] # Terms set in the document
 
     lib_dirs = [] # Extra library directories
 
     doc = None
+
+    error = None
+
+    executed_notebook_path = None
 
     @property
     def default_config(self):
@@ -228,6 +272,9 @@ class PackageExporter(MetatabExporter):
 
         if not package_name:
             doc = ExtractInlineMetatabDoc().run(nb)
+
+            if not doc:
+                raise NotebookError("Notebook does not have an embedded Metatab doc")
 
             package_name = doc.as_version(None).find_first_value('Root.Name')
 
@@ -251,6 +298,7 @@ class PackageExporter(MetatabExporter):
 
         return emt.terms
 
+
     def from_notebook_node(self, nb, resources=None, **kw):
         """Create a Metatab package from a notebook node """
 
@@ -259,17 +307,19 @@ class PackageExporter(MetatabExporter):
         # The the package name and directory, either from the inlined Metatab doc,
         # or from the config
 
-        self.output_dir = self.get_output_dir(nb)
+        if not self.output_dir:
+            self.output_dir = self.get_output_dir(nb)
 
         resources = self._init_resources(resources)
-
-        resources['outputs'] = {}
 
         if 'language' in nb['metadata']:
             resources['language'] = nb['metadata']['language'].lower()
 
         # Do any other configured preprocessing
-        nb_copy, resources = self._preprocess(nb_copy, resources)
+        # We dont do this bcause the _preprocess method deep copies the
+        # resources, which screws up writing the notebook on executng errors
+        #nb_copy, resources = self._preprocess(nb_copy, resources)
+
 
         # The Notebook can set some terms with tags
         self.extra_terms = self.extract_terms(nb_copy)
@@ -277,13 +327,19 @@ class PackageExporter(MetatabExporter):
         # Clear the output before executing
         self.clear_output(nb_copy)
 
+        nb_copy, _ = AddEpilog(pkg_dir=self.output_dir).preprocess(nb_copy, resources)
+        self.executed_notebook_path = join(self.output_dir,'notebooks/executed-source.ipynb')
+        resources['outputs']['notebooks/executed-source.ipynb'] = nbformat.writes(nb).encode('utf-8')
+
         try:
 
-            nb_copy, resources = self.exec_notebook(nb_copy, resources, self.notebook_dir)
-        except CellExecutionError as e:
+            ep = ExecutePreprocessor(config=self.config, log=self.log)
 
-            raise CellExecutionError("Errors executing noteboook. See output at {} for details.\n{}"
-                                     .format('notebooks/executed-source.ipynb', ''))
+            nb_copy, _ = ep.preprocess(nb_copy, {'metadata': {'path': self.notebook_dir}})
+
+        except CellExecutionError:
+
+            raise
 
         eld = ExtractLibDirs()
         eld.preprocess(nb_copy, {})
@@ -294,7 +350,7 @@ class PackageExporter(MetatabExporter):
         efm.preprocess(nb_copy, {})
 
         if not efm.doc:
-            raise MetapackError("No metatab doc")
+            raise MetapackError("Notebook does not contain the metatab output from %mt_final_metatab. Check the executed notebook source")
 
         self.doc = efm.doc
 
@@ -310,22 +366,35 @@ class PackageExporter(MetatabExporter):
     def clear_output(self, nb):
 
         from nbconvert.preprocessors import ClearOutputPreprocessor
-
         return ClearOutputPreprocessor().preprocess(nb, {})
 
-    def exec_notebook(self, nb, resources, nb_dir):
+    def run(self, nb_path, output_dir=None, resources = None):
+        """Run the notebook and write the files. Writes a notebook on errors"""
 
+        if resources is None:
+            resources = ResourcesDict()
 
-        nb, _ = AddEpilog(pkg_dir=self.output_dir).preprocess(nb, resources)
+        # Pull the metadata from the filesystem.
+        self._setup_file_metatadata(nb_path, resources)
 
-        resources['outputs']['notebooks/executed-source.ipynb'] = nbformat.writes(nb).encode('utf-8')
+        with io.open(nb_path, encoding='utf-8') as f:
+            nb = nbformat.read(f, as_version=4)
 
-        ep = ExecutePreprocessor(config=self.config)
+        self.output_dir = self.get_output_dir(nb)
 
+        fw = FilesWriter(log_level='DEBUG')
+        fw.build_directory = output_dir or self.output_dir
 
-        nb, _ = ep.preprocess(nb, {'metadata': {'path': nb_dir}})
+        exc = None
 
+        output = ''
 
-        return nb, resources
+        try:
+            output, resources = self.from_notebook_node(nb, resources)
 
-
+        except CellExecutionError as e:
+            self.log.error(e)
+            self.log.error("Execution failed. See errors in notebook file at {}".format(self.executed_notebook_path))
+            raise
+        finally:
+            fw.write(output, resources, notebook_name=DEFAULT_METATAB_FILE)

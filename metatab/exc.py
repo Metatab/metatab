@@ -37,3 +37,6 @@ class GenerateError(MetatabError):
 
 class ConversionError(MetatabError):
     pass
+
+class NotebookError(MetatabError):
+    pass

@@ -3,9 +3,13 @@
 ((* block docclass *))
 \documentclass[11pt]{article}
 \usepackage{authblk}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+
 ((* endblock docclass *))
 
 ((* block maketitle *))
+
 
 ((*- if nb.metadata.metatab.author.name: -*))
     \author{((( nb.metadata.metatab.author.name )))}
@@ -18,18 +22,20 @@
 ((*- endif *))
 
 ((*- if nb.metadata.metatab.title: -*))
-    \title{((( nb.metadata.metatab.title )))}
+    \title{((( nb.metadata.metatab.title |escape_latex )))}
 ((*- endif *))
 \date{\today}
 \maketitle
 
 ((*- if nb.metadata.metatab.description: -*))
 \begin{abstract}
-    ((( nb.metadata.metatab.description )))
+    ((( nb.metadata.metatab.description |escape_latex )))
 \end{abstract}
 ((*- endif *))
 
-
+\lfoot{ {\tiny (((nb.metadata.metatab.name |escape_latex )))} }
+\cfoot{}
+\rfoot{\thepage}
 
 ((* endblock maketitle *))
 
