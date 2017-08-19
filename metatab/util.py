@@ -51,28 +51,7 @@ def slugify(value):
     return value
 
 
-def linkify(v, description=None, cwd_url=None):
-    from rowgenerators import Url
-    from os.path import abspath
-    if not v:
-        return None
 
-    u = Url(v)
-
-    target = 'target="_blank"'
-
-    if u.scheme in ('http', 'https', 'mailto'):
-
-        if description is None:
-            description = v
-        return '<a href="{url}" {target} >{desc}</a>'.format(url=v, target=target, desc=description)
-
-    elif u.scheme == 'file':
-
-        return '<a href="file:{url}" >{desc}</a>'.format(url=u.parts.path, desc=description)
-
-    else:
-        return v
 
 
 def flatten(d, sep='.'):
@@ -136,78 +115,6 @@ def make_metatab_file(template='metatab'):
     return doc
 
 
-def scrape_urls_from_web_page(page_url):
-    from bs4 import BeautifulSoup
-    from six.moves.urllib.parse import urlparse, urlsplit, urlunsplit
-    from six.moves.urllib.request import urlopen
-    import os
-    from os.path import dirname
-
-    parts = list(urlsplit(page_url))
-
-    parts[2] = ''
-    root_url = urlunsplit(parts)
-
-    html_page = urlopen(page_url)
-    soup = BeautifulSoup(html_page, "lxml")
-
-    d = dict(external_documentation={}, sources={}, links={})
-
-    for link in soup.findAll('a'):
-
-        if not link:
-            continue
-
-        if link.string:
-            text = link.string
-        else:
-            text = None
-
-        url = link.get('href')
-
-        if not url:
-            continue
-
-        if 'javascript' in url:
-            continue
-
-        if url.startswith('http'):
-            pass
-        elif url.startswith('/'):
-            url = os.path.join(root_url, url[1:])
-
-        elif page_url.endswith(".html") or page_url.endswith(".htm") or page_url.endswith(".asp"):
-            # This part is a real hack. There should be a better way to determine if the URL point
-            # to a directory or a file.
-            url = os.path.join(dirname(page_url), url)
-        else:
-            url = os.path.join(page_url, url)
-
-        base = os.path.basename(url)
-
-        if '#' in base:
-            continue
-
-        try:
-            fn, ext = base.split('.', 1)
-        except ValueError:
-            fn = base
-            ext = ''
-
-        text = ' '.join(text.split()) if text else ''
-
-        # xlsm is a bug that adds 'm' to the end of the url. No idea.
-        if ext.lower() in ('zip', 'csv', 'xls', 'xlsx', 'xlsm', 'txt'):
-            d['sources'][fn] = dict(url=url, description=text)
-
-        elif ext.lower() in ('pdf', 'html', 'asp'):
-            d['external_documentation'][fn] = dict(url=url, description=text)
-
-        else:
-            d['links'][text] = dict(url=url, description=text)
-
-    return d
-
 
 import mimetypes
 
@@ -216,57 +123,6 @@ mime_map = {v: k.strip('.') for k, v in mimetypes.types_map.items()}
 mime_map['application/x-zip-compressed'] = 'zip'
 mime_map['application/vnd.ms-excel'] = 'xls'
 mime_map['text/html'] = 'html'
-
-
-def guess_format(url):
-    """Try to guess  the format of a resource, possibly with a HEAD request"""
-    import requests
-    from requests.exceptions import InvalidSchema
-    from rowgenerators import parse_url_to_dict
-
-    parts = parse_url_to_dict(url)
-
-    # Guess_type fails for root urls like 'http://civicknowledge.com'
-    if parts.get('path'):
-        type, encoding = mimetypes.guess_type(url)
-    elif parts['scheme'] in ('http', 'https'):
-        type, encoding = 'text/html', None  # Assume it is a root url
-    else:
-        type, encoding = None, None
-
-    if type is None:
-        try:
-            r = requests.head(url, allow_redirects=False)
-            type = r.headers['Content-Type']
-
-            if ';' in type:
-                type, encoding = [e.strip() for e in type.split(';')]
-
-        except InvalidSchema:
-            pass  # It's probably FTP
-
-    return type, mime_map.get(type)
-
-
-def enumerate_contents(url, cache, callback=None):
-    import requests
-    from rowgenerators import enumerate_contents as rg_ec
-
-    mt, format = guess_format(url)
-
-    if mt == 'text/html':
-        d = scrape_urls_from_web_page(url)
-        urls = [v['url'] for k, v in d['sources'].items()]
-
-    elif isinstance(url, (list, tuple)):
-        urls = url
-    else:
-        urls = [url]
-
-    for url in urls:
-
-        for s in rg_ec(url, cache, callback=callback):
-            yield s
 
 
 # From https://gist.github.com/zdavkeos/1098474

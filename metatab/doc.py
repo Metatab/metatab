@@ -19,10 +19,9 @@ from metatab import DEFAULT_METATAB_FILE
 from metatab.parser import TermParser
 from metatab.generate import CsvPathRowGenerator, WebResolver
 from metatab.exc import MetatabError
-from metatab.util import linkify, slugify
+from metatab.util import slugify
 from .terms import SectionTerm, RootSectionTerm, Resource
 from .util import get_cache
-from .exc import PackageError
 
 logger = logging.getLogger('doc')
 
@@ -402,7 +401,7 @@ class MetatabDoc(object):
         if env is None:
             try:
                 env = self.get_lib_module_dict()
-            except PackageError:
+            except ImportError:
                 pass
 
         for t in self[section].terms:
@@ -433,7 +432,7 @@ class MetatabDoc(object):
         if env is None:
             try:
                 env = self.get_lib_module_dict()
-            except PackageError:
+            except ImportError:
 
                 pass
 
@@ -587,7 +586,7 @@ class MetatabDoc(object):
                 return {k: v for k, v in m.__dict__.items() if not k.startswith('__')}
             except ImportError as e:
 
-                raise PackageError("Failed to import python module form 'lib' directory: ", str(e))
+                raise ImportError("Failed to import python module form 'lib' directory: ", str(e))
 
         else:
             return {}

@@ -10,15 +10,9 @@ class MetatabError(Exception):
     pass
 
 
-class MetapackError(MetatabError):
-    pass
 
 
 class ReferenceError(MetatabError):
-    pass
-
-
-class PackageError(MetapackError):
     pass
 
 

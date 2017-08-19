@@ -12,7 +12,7 @@ from deprecation import deprecated
 import six
 from metatab.exc import GenerateError
 from metatab.parser import ROOT_TERM, ELIDED_TERM
-from metatab.util import linkify
+
 
 EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination table but not in the source
 
@@ -652,13 +652,6 @@ class Term(object):
             return "{}{}.{}: val={} sec={} ".format(
                 self.file_ref(), self.parent_term, self.record_term, self.value, sec_name)
 
-    def _repr_html_(self):
-        """HTML Representation method for IPYthon Notebook. """
-
-        return ("<p><strong>{}</strong>: {}</p><ul>{}</ul>".format(
-            self.qualified_term, linkify(self.value),
-            '\n'.join("<li>{}: {}</li>".format(k, linkify(v)) for k, v in self.properties.items() if k)
-        ))
 
 
 class SectionTerm(Term):

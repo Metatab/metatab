@@ -36,22 +36,27 @@ class WebResolver(object):
 
         """Return a row generator for a reference"""
         from inspect import isgenerator
+        from rowgenerators import Url
 
-        if isinstance(ref, (list, tuple)):
+        if isinstance(ref, (list, tuple)) or isgenerator(ref):
+            # Either row data, or a row generator
             return MetatabRowGenerator(ref)
-        elif isgenerator(ref):
-            return MetatabRowGenerator(ref)
-        elif isinstance(ref, str):
-            if exists(ref):
-                return CsvPathRowGenerator(ref)
-            elif ref.startswith("http"):
-                return CsvUrlRowGenerator(ref)
-        elif isinstance(ref, bytes):
+
+        if isinstance(ref, bytes):
+            # A CSV file
             return CsvDataRowGenerator(ref)
 
-        raise GenerateError("Cant figure out how to generate rows from ref: " + str(ref))
+        if isinstance(ref, str):
 
+            u = Url(ref)
 
+            if u.proto == 'file':
+                return CsvPathRowGenerator(u.path())
+
+            if u.proto == 'http':
+                return CsvUrlRowGenerator(ref)
+
+        raise GenerateError("Cant figure out how to generate rows from {} ref: {}".format(type(ref), ref))
 
 class MetatabRowGenerator(object):
     """An object that generates rows. The current implementation mostly just a wrapper around

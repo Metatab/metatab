@@ -15,7 +15,7 @@ from rowgenerators.util import clean_cache
 
 from metatab._meta import __version__
 from metatab import  DEFAULT_METATAB_FILE, MetatabDoc
-from metatab.util import prt, err, cli_init, make_metatab_file, resolve_package_metadata_url
+from metatab.util import prt, err, cli_init, make_metatab_file
 
 
 def metatab():

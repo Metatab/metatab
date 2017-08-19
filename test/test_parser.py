@@ -361,8 +361,6 @@ class MyTestCase(unittest.TestCase):
         self.assertEquals('root.parent3', t.join)
 
     def test_update_name(self):
-        import datapackage
-        from metatab.datapackage import convert_to_datapackage
 
         for fn in ('name.csv','name2.csv'):
 
