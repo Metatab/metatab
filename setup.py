@@ -31,7 +31,7 @@ if sys.argv[-1] == 'publish':
 with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
     readme = f.read()
 
-ps_meta = imp.load_source('_meta', 'metatab/_meta.py')
+ps_meta = imp.load_source('_meta', 'metapack/_meta.py')
 
 classifiers = [
     'Development Status :: 4 - Beta',
@@ -44,35 +44,13 @@ classifiers = [
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
 
-class sdist(sdist_module.sdist):
-    def run(self):
-        dcl = imp.load_source('dcl', 'metatab/declarations/__init__.py')
-        dest_dir = abspath(dirname(dcl.__file__))
-
-        src_dir = join(dirname(dirname(abspath(__file__))),'metatab','declarations')
-
-        if not isdir(src_dir):
-            raise IOError("Can't build without metatab package at same level as this module. Clone  \n "
-                          "https://github.com/CivicKnowledge/metatab.git parallel to metatab-py")
-
-        for fn in glob.glob(join(src_dir,'*.csv')):
-            print("Copying {} to {}".format(fn, dest_dir))
-            shutil.copy(fn, dest_dir)
-
-        return sdist_module.sdist.run(self)
-
-# Setup a directory for a fake package for importing plugins
-
-
 setup(
-    name='metatab',
+    name='metapack',
     version=ps_meta.__version__,
-    description='Data format for storing structured data in spreadsheet tables',
+    description='Data packaging system using Metatab',
     long_description=readme,
-    packages=['metatab', 'test', 'metatab.declarations', 'metatab.templates', 'metatab.cli'],
-    package_data={'metatab.templates': ['*.csv'],
-                  'metatab.jupyter': ['*.tpl']},
-
+    packages=['metapack', 'test', 'metapack.jupyter', 'metapack.cli'],
+    package_data={'metatab.jupyter': ['*.csv']},
     zip_safe=False,
     install_requires=[
         'six',
@@ -86,43 +64,41 @@ setup(
         'rowgenerators>=0.3.2',
         'rowpipe>=0.1.2',
         'tableintuit>=0.0.6',
-        'geoid>=1.0.4'
+        'geoid>=1.0.4',
+        'metapack',
+        'nbconvert',
+        'IPython',
+        'nameparser',
+        'pybtex'
 
     ],
 
 
     entry_points={
         'console_scripts': [
-            'metatab=metatab.cli.metatab:metatab',
-            'metapack=metatab.cli.metapack:metapack',
-            'metakan=metatab.cli.metakan:metakan',
-            'metasync=metatab.cli.metasync:metasync',
-            'metaworld=metatab.cli.metaworld:metaworld',
-            'metaaws=metatab.cli.metaaws:metaaws',
-            'metasql=metatab.cli.metasql:metasql'
+            'metapack=metapack.cli.metapack:metapack',
+            'metakan=metapack.cli.metakan:metakan',
+            'metasync=metapack.cli.metasync:metasync',
+            'metaworld=metapack.cli.metaworld:metaworld',
+            'metaaws=metapack.cli.metaaws:metaaws',
+            'metasql=metapack.cli.metasql:metasql'
 
         ],
         'nbconvert.exporters': [
-            'metapack = metatab.jupyter:MetapackExporter',
+            'metapack = metapack.jupyter:MetapackExporter',
         ],
     },
 
     include_package_data=True,
-    data_files=[(join(plugin_base_dir,'metatab_plugins'), ['metatab_plugins/__init__.py'])],
-
     author=ps_meta.__author__,
     author_email=ps_meta.__author__,
-    url='https://github.com/CivicKnowledge/metatab-py.git',
+    url='https://github.com/CivicKnowledge/metapack.git',
     license='BSD',
     classifiers=classifiers,
     extras_require={
         'test': ['datapackage'],
         'geo': ['fiona','shapely','pyproj'],
 
-    },
-
-    cmdclass={
-        'sdist': sdist,
     },
 
 )
