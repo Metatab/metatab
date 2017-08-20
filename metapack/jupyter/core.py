@@ -9,6 +9,8 @@ from os.path import join, dirname
 from os import makedirs
 import logging
 
+import unicodecsv as csv
+
 logger = logging.getLogger('user')
 err_logger = logging.getLogger('cli-errors')
 debug_logger = logging.getLogger('debug')
@@ -140,4 +142,39 @@ def process_schema(doc, resource, df):
                             )
 
 
+def write_geojson(path_or_flo, columns, gen):
+    import fiona
+    from fiona.crs import from_epsg
+    from collections import OrderedDict
 
+    type_map = {
+        'number': 'float'
+    }
+
+    schema = {
+        'geometry': 'Unknown',
+        'properties': OrderedDict(
+            [(c['header'], type_map.get(c['datatype'], c['datatype'])) for c in columns]
+        )
+    }
+
+    try:
+        f = fiona.open(path_or_flo,
+                       driver='GeoJSON',
+                       crs=from_epsg(4326),
+                       schema=schema)
+    except TypeError:
+        f = path_or_flo  # Assume that it's already a file-like-object
+
+    try:
+        w = csv.writer(f)
+        w.writerow(headers)
+        w.writerows(gen)
+
+        try:
+            return f.getvalue()
+        except AttributeError:
+            return None
+
+    finally:
+        f.close()

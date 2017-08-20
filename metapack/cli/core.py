@@ -1,17 +1,22 @@
+import logging
 import sys
+from genericpath import exists
 from itertools import islice
+from os.path import join
 from uuid import uuid4
 
 import six
-from genericpath import exists
+from tableintuit import TypeIntuiter
+
+from metapack.package.s3 import S3Package
+from metapack.package.csv import CsvPackage
+from metapack.package.excel import ExcelPackage
+from metapack.package.filesystem import FileSystemPackage
+from metapack.package.zip import ZipPackage
+from metatab import  DEFAULT_METATAB_FILE
 from metatab import _meta, MetatabDoc
 from metatab.util import make_metatab_file
 from rowgenerators import Url, SelectiveRowGenerator
-from os.path import join
-from metatab import  DEFAULT_METATAB_FILE
-import logging
-
-from tableintuit import TypeIntuiter
 
 logger = logging.getLogger('user')
 logger_err = logging.getLogger('cli-errors')
@@ -196,7 +201,6 @@ def get_table(doc, name):
 PACKAGE_PREFIX = '_packages'
 
 def make_excel_package(file, cache, env, skip_if_exists):
-    from metatab.package import ExcelPackage
 
     p = ExcelPackage(file, callback=prt, cache=cache, env=env)
     prt('Making Excel Package')
@@ -214,7 +218,6 @@ def make_excel_package(file, cache, env, skip_if_exists):
 
 def make_zip_package(file, cache, env, skip_if_exists):
 
-    from metatab.package import ZipPackage
 
     p = ZipPackage(file, callback=prt, cache=cache, env=env)
     prt('Making ZIP Package')
@@ -231,7 +234,6 @@ def make_zip_package(file, cache, env, skip_if_exists):
 
 
 def make_filesystem_package(file, cache, env, skip_if_exists):
-    from metatab.package import FileSystemPackage
 
     p = FileSystemPackage(file, callback=prt, cache=cache, env=env)
 
@@ -254,8 +256,6 @@ def make_filesystem_package(file, cache, env, skip_if_exists):
 
 def make_csv_package(file, cache, env, skip_if_exists):
 
-    from metatab.package import CsvPackage
-
     p = CsvPackage(file, callback=prt, cache=cache, env=env)
     prt('Making CSV Package')
     if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
@@ -270,7 +270,6 @@ def make_csv_package(file, cache, env, skip_if_exists):
     return p, url, created
 
 def make_s3_package(file, url, cache,  env, acl, skip_if_exists):
-    from metatab.package import S3Package
 
     p = S3Package(file, callback=prt, cache=cache, env=env, save_url=url, acl=acl)
 
@@ -468,3 +467,5 @@ type_map = {
     six.binary_type.__name__: 'text',
 
 }
+
+

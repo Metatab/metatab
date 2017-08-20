@@ -7,6 +7,6 @@ Record objects for the Simple Data Package format.
 from .serialize import *
 from .exc import *
 from .package import *
-from .s3 import set_s3_profile
+
 
 from metapack.jupyter.magic import load_ipython_extension, unload_ipython_extension

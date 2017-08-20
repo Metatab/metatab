@@ -1,0 +1,88 @@
+Declare,metatab-latest
+Title,A Metatab Example Data Package
+Description,"An example data package, from the Metatab tutorial at https://github.com/CivicKnowledge/metatab-py/blob/master/README.rst"
+Identifier,96cd659b-94ad-46ae-9c18-4018caa64355
+Name,example.com-example_data_package-2017-us-1
+Dataset,example-data-package
+Time,2017
+Space,US
+Version,1
+Modified,2017-08-20T19:13:28
+Spatialgrain,
+Giturl,https://github.com/CivicKnowledge/metatab-py.git
+
+Section,Resources,Name,StartLine,HeaderLines,Encoding,Description
+Datafile,http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Frandom-names.csv,random-names,1,0,ascii,Names and a random number
+Datafile,http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Frenter_cost.csv,renter_cost,5,"3,4",ascii,"Portion of income spent on rent, extracted from the ACS"
+Datafile,http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Fsimple-example-altnames.csv,simple-example-altnames,1,0,ascii,"Random UUIDs, integers and numbers"
+Datafile,http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Fsimple-example.csv,simple-example,1,0,ascii,"Random UUIDs, integers and numbers"
+Datafile,http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Funicode-latin1.csv,unicode-latin1,1,0,latin1,"The same data as unicode-utf8, but re-encoded to latin1"
+Datafile,http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Funicode-utf8.csv,unicode-utf8,1,0,utf8,"Famous names, latinized and in original character sets."
+Datafile,http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fexcel%2Frenter_cost_excel07.xlsx%3BSheet1,renter_cost_excel07,5,"3,4",ascii,"Same data as renter_cost, but sourced from an XLS file"
+Datafile,http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fexcel%2Frenter_cost_excel97.xls%3BSheet1,renter_cost_excel97,5,"3,4",ascii,"Same data as renter_cost, but sourced from an XLSX file"
+Datafile,http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Ftab%2Frenter_cost.tsv,renter_cost-2,5,"3,4",ascii,"Same data as renter_cost, but sourced from an XLS file tab le"
+
+Section,Documentation,Title,Description,,,
+Homepage,http://metatab.org,Metatab Home Page,Main Metatab home page,,,
+Documentation,https://github.com/CivicKnowledge/metatab-py/blob/master/README.rst,Metatab Python Package README,The README in the Metatab Githup repo contains the tutorial for generating this package.,,,
+
+Section,Contacts,email,,,,
+Origin,example.com,,,,,
+Creator,Eric Busboom,eric@civicknowledge. com,,,,
+Wrangler,Eric Busboom,eric@civicknowledge. com,,,,
+
+Section,Notes,,,,,
+Note,,,,,,
+
+Section,Schema,DataType,AltName,Description,,
+Table,random-names,,,,,
+Table.Column,Name,text,name,A random name,,
+Table.Column,Size,number,size,A random number,,
+Table,renter_cost,,,,,
+Table.Column,id,integer,,,,
+Table.Column,,text,,A GVID for the location. (a geoid in base62),,
+Table.Column,renter cost_gt_30,integer,renter_cost_gt_30,Number of renters who pay more than 30% of income in rent,,
+Table.Column,renter cost_gt_30_cv,text,renter_cost_gt_30_cv,Coefficient of variation for renter_cost_gt_30,,
+Table.Column,owner cost_gt_30_pct,number,owner_cost_gt_30_pct,Percent of homeowners who pay more than 30% of income in mortgage,,
+Table.Column,owner cost_gt_30_pct_cv,text,owner_cost_gt_30_pct_cv,Coefficient of variation for owner_cost_gt_30_pct,,
+Table,simple-example-altnames,,,,,
+Table.Column,id,integer,,,,
+Table.Column,foo,text,,,,
+Table.Column,bar,integer,,,,
+Table.Column,baz,number,,,,
+Table,simple-example,,,,,
+Table.Column,id,integer,,,,
+Table.Column,uuid,text,,,,
+Table.Column,int,integer,,,,
+Table.Column,float,number,,,,
+Table,unicode-latin1,,,,,
+Table.Column,Origin (English),text,origin_english,,,
+Table.Column,Name (English),text,name_english,,,
+Table.Column,Origin (Native),string,origin_native,,,
+Table.Column,Name (Native),string,name_native,,,
+Table,unicode-utf8,,,,,
+Table.Column,Origin (English),text,origin_english,,,
+Table.Column,Name (English),text,name_english,,,
+Table.Column,Origin (Native),string,origin_native,,,
+Table.Column,Name (Native),string,name_native,,,
+Table,renter_cost_excel07,,,,,
+Table.Column,id,integer,,,,
+Table.Column,gvid,text,,A GVID for the location. (a geoid in base62),,
+Table.Column,renter cost_gt_30,integer,renter_cost_gt_30,Number of renters who pay more than 30% of income in rent,,
+Table.Column,renter cost_gt_30_cv,text,renter_cost_gt_30_cv,Coefficient of variation for renter_cost_gt_30,,
+Table.Column,owner cost_gt_30_pct,number,owner_cost_gt_30_pct,Percent of homeowners who pay more than 30% of income in mortgage,,
+Table.Column,owner cost_gt_30_pct_cv,text,owner_cost_gt_30_pct_cv,Coefficient of variation for owner_cost_gt_30_pct,,
+Table,renter_cost_excel97,,,,,
+Table.Column,id,integer,,,,
+Table.Column,gvid,text,,A GVID for the location. (a geoid in base62),,
+Table.Column,renter cost_gt_30,integer,renter_cost_gt_30,Number of renters who pay more than 30% of income in rent,,
+Table.Column,renter cost_gt_30_cv,text,renter_cost_gt_30_cv,Coefficient of variation for renter_cost_gt_30,,
+Table.Column,owner cost_gt_30_pct,number,owner_cost_gt_30_pct,Percent of homeowners who pay more than 30% of income in mortgage,,
+Table.Column,owner cost_gt_30_pct_cv,text,owner_cost_gt_30_pct_cv,Coefficient of variation for owner_cost_gt_30_pct,,
+Table,renter_cost-2,,,,,
+Table.Column,id,integer,,,,
+Table.Column,gvid,text,,A GVID for the location. (a geoid in base62),,
+Table.Column,renter cost_gt_30,integer,renter_cost_gt_30,Number of renters who pay more than 30% of income in rent,,
+Table.Column,renter cost_gt_30_cv,text,renter_cost_gt_30_cv,Coefficient of variation for renter_cost_gt_30,,
+Table.Column,owner cost_gt_30_pct,number,owner_cost_gt_30_pct,Percent of homeowners who pay more than 30% of income in mortgage,,
+Table.Column,owner cost_gt_30_pct_cv,text,owner_cost_gt_30_pct_cv,Coefficient of variation for owner_cost_gt_30_pct,,

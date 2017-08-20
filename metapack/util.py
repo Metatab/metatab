@@ -9,6 +9,8 @@ from genericpath import exists
 from os import makedirs
 from os.path import join, basename, dirname
 
+import unicodecsv as csv
+
 
 def declaration_path(name):
     """Return the path to an included declaration"""
@@ -310,3 +312,38 @@ def copytree(src, dst, symlinks=False, ignore=None):
             shutil.copytree(s, d, symlinks, ignore)
         else:
             shutil.copy2(s, d)
+
+
+def ensure_exists(d):
+
+    if not exists(d):
+        makedirs(d)
+
+
+def write_csv(path_or_flo, headers, gen):
+    try:
+        f = open(path_or_flo, "wb")
+
+    except TypeError:
+        f = path_or_flo  # Assume that it's already a file-like-object
+
+    try:
+        w = csv.writer(f)
+        w.writerow(headers)
+
+        row = None
+        try:
+            for row in gen:
+                w.writerow(row)
+        except:
+            import sys
+            print("write_csv: ERROR IN ROW", row, file=sys.stderr)
+            raise
+
+        try:
+            return f.getvalue()
+        except AttributeError:
+            return None
+
+    finally:
+        f.close()

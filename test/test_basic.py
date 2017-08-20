@@ -14,9 +14,9 @@ class MetatabTestCase(unittest.TestCase):
 
     def test_open_package(self):
 
-        from metapack.package import open_package
+        from metapack import open_package
 
-        p = open_package(test_data('packages/example.com-test_package/metadata.csv'))
+        p = open_package(test_data('packages/example.com/example.com-test_package/metadata.csv'))
 
         self.assertEqual('example.com-test_package-1', p.find_first('Root.Name').value)
 

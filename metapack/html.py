@@ -23,9 +23,7 @@ from rowgenerators.fetch import download_and_cache
 from yaml import safe_dump
 from metatab.doc import MetatabDoc
 
-
 dl_templ = "{}\n:   {}\n\n"
-
 
 def ns(v):
     """Return empty str if bool false"""

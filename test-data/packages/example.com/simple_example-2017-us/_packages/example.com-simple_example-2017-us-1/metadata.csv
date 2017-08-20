@@ -1,0 +1,63 @@
+Declare,metatab-latest
+Title,A Fairly Simple Dtata Package
+Description,"An example data package, from the Metatab tutorial at https://github.com/CivicKnowledge/metatab-py/blob/master/README.rst"
+Identifier,96cd659b-94ad-46ae-9c18-4018caa64355
+Name,example.com-simple_example-2017-us-1
+Name.Dataset,simple-example
+Name.Version,1
+Name.Space,US
+Name.Time,2017
+Name.Origin,example.com
+Modified,2017-04-05T01:33:32
+Issued,2017-04-05T01:33:32
+Distribution,http://s3.amazonaws.com/library.metatab.org/simple_example-2017-us-1.xlsx
+Distribution,http://s3.amazonaws.com/library.metatab.org/simple_example-2017-us-1.zip
+Distribution,http://s3.amazonaws.com/library.metatab.org/simple_example-2017-us-1/metadata.csv
+Distribution,http://s3.amazonaws.com/library.metatab.org/simple_example-2017-us-1.csv
+Distribution,http://s3.amazonaws.com/library.metatab.org/example.com-simple_example-2017-us-1.xlsx
+Distribution,http://s3.amazonaws.com/library.metatab.org/example.com-simple_example-2017-us-1.zip
+Distribution,http://s3.amazonaws.com/library.metatab.org/example.com-simple_example-2017-us-1/metadata.csv
+Distribution,http://s3.amazonaws.com/library.metatab.org/example.com-simple_example-2017-us-1.csv
+
+Section,Resources,Name,Description
+Datafile,data/random-names.csv,random-names,Names and a random number
+Datafile.Startline,1
+Datafile.Headerlines,0
+Datafile.Encoding,ascii
+Datafile,data/renter_cost.csv,renter_cost,"Portion of income spent on rent, extracted from the ACS"
+Datafile.Startline,5
+Datafile.Headerlines,"3,4"
+Datafile.Encoding,ascii
+Datafile,data/unicode-latin1.csv,unicode-latin1,"The same data as unicode-utf8, but re-encoded to latin1"
+Datafile.Startline,1
+Datafile.Headerlines,0
+Datafile.Encoding,latin1
+
+Section,Documentation,Title,Description,,,
+Homepage,http://metatab.org,Metatab Home Page,Main Metatab home page,,,
+Documentation,docs/metatab-python-package-readme.rst,Metatab Python Package README,The README in the Metatab Githup repo contains the tutorial for generating this package.,,,
+
+Section,Contacts,email,,,,
+Origin,example.com,,,,,
+Creator,Eric Busboom,eric@civicknowledge. com,,,,
+Wrangler,Eric Busboom,eric@civicknowledge. com,,,,
+
+Section,Notes,,,,,
+Note,,,,,,
+
+Section,Schema,DataType,Description,,
+Table,random-names,,,,
+Table.Column,name,text,,,
+Table.Column,size,number,,,
+Table,renter_cost,,,,
+Table.Column,id,integer,,,
+Table.Column,gvid,text,,,
+Table.Column,renter_cost_gt_30,integer,,,
+Table.Column,renter_cost_gt_30_cv,number,,,
+Table.Column,owner_cost_gt_30_pct,number,,,
+Table.Column,owner_cost_gt_30_pct_cv,number,,,
+Table,unicode-latin1,,,,
+Table.Column,origin_english,text,,,
+Table.Column,name_english,text,,,
+Table.Column,origin_native,string,,,
+Table.Column,name_native,string,,,

@@ -11,10 +11,8 @@ import logging
 import copy
 import io
 import metatab
-import metatab.jupyter
-import nbformat
-from metatab.exc import MetapackError
-from metatab.jupyter.markdown import MarkdownExporter
+from metapack.exc import MetapackError
+from metapack.jupyter.markdown import MarkdownExporter
 from nbconvert.exporters import Exporter
 from nbconvert.exporters.html import HTMLExporter
 from nbconvert.exporters.pdf import PDFExporter

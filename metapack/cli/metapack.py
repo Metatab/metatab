@@ -28,7 +28,6 @@ from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
 from tableintuit import RowIntuitError
 
-
 def metapack():
     import argparse
 
@@ -146,7 +145,6 @@ def metapack():
     # cmd = parser.add_subparsers(title='Plugin Commands', help='Additional command supplied by plugins')
     # load_plugins(cmd)
 
-
     class MetapackCliMemo(object):
         def __init__(self, args):
             self.cwd = getcwd()
@@ -211,7 +209,6 @@ def metapack():
             err(e)
 
     clean_cache(m.cache)
-
 
 def metatab_build_handler(m):
 
@@ -358,12 +355,10 @@ def metatab_query_handler(m):
             err("Failed to open Metatab doc: {}".format(e))
             return
 
-
         if m.resource:
             dump_resource(doc, m.resource, limit)
         else:
             dump_resources(doc)
-
 
 def metatab_admin_handler(m):
     if m.args.enumerate:
