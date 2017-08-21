@@ -16,17 +16,31 @@ class MetatabTestCase(unittest.TestCase):
 
         from metapack import open_package
 
-        p = open_package(test_data('packages/example.com/example.com-test_package/metadata.csv'))
+        p = open_package(test_data('packages/example.com/example-package/metadata.csv'))
 
-        self.assertEqual('example.com-test_package-1', p.find_first('Root.Name').value)
+        self.assertEqual('example.com-example_data_package-2017-us-1', p.find_first('Root.Name').value)
 
+        self.assertEqual(9, len(list(p.resources())))
+
+        self.assertEqual(['random-names', 'renter_cost', 'simple-example-altnames', 'simple-example',
+                          'unicode-latin1', 'unicode-utf8', 'renter_cost_excel07', 'renter_cost_excel97',
+                          'renter_cost-2'],
+                         [ r.name for r in p.resources() ])
+
+        for r in p.resources():
+            self.assertEquals(int(r.nrows), len(list(r)))
+
+        for c in p['Bibliography']:
+            print(c)
 
     def test_build_package(self):
 
+        from metapack.cli.core import make_filesystem_package
+        from rowgenerators import get_cache
 
+        m = test_data('packages/example.com/example-package/metadata.csv')
 
-        _, url, created = make_filesystem_package(m.mt_file, m.cache, env, skip_if_exists)
-
+        _, url, created = make_filesystem_package(m, get_cache(), {}, False)
 
 
 if __name__ == '__main__':

@@ -13,7 +13,9 @@ from os.path import dirname, abspath, basename, splitext, join, isdir
 from six import string_types, text_type
 from tableintuit import RowIntuiter
 
-from metatab import MetatabDoc, TermParser, Resource, slugify, DEFAULT_METATAB_FILE
+from metapack import MetapackDoc
+from metatab import TermParser, Resource, slugify, DEFAULT_METATAB_FILE
+from metapack.exc import PackageError
 from rowgenerators import Url, get_cache, SourceSpec, RowGenerator, TextEncodingError, enumerate_contents, \
     download_and_cache, DownloadError, get_dflo, reparse_url, parse_url_to_dict, unparse_url_dict
 from util import Bunch
@@ -64,7 +66,7 @@ class Package(object):
     def load_doc(self, ref):
 
         if isinstance(ref, string_types):
-            self._doc = MetatabDoc(ref, cache=self._cache)
+            self._doc = MetapackDoc(ref, cache=self._cache)
         else:
             self._doc = ref
 
@@ -121,7 +123,8 @@ class Package(object):
     @property
     def datafiles(self):
 
-        for r in self.doc.resources(term=['root.datafile', 'root.suplimentarydata', 'root.datadictionary']):
+        for r in self.doc.resources(term=['root.datafile', 'root.suplimentarydata',
+                                          'root.datadictionary']):
             yield r
 
     def datafile(self, ref):
@@ -389,6 +392,8 @@ class Package(object):
     def _load_resources(self):
         """Copy all of the Datafile entries into the package"""
 
+        assert type(self.doc) == MetapackDoc
+
         for r in self.datafiles:
 
             if not r.url:
@@ -404,9 +409,13 @@ class Package(object):
 
             self.prt("Reading resource {} from {} ".format(r.name, r.resolved_url))
 
-            if not r.headers:
-                raise PackageError("Resource {} does not have header. Have schemas been generated?".format(r.name))
-
+            try:
+                if not r.headers:
+                    raise PackageError("Resource {} does not have header. Have schemas been generated?"
+                                        .format(r.name))
+            except AttributeError:
+                raise PackageError("Resource '{}' of type {} does not have a headers property"
+                                   .format(r.url, type(r)))
             try:
                 code_path = join(dirname(self.package_dir), 'row_processors', r.name + '.py')
             except AttributeError:
@@ -565,7 +574,7 @@ def open_package(ref, cache=None, clean_cache=False):
 
     cache = cache if cache else get_cache()
 
-    return MetatabDoc(metadata_url, package_url=package_url, cache=cache)
+    return MetapackDoc(metadata_url, package_url=package_url, cache=cache)
 
 
 def resolve_package_metadata_url(ref):

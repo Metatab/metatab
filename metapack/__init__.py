@@ -6,6 +6,7 @@ Record objects for the Simple Data Package format.
 
 from .serialize import *
 from .exc import *
+from .doc import MetapackDoc
 from .package import *
 
 

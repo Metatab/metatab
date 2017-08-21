@@ -10,7 +10,7 @@ import logging
 
 import copy
 import io
-import metatab
+import metapack
 from metapack.exc import MetapackError
 from metapack.jupyter.markdown import MarkdownExporter
 from nbconvert.exporters import Exporter
@@ -77,7 +77,7 @@ class DocumentationExporter(MetatabExporter):
     def default_config(self):
         c = Config()
 
-        c.TemplateExporter.template_path = [dirname(metatab.jupyter.__file__)]
+        c.TemplateExporter.template_path = [dirname(metapack.jupyter.__file__)]
 
         c.HTMLExporter.preprocessors = [
             'metatab.jupyter.preprocessors.NoShowInput',
