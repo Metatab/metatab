@@ -17,6 +17,10 @@ from metatab.parser import ROOT_TERM, ELIDED_TERM
 EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination table but not in the source
 
 
+
+
+
+
 class Term(object):
     """Term object represent a row in a Metatab file, and handle interpeting the
         row into the parts of a term
@@ -269,6 +273,8 @@ class Term(object):
         """Item getter for child property values. Returns the value of this term with given the term's
         term value name"""
 
+        item = str(item)
+
         if item.lower() == self.term_value_name.lower():
             return self
 
@@ -317,7 +323,12 @@ class Term(object):
             if item.lower() in self._common_properties:
                 return None
             else:
-                raise AttributeError(item)
+                try:
+                    m = "Term '{}' doesn't have attribute '{}' ".format(repr(self), item)
+                except Exception as e:
+                    m = item
+
+                raise AttributeError(m)
 
     def __setattr__(self, item, value):
         """ """
@@ -502,12 +513,12 @@ class Term(object):
         except AttributeError:
             return []
 
+    @property
     @deprecated(deprecated_in='0.6.0', current_version=__version__,
                 details='Use .arg_props instead')
-    @property
     def properties(self):
         """Return the value and scalar properties as a dictionary"""
-        return self.arg_props
+        raise NotImplementedError("Use .props, .arg_props")
 
     @property
     def props(self):
@@ -637,7 +648,7 @@ class Term(object):
                 yield d
 
     def __repr__(self):
-        return "<Term: {}{}.{} {} {}>".format(self.file_ref(), self.parent_term,
+        return "<{}: {}{}.{} {} {}>".format(self.__class__.__name__, self.file_ref(), self.parent_term,
                                               self.record_term, self.value, self.args)
 
     def __str__(self):
@@ -653,19 +664,18 @@ class Term(object):
                 self.file_ref(), self.parent_term, self.record_term, self.value, sec_name)
 
 
-
 class SectionTerm(Term):
     """A Subclass fo Term specificall for Sections """
 
-    def __init__(self, name, term='Section', doc=None, term_args=None,
-                 row=None, col=None, file_name=None, file_type=None, parent=None):
+    def __init__(self, term, value, term_args=False, row=None, col=None, file_name=None, file_type=None, parent=None,
+                 doc=None, section=None):
 
         assert doc is not None
 
         self.doc = doc
 
         self.default_term_value_name = '@value'
-        section_args = term_args if term_args else self.doc.section_args(name) if self.doc else []
+        section_args = term_args if term_args else self.doc.section_args(value) if self.doc else []
 
         self.terms = []  # Seperate from children. Sections have contained terms, but no children.
 
@@ -673,11 +683,18 @@ class SectionTerm(Term):
         # a new child
         self.header_args = None
 
-        super(SectionTerm, self).__init__(term, name, term_args=section_args,
-                                          parent=parent, doc=doc, row=row, col=col,
-                                          file_name=file_name, file_type=file_type)
+        assert parent is None
+        assert section is None
+
+        super().__init__(term, value, term_args=section_args,
+                         row=row, col=row, file_name=file_name, file_type=file_type,
+                         parent=parent, doc=doc, section=section)
 
         self.header_args = []  # Set for each header encoundered
+
+        assert self.term_is('Root.Section') or self.term_is('Root.Root')
+
+
 
     @classmethod
     def subclass(cls, t):
@@ -876,8 +893,9 @@ class SectionTerm(Term):
 
 
 class RootSectionTerm(SectionTerm):
-    def __init__(self, file_name=None, doc=None):
-        super(RootSectionTerm, self).__init__('Root', 'Root', doc, [], 0, 0, file_name, None)
+
+    def __init__(self, file_name=None, file_type=None, doc=None):
+        super().__init__('Root.Root', 'Root', [], 0, 0, file_name, file_type, None, doc, None)
 
     def as_dict(self, replace_value_names=True):
         d = super(RootSectionTerm, self).as_dict(replace_value_names)
@@ -889,27 +907,7 @@ class RootSectionTerm(SectionTerm):
 
 
 class Resource(Term):
-    # These property names should return null if they aren't actually set.
-
-    def __init__(self, term, base_url, package=None, env=None, code_path=None):
-
-        super(Resource, self).__init__(term.term, term.value, term.args,
-                                       term.row, term.col,
-                                       term.file_name, term.file_type,
-                                       term.parent, term.doc, term.section)
-
-
-        self.base_url = base_url
-        self.package = package
-
-
-        self._parent_term = term
-        self.term_value_name = term.term_value_name
-        self.children = term.children
-
-        self.env = env if env is not None else {}
-
-        self.__initialised = True
+    """Term variant for resources"""
 
     @property
     def _self_url(self):
@@ -919,57 +917,10 @@ class Resource(Term):
         finally:  # WTF? No idea, probably wrong.
             return self.value
 
-
     @property
     def resolved_url(self):
         return self._doc.resolve_url(self.url)
 
-
-
-    def get(self, attr, default=None):
-
-        try:
-            return self.__getattr__(attr)
-        except AttributeError:
-            return default
-
     def new_child(self, term, value, **kwargs):
         raise NotImplementedError("DOn't create children from resources. ")
-
-    def _name_for_col_term(self, c, i):
-
-        altname = c.get_value('altname')
-        name = c.value if c.value != EMPTY_SOURCE_HEADER else None
-        default = "col{}".format(i)
-
-        for n in [altname, name, default]:
-            if n:
-                return n
-
-    @property
-    def schema_name(self):
-        """The value of the Name or Schema property"""
-        return self.get_value('schema', self.get_value('name'))
-
-    @property
-    def schema_table(self):
-        """Deprecated. Use schema_term()"""
-        return self.schema_term
-
-    @property
-    def schema_term(self):
-        """Return the Table term for this resource, which is referenced either by the `table` property or the
-        `schema` property"""
-
-        t = self.doc.find_first('Root.Table', value=self.get_value('name'))
-        frm = 'name'
-
-        if not t:
-            t = self.doc.find_first('Root.Table', value=self.get_value('schema'))
-            frm = 'schema'
-
-        if not t:
-            frm = None
-
-        return t, frm
 

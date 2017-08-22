@@ -27,6 +27,8 @@ logger = logging.getLogger('doc')
 
 
 class MetatabDoc(object):
+
+
     def __init__(self, ref=None, decl=None, package_url=None, cache=None, resolver = None, clean_cache=False):
 
         self._cache = cache if cache else get_cache()
@@ -36,6 +38,7 @@ class MetatabDoc(object):
 
         self.terms = []
         self.sections = OrderedDict()
+        self.super_terms = {}
         self.errors = []
         self.package_url = package_url
 
@@ -47,6 +50,7 @@ class MetatabDoc(object):
             self.decls = [decl]
         else:
             self.decls = decl
+
 
         self.load_declarations(self.decls)
 
@@ -71,11 +75,9 @@ class MetatabDoc(object):
         else:
             self._ref = None
             self._term_parser = None
-            self.root = SectionTerm('Root', term='Root', doc=self, row=0, col=0,
-                                    file_name=None, parent=None)
+            self.root = RootSectionTerm(doc=self)
             self.add_section(self.root)
             self._mtime = time()
-
 
 
     @property
@@ -153,15 +155,27 @@ class MetatabDoc(object):
 
     @property
     def doc_dir(self):
-
+        """The absolute directory of the document"""
         from os.path import abspath
 
         u = Url(self.ref)
         return abspath(dirname(u.parts.path))
 
+    @classmethod
+    def register_term_class(cls, term_name, class_or_name):
+        """
+        Convinence function for TermParser.register_term_class(), which registers a Term subclass for use with a
+        term name
+
+        :param term_name: A fully qualified term name.
+        :param class_or_name: A class, or a fully-qualified, dotted class name.
+        :return:
+        """
+
     def load_declarations(self, decls):
 
         term_interp = TermParser(self.resolver.get_row_generator([['Declare', dcl] for dcl in decls], cache=self._cache), doc=self)
+
         list(term_interp)
         dd = term_interp.declare_dict
 
@@ -239,7 +253,7 @@ class MetatabDoc(object):
 
     def new_section(self, name, params=None):
         """Return a new section"""
-        self.sections[name.lower()] = SectionTerm(name, term_args=params, doc=self, parent=self.root)
+        self.sections[name.lower()] = SectionTerm(name, term_args=params, parent=self.root, doc=self)
 
         # Set the default arguments
         s = self.sections[name.lower()]
@@ -252,7 +266,7 @@ class MetatabDoc(object):
     def get_or_new_section(self, name, params=None):
         """Create a new section or return an existing one of the same name"""
         if name not in self.sections:
-            self.sections[name.lower()] = SectionTerm(name, term_args=params, doc=self, parent=self.root)
+            self.sections[name.lower()] = SectionTerm(name, term_args=params, parent=self.root, doc=self)
 
         return self.sections[name.lower()]
 
@@ -270,11 +284,8 @@ class MetatabDoc(object):
 
         # Handle dereferencing a list of sections
         if isinstance(item, collections.Iterable) and not isinstance(item, six.string_types):
-            for e in item:
-                try:
-                    return self.__getitem__(e)
-                except KeyError:
-                    pass
+            return [ self.__getitem__(e) for e in item ]
+
         else:
             return self.get_section(item)
 
@@ -310,6 +321,7 @@ class MetatabDoc(object):
         """
 
         import itertools
+
         if kwargs:  # Look for terms with particular property values
 
             terms = self.find(term, value, section)
@@ -392,126 +404,11 @@ class MetatabDoc(object):
         else:
             return term.value
 
-    def resources(self, name=None, term='Root.Datafile', section='Resources', env=None, clz=Resource,
-                  code_path=None):
-        """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
 
-        base_url = self.package_url if self.package_url else self._ref
-
-        if env is None:
-            try:
-                env = self.get_lib_module_dict()
-            except ImportError:
-                pass
-
-        for t in self[section].terms:
-
-            if term and not t.term_is(term):
-                continue
-
-            if name and t.get_value('name') != name:
-                continue
-
-            if not 'url' in t.arg_props:
-                pass
-
-            resource_term = clz(t, base_url, env=env, code_path=code_path)
-
-            yield resource_term
-
-    def resource(self, name=None, term='Root.Datafile', section='Resources', env=None,
-                 clz=Resource, code_path=None):
-        """
-
-        :param name:
-        :param term:
-        :param env: And environment doc ( like a module ) to pass into the row processor
-        :return:
-        """
-
-        if env is None:
-            try:
-                env = self.get_lib_module_dict()
-            except ImportError:
-
-                pass
-
-        resources = list(self.resources(name=name, term=term, section=section, env=env, clz=clz,
-                                        code_path=code_path))
-
-        if not resources:
-            return None
-
-        else:
-            r = resources[0]
-            return r
 
     def resolve_url(self, url):
         """Resolve an application specific URL to a web URL"""
         return url
-
-    def references(self, name=None, term='Root.Reference', section='References', env=None, code_path=None):
-        """
-        Like resources(), but by default looks for Root.Reference terms in the References section
-        :param name: Value of name property for terms to return
-        :param term: Fully qualified term name, defaults to Root.Reference
-        :param section: Name of section to look in. Defaults to 'References'
-        :param env: Environment dict to be passed into resource row generators.
-        :return:
-        """
-
-        return self.resources(name=name, term=term, section=section, env=env, clz=Reference)
-
-    def reference(self, name=None, term='Root.Reference', section='References', env=None, code_path=None):
-        """
-        Like resource(), but by default looks for Root.Reference terms in the References section
-
-        :param name: Value of name property for terms to return
-        :param term: Fully qualified term name, defaults to Root.Reference
-        :param section: Name of section to look in. Defaults to 'References'
-        :param env: Environment dict to be passed into resource row generators.
-        :return:
-        """
-
-        return self.resource(name=name, term=term, section=section, env=env, clz=Resource)
-
-    def distributions(self, type=False):
-        """"Return a dict of distributions, or if type is specified, just the first of that type
-
-        """
-        from collections import namedtuple
-
-        Dist = namedtuple('Dist', 'type url term')
-
-        def dist_type(url):
-
-            if url.target_file == 'metadata.csv':
-                return 'fs'
-            elif url.target_format == 'xlsx':
-                return 'excel'
-            elif url.resource_format == 'zip':
-                return "zip"
-            elif url.target_format == 'csv':
-                return "csv"
-
-            else:
-
-                return "unk"
-
-        dists = []
-
-        for d in self.find('Root.Distribution'):
-
-            u = Url(d.value)
-
-            t = dist_type(u)
-
-            if type == t:
-                return Dist(t, u, d)
-            elif type is False:
-                dists.append(Dist(t, u, d))
-
-        return dists
 
     def load_terms(self, terms):
         """Create a builder from a sequence of terms, usually a TermInterpreter"""
@@ -542,6 +439,8 @@ class MetatabDoc(object):
             self.decl_terms.update(dd['terms'])
             self.decl_sections.update(dd['sections'])
 
+            self.super_terms = terms.super_terms()
+
         except AttributeError as e:
             pass
 
@@ -562,34 +461,7 @@ class MetatabDoc(object):
         """Load a Metatab CSV file into the builder to continue editing it. """
         return self.load_rows(CsvPathRowGenerator(file_name))
 
-    def get_lib_module_dict(self):
-        """Load the 'lib' directory as a python module, so it can be used to provide functions
-        for rowpipe transforms. This only works filesystem packages"""
 
-        from os.path import dirname, abspath, join, isdir
-        from importlib import import_module
-        import sys
-
-        u = Url(self.ref)
-        if u.proto == 'file':
-
-            doc_dir = dirname(abspath(u.parts.path))
-
-            # Add the dir with the metatab file to the system path
-            sys.path.append(doc_dir)
-
-            if not isdir(join(doc_dir, 'lib')):
-                return {}
-
-            try:
-                m = import_module("lib")
-                return {k: v for k, v in m.__dict__.items() if not k.startswith('__')}
-            except ImportError as e:
-
-                raise ImportError("Failed to import python module form 'lib' directory: ", str(e))
-
-        else:
-            return {}
 
     def cleanse(self):
         """Clean up some terms, like ensuring that the name is a slug"""

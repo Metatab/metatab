@@ -21,9 +21,9 @@ import six
 from .exc import IncludeError, DeclarationError, ParserError, GenerateError
 from .generate import MetatabRowGenerator
 from os.path import dirname, join, exists
-from .util import declaration_path
+from .util import declaration_path, import_name_or_class
 from .generate import WebResolver
-
+from functools import lru_cache
 
 # Python2 doesn't have FileNotFoundError
 try:
@@ -31,9 +31,15 @@ try:
 except NameError:
     FileNotFoundError = IOError
 
-
 class TermParser(object):
     """Takes a stream of terms and sets the parameter map, valid term names, etc """
+
+    # Map term names to subclass objects
+    term_classes = {
+        'root.section': 'metatab.terms.SectionTerm',
+        'root.root': 'metatab.terms.RootSectionTerm',
+        'root.resource': 'metatab.terms.Resource'
+    }
 
     def __init__(self, ref,  resolver=None, doc=None, remove_special=True):
         """
@@ -46,7 +52,7 @@ class TermParser(object):
 
         self._ref = ref
 
-        self._path = None; # Set after running parse, from row generator
+        self._path = None # Set after running parse, from row generator
 
         self._doc = doc
 
@@ -103,6 +109,14 @@ class TermParser(object):
 
         return syns
 
+
+    @lru_cache()
+    def super_terms(self):
+        """Return a dictionary mapping term names to their super terms"""
+
+        return  {k: v['inheritsfrom'].lower()
+                         for k, v in self._declared_terms.items() if 'inheritsfrom' in v}
+
     @property
     def declare_dict(self):
         """Return declared sections, terms and synonyms as a dict"""
@@ -144,6 +158,36 @@ class TermParser(object):
 
         if nt.join_lc in self.synonyms:
             nt.parent_term, nt.record_term = Term.split_term_lower(self.synonyms[nt.join_lc]);
+
+    @classmethod
+    def register_term_class(cls, term_name, class_or_name):
+        """
+        Register a Term subclass for a qualified term name.
+
+        :param term_name: Fully-qualified term name. Will be converted to lowercase.
+        :param clz: A class, or fully-qualified, dotted class name.
+        :return:
+        """
+
+        cls.term_classes[term_name.lower()] = class_or_name
+
+
+
+    def get_term_class(self, term_name):
+
+        tnl = term_name.lower()
+
+        try:
+            return import_name_or_class(self.term_classes[tnl])
+        except KeyError:
+            pass
+
+        try:
+            return import_name_or_class(self.term_classes[self.super_terms()[tnl]])
+        except KeyError:
+            pass
+
+        return Term
 
     def errors_as_dict(self):
         """Return parse errors as a dict"""
@@ -244,19 +288,16 @@ class TermParser(object):
                 if not row or not row[0] or not row[0].strip() or row[0].strip().startswith('#'):
                     continue
 
-                if row[0].lower().strip() == 'section':
-                    t = SectionTerm(row[1] if len(row) > 1 else '',
-                                    term_args=row[2:] if len(row) > 2 else [],
-                                    row=line_n,
-                                    col=1,
-                                    file_name=ref, file_type=file_type, doc=self.doc)
-                else:
-                    t = Term(row[0].lower(),
-                             row[1] if len(row) > 1 else '',
-                             row[2:] if len(row) > 2 else [],
-                             row=line_n,
-                             col=1,
-                             file_name=ref, file_type=file_type, doc=self.doc)
+                tt = Term(row[0], None) # Just to get the qualified name constructed property
+
+                term_class = self.get_term_class(tt.join_lc)
+
+                t = term_class(tt.join_lc,
+                         row[1] if len(row) > 1 else '',
+                         row[2:] if len(row) > 2 else [],
+                         row=line_n,
+                         col=1,
+                         file_name=ref, file_type=file_type, doc=self.doc)
 
                 if t.value and str(t.value).startswith('#'): # Comments are ignored
                     continue
@@ -300,7 +341,12 @@ class TermParser(object):
                 if not t.term_is('section') and not t.term_is('header'):
                     for col, value in enumerate(t.args, 0):
                         if six.text_type(value).strip():
-                            yield Term(t.record_term_lc + '.' + six.text_type(col), six.text_type(value), [],
+
+                            term_name = t.record_term_lc + '.' + six.text_type(col)
+
+                            term_class = self.get_term_class(term_name)
+
+                            yield term_class(term_name, six.text_type(value), [],
                                        row=line_n,
                                        col=col + 2,  # The 0th argument starts in col 2
                                        file_name=ref,
@@ -421,9 +467,7 @@ class TermParser(object):
             self.errors.add(e)
             raise
 
-
     def manage_declare_terms(self, t):
-
 
         if t.term_is('root.declaresection'):
             self.add_declared_section(t)
@@ -433,6 +477,8 @@ class TermParser(object):
 
         elif t.term_is('value.*'):
             self.add_value_set_value(t)
+
+        self.super_terms.cache_clear()
 
     def add_declared_section(self, t):
 

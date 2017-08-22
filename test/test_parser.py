@@ -15,6 +15,7 @@ import json
 from os.path import exists
 from metatab import MetatabDoc
 
+
 def test_data(*paths):
     from os.path import dirname, join, abspath
 
@@ -89,15 +90,13 @@ class MyTestCase(unittest.TestCase):
                 with open(json_path) as f:
                     d2 = json.load(f)
 
-                #import json
-                #print(json.dumps(d, indent=4))
+                # import json
+                # print(json.dumps(d, indent=4))
 
                 self.compare_dict(d, d2)
 
-
     @unittest.skip('broken')
     def test_declarations(self):
-
 
         doc = MetatabDoc(test_data('example1.csv'))
 
@@ -116,7 +115,7 @@ class MyTestCase(unittest.TestCase):
 
         fn = test_data('example1.csv')  # Not acutally used. Sets base directory
 
-        doc =  MetatabDoc(MetatabRowGenerator([['Declare', 'metatab-latest']], fn))
+        doc = MetatabDoc(MetatabRowGenerator([['Declare', 'metatab-latest']], fn))
 
         terms = doc.decl_terms
 
@@ -127,7 +126,7 @@ class MyTestCase(unittest.TestCase):
         sections = doc.decl_sections
 
         self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
-                           'sources','documentation','data'},
+                           'sources', 'documentation', 'data'},
                           set(sections.keys()))
 
         # Use the Declare term
@@ -170,8 +169,6 @@ class MyTestCase(unittest.TestCase):
         for t in doc.as_dict()['parent']:
             self.assertEquals({'prop1': 'prop1', 'prop2': 'prop2', '@value': 'parent'}, t)
 
-
-
     def test_includes(self):
 
         doc = MetatabDoc(test_data('include1.csv'))
@@ -187,12 +184,9 @@ class MyTestCase(unittest.TestCase):
         self.assertTrue(any('include2.csv' in e for e in d['include']))
         self.assertTrue(any('include3.csv' in e for e in d['include']))
 
-
-
     def test_errors(self):
 
         def errs(fn):
-
             with self.assertRaises(IncludeError):
                 doc = MetatabDoc()
                 tp = TermParser(CsvPathRowGenerator(fn), doc=doc)
@@ -213,8 +207,6 @@ class MyTestCase(unittest.TestCase):
         self.assertEquals(1, len(e))
 
         self.assertTrue('bad_declare.csv' in e[0]['error'])
-
-
 
     def test_serializer(self):
 
@@ -267,8 +259,6 @@ class MyTestCase(unittest.TestCase):
 
     def test_sections(self):
 
-
-
         doc = MetatabDoc(test_data('example1.csv'))
 
         self.assertEqual(['root', u'resources', u'contacts', u'notes', u'schema'],
@@ -284,7 +274,6 @@ class MyTestCase(unittest.TestCase):
 
         for sname, s in doc.sections.items():
             print(sname, s.value)
-
 
     @unittest.skip('datapackage-1.0.0a2 seems to be missing a file')
     def test_datapackage_declare(self):
@@ -337,7 +326,7 @@ class MyTestCase(unittest.TestCase):
 
         t = Term('Parent.Child', 'value', parent=p)
 
-        print( t.term, t.qualified_term, t.join)
+        print(t.term, t.qualified_term, t.join)
 
         self.assertEquals('Parent.Child', t.term)
         self.assertEquals('parent.child', t.qualified_term)
@@ -362,7 +351,7 @@ class MyTestCase(unittest.TestCase):
 
     def test_update_name(self):
 
-        for fn in ('name.csv','name2.csv'):
+        for fn in ('name.csv', 'name2.csv'):
 
             doc = MetatabDoc(test_data(fn))
 
@@ -383,35 +372,31 @@ class MyTestCase(unittest.TestCase):
 
             self.assertIn("No Root.Dataset, so can't update the name", updates)
 
-
     def test_descendents(self):
 
         doc = MetatabDoc(test_data('example1.csv'))
 
         self.assertEquals(144, (len(list(doc.all_terms))))
 
-
     def test_versions(self):
 
         doc = MetatabDoc(test_data('example1.csv'))
 
-        self.assertEqual('201404',doc.find_first_value('Root.Version'))
-        self.assertEqual('201409',doc.as_version('+5').find_first_value('Root.Version'))
-        self.assertEqual('201399',doc.as_version('-5').find_first_value('Root.Version'))
-        self.assertEqual('foobar',doc.as_version('foobar').find_first_value('Root.Version'))
-
+        self.assertEqual('201404', doc.find_first_value('Root.Version'))
+        self.assertEqual('201409', doc.as_version('+5').find_first_value('Root.Version'))
+        self.assertEqual('201399', doc.as_version('-5').find_first_value('Root.Version'))
+        self.assertEqual('foobar', doc.as_version('foobar').find_first_value('Root.Version'))
 
     def test_acessors(self):
 
         doc = MetatabDoc(test_data('properties.csv'))
 
-        c = doc.find_first('Root.Citation',name='ipums')
+        c = doc.find_first('Root.Citation', name='ipums')
 
         # Arg_props not include Author, Title or Year, which are children, but not arg props
         self.assertEquals(['type', 'month', 'publisher', 'journal', 'version', 'volume',
                            'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name'],
                           list(c.arg_props.keys()))
-
 
         # Props includes just the children that actually have values
         self.assertEquals(['type', 'publisher', 'version', 'accessdate', 'url', 'doi', 'author', 'title', 'year'],
@@ -419,7 +404,8 @@ class MyTestCase(unittest.TestCase):
 
         # All props includes values for all of the children and all of the property args
         self.assertEquals(['type', 'month', 'publisher', 'journal', 'version', 'volume',
-                           'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name', 'author', 'title', 'year'],
+                           'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name', 'author', 'title',
+                           'year'],
                           list(c.all_props.keys()))
 
         # Attribute acessors
@@ -429,7 +415,7 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual('University of Minnesota', c.publisher)
 
         # These are properties of Term
-        self.assertEqual(c.join,'root.citation')
+        self.assertEqual(c.join, 'root.citation')
         self.assertTrue(c.term_is('Root.Citation'))
 
         # Item style acessors
@@ -445,6 +431,36 @@ class MyTestCase(unittest.TestCase):
         c.type = 'foobar'
         self.assertEqual('foobar', c.type)
         self.assertEqual('foobar', c['type'].value)
+
+
+    def test_term_subclasses(self):
+        from metatab.terms import Term, SectionTerm, Resource
+
+        doc = MetatabDoc()
+        tp = TermParser(test_data('example1.csv'), doc=doc)
+
+        terms = list(tp)
+
+        self.assertEqual(Term, tp.get_term_class('root.summary'))
+        self.assertEqual(Term, tp.get_term_class('root.name'))
+        self.assertEqual(SectionTerm, tp.get_term_class('root.section'))
+        self.assertEqual(Resource, tp.get_term_class('root.resource'))
+        self.assertEqual(Resource, tp.get_term_class('root.homepage'))
+
+        class TestTermClass(Term):
+            pass
+
+        TermParser.register_term_class('root.name', TestTermClass)
+
+        self.assertEqual(TestTermClass, tp.get_term_class('root.name'))
+
+        doc = MetatabDoc(test_data('example1.csv'))
+
+        self.assertEqual(Term, type(doc.find_first('root.description')))
+        self.assertEqual(TestTermClass, type(doc.find_first('root.name')))
+        self.assertEqual(SectionTerm, type(doc.find_first('root.section')))
+        self.assertEqual(Resource, type(doc.find_first('root.datafile')))
+        self.assertEqual(Resource, type(doc.find_first('root.homepage')))
 
 if __name__ == '__main__':
     unittest.main()

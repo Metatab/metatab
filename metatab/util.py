@@ -219,3 +219,14 @@ def get_cache(clean=False):
     return cache
 
 
+def import_name_or_class(name):
+    " Import an obect as either a fully qualified, dotted name, "
+
+    if isinstance(name, str):
+        components = name.split('.')
+        mod = __import__(components[0])
+        for comp in components[1:]:
+            mod = getattr(mod, comp)
+        return mod
+    else:
+        return name # Assume it is alredy the tings we want to import
