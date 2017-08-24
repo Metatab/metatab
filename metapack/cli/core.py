@@ -8,15 +8,16 @@ from uuid import uuid4
 import six
 from tableintuit import TypeIntuiter
 
-from metapack.package.s3 import S3Package
-from metapack.package.csv import CsvPackage
-from metapack.package.excel import ExcelPackage
-from metapack.package.filesystem import FileSystemPackage
-from metapack.package.zip import ZipPackage
+from metapack.package.s3 import S3PackageBuilder
+from metapack.package.csv import CsvPackageBuilder
+from metapack.package.excel import ExcelPackageBuilder
+from metapack.package.filesystem import FileSystemPackageBuilder
+from metapack.package.zip import ZipPackageBuilder
 from metatab import  DEFAULT_METATAB_FILE
 from metatab import _meta, MetatabDoc
 from metatab.util import make_metatab_file
 from rowgenerators import Url, SelectiveRowGenerator
+from os.path import dirname
 
 logger = logging.getLogger('user')
 logger_err = logging.getLogger('cli-errors')
@@ -200,78 +201,92 @@ def get_table(doc, name):
 
 PACKAGE_PREFIX = '_packages'
 
-def make_excel_package(file, cache, env, skip_if_exists):
+def make_excel_package(file, package_root, cache, env, skip_if_exists):
 
-    p = ExcelPackage(file, callback=prt, cache=cache, env=env)
+    if package_root is None:
+        package_root = join(dirname(file), PACKAGE_PREFIX)
+
+    p = ExcelPackageBuilder(file, package_root, callback=prt, cache=cache, env=env)
     prt('Making Excel Package')
-    if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
-        url = p.save(PACKAGE_PREFIX)
+
+    if not p.exists() or not skip_if_exists:
+        url = p.save()
         prt("Packaged saved to: {}".format(url))
         created = True
-    elif p.exists(PACKAGE_PREFIX):
+    elif p.exists():
         prt("Excel Package already exists")
         created = False
-        url = p.save_path(PACKAGE_PREFIX)
+        url = p.package_path
 
     return p, url, created
 
 
-def make_zip_package(file, cache, env, skip_if_exists):
+def make_zip_package(file, package_root, cache, env, skip_if_exists):
 
+    if package_root is None:
+        package_root = join(dirname(file), PACKAGE_PREFIX)
 
-    p = ZipPackage(file, callback=prt, cache=cache, env=env)
+    p = ZipPackageBuilder(file, package_root, callback=prt, cache=cache, env=env)
     prt('Making ZIP Package')
-    if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
-        url = p.save(PACKAGE_PREFIX)
+    if not p.exists() or not skip_if_exists:
+        url = p.save()
         prt("Packaged saved to: {}".format(url))
         created = True
-    elif p.exists(PACKAGE_PREFIX):
+    elif p.exists():
         prt("ZIP Package already exists")
         created = False
-        url = p.save_path(PACKAGE_PREFIX)
+        url = p.package_path
 
     return p, url, created
 
 
-def make_filesystem_package(file, cache, env, skip_if_exists):
+def make_filesystem_package(file, package_root, cache, env, skip_if_exists):
 
-    p = FileSystemPackage(file, callback=prt, cache=cache, env=env)
+    if package_root is None:
+        package_root = join(dirname(file), PACKAGE_PREFIX)
+
+    p = FileSystemPackageBuilder(file, package_root, callback=prt, cache=cache, env=env)
 
     if skip_if_exists is None:
-        skip_if_exists = p.is_older_than_metatada(PACKAGE_PREFIX)
+        skip_if_exists = p.is_older_than_metatada()
 
-    if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
+    if not p.exists() or not skip_if_exists:
         prt('Making Filesystem Package ',
-            '; existing package is older than metadata {}'.format(file) if (p.exists(PACKAGE_PREFIX) and not skip_if_exists) else '')
-        url = p.save(PACKAGE_PREFIX)
+            '; existing package is older than metadata {}'.format(file) if (p.exists() and not skip_if_exists) else '')
+        url = p.save()
         prt("Packaged saved to: {}".format(url))
         created = True
-    elif p.exists(PACKAGE_PREFIX):
+    elif p.exists():
         prt("Filesystem Package already exists")
         created = False
-        url = join(p.save_path(PACKAGE_PREFIX).rstrip('/'), DEFAULT_METATAB_FILE)
+        url = join(p.package_path.rstrip('/'), DEFAULT_METATAB_FILE)
 
     return p, url, created
 
 
-def make_csv_package(file, cache, env, skip_if_exists):
+def make_csv_package(file, package_root, cache, env, skip_if_exists):
 
-    p = CsvPackage(file, callback=prt, cache=cache, env=env)
+    if package_root is None:
+        package_root = join(dirname(file), PACKAGE_PREFIX)
+
+    p = CsvPackageBuilder(file, package_root, callback=prt, cache=cache, env=env)
     prt('Making CSV Package')
-    if not p.exists(PACKAGE_PREFIX) or not skip_if_exists:
-        url = p.save(PACKAGE_PREFIX)
+    if not p.exists() or not skip_if_exists:
+        url = p.save()
         prt("Packaged saved to: {}".format(url))
         created = True
     elif p.exists():
         prt("CSV Package already exists")
         created = False
-        url = p.save_path(PACKAGE_PREFIX)
+        url = p.package_path
 
     return p, url, created
 
-def make_s3_package(file, url, cache,  env, acl, skip_if_exists):
+def make_s3_package(file, package_root,  cache,  env,  skip_if_exists, acl='public-read'):
 
-    p = S3Package(file, callback=prt, cache=cache, env=env, save_url=url, acl=acl)
+    assert package_root
+
+    p = S3PackageBuilder(file, package_root, callback=prt, cache=cache, env=env, acl=acl)
 
     prt('Making S3 Package')
     if not p.exists() or not skip_if_exists:

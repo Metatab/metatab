@@ -8,16 +8,30 @@ Extensions to the MetatabDoc, Resources and References, etc.
 EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination table but not in the source
 
 
-from metapack.resource import MetapackResource, MetapackReference
+from metapack.terms import Resource, Reference
 from metatab import MetatabDoc
 from rowgenerators import Url
 from .html import linkify
-
-
-
+from .util import slugify
 
 
 class MetapackDoc(MetatabDoc):
+
+
+
+    def __init__(self, ref=None, decl=None, package_url=None, cache=None, resolver=None, clean_cache=False):
+
+        self.register_term_class('root.resource', 'metapack.terms.Resource')
+        self.register_term_class('root.reference', 'metapack.terms.Resource')
+
+        super().__init__(ref, decl, package_url, cache, resolver, clean_cache)
+
+
+    @property
+    def name(self):
+        """Return the name from the metatab document, or the identity, and as a last resort,
+        the slugified file reference"""
+        return self.get_value('root.name', self.get_value('root.identity',slugify(self._ref)))
 
     @property
     def env(self):
@@ -56,125 +70,10 @@ class MetapackDoc(MetatabDoc):
         else:
             return {}
 
-    def resources(self, name=None, term='Root.Datafile', section='Resources', env=None, clz=False,
-                              code_path=None):
+    def resource(self, name=None, term='Root.Datafile', section='Resources'):
 
-        """Iterate over every root level term that has a 'url' property, or terms that match a find() value or a name value"""
+        return self.find_first(term=term, name=name, section=section)
 
-        if clz is False:
-            clz = self.resource_class
-
-        base_url = self.package_url if self.package_url else self._ref
-
-        if env is None:
-            try:
-                env = self.get_lib_module_dict()
-            except ImportError:
-                pass
-
-        for t in self[section].terms:
-
-            if term and not t.term_is(term):
-                continue
-
-            if name and t.get_value('name') != name:
-                continue
-
-            if not 'url' in t.arg_props:
-                pass
-
-            resource_term = clz(t, base_url, env=env, code_path=code_path)
-
-            yield resource_term
-
-
-def resource(self, name=None, term='Root.Datafile', section='Resources', env=None,
-             clz=False, code_path=None):
-    """
-
-    :param name:
-    :param term:
-    :param env: And environment doc ( like a module ) to pass into the row processor
-    :return:
-    """
-
-    resources = list(self.resources(name=name, term=term, section=section, env=env, clz=clz,
-                                    code_path=code_path))
-
-    if not resources:
-        return None
-
-    else:
-        r = resources[0]
-    return r
-
-    def references(self, name=None, term='Root.Reference', section='References',
-                   env=None):
-        """
-        Like resources(), but by default looks for Root.Reference terms in the References section
-        :param name: Value of name property for terms to return
-        :param term: Fully qualified term name, defaults to Root.Reference
-        :param section: Name of section to look in. Defaults to 'References'
-        :param env: Environment dict to be passed into resource row generators.
-        :return:
-        """
-
-        clz = self.reference_class
-
-        return self.resources(name=name, term=term, section=section, env=env, clz=clz)
-
-    def reference(self, name=None, term='Root.Reference', section='References', env=None):
-        """
-        Like resource(), but by default looks for Root.Reference terms in the References section
-
-        :param name: Value of name property for terms to return
-        :param term: Fully qualified term name, defaults to Root.Reference
-        :param section: Name of section to look in. Defaults to 'References'
-        :param env: Environment dict to be passed into resource row generators.
-        :return:
-        """
-
-        clz = self.reference_class
-
-        return self.resource(name=name, term=term, section=section, env=env, clz=clz)
-
-    def distributions(self, type=False):
-        """"Return a dict of distributions, or if type is specified, just the first of that type
-
-        """
-        from collections import namedtuple
-
-        Dist = namedtuple('Dist', 'type url term')
-
-        def dist_type(url):
-
-            if url.target_file == 'metadata.csv':
-                return 'fs'
-            elif url.target_format == 'xlsx':
-                return 'excel'
-            elif url.resource_format == 'zip':
-                return "zip"
-            elif url.target_format == 'csv':
-                return "csv"
-
-            else:
-
-                return "unk"
-
-        dists = []
-
-        for d in self.find('Root.Distribution'):
-
-            u = Url(d.value)
-
-            t = dist_type(u)
-
-            if type == t:
-                return Dist(t, u, d)
-            elif type is False:
-                dists.append(Dist(t, u, d))
-
-        return dists
 
     def _repr_html_(self, **kwargs):
         """Produce HTML for Jupyter Notebook"""

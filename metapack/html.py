@@ -109,7 +109,7 @@ def resource_block(doc, fields=None):
             if h.lower() in ('note', 'notes', 'coding'):
                 fields.append((h, h.lower()))
 
-    return "".join(resource(r, fields) for r in doc.resources())
+    return "".join(resource(r, fields) for r in doc['Resources'].find('Root.Resource'))
 
 
 def resource_ref(r):
@@ -117,7 +117,7 @@ def resource_ref(r):
 
 
 def resource_ref_block(doc):
-    return "".join(resource_ref(r) for r in doc.resources())
+    return "".join(resource_ref(r) for r in doc['Resources'].find('Root.Resource'))
 
 
 def contact(r):
@@ -147,12 +147,12 @@ def contacts_block(doc):
     try:
 
         for t in doc['Contacts']:
-            p = t.properties
-            name = p.get('name')
-            email = "mailto:" + p.get('email') if p.get('email') else None
 
-            web = p.get('url')
-            org = p.get('organization', web)
+            name = t.get_value('name')
+            email = "mailto:" + t.get_value('email') if t.get_value('email') else None
+
+            web = t.get_value('url')
+            org = t.get_value('organization', web)
 
             out += (dl_templ.format(t.record_term.title(),
                                     ', '.join(e for e in (ctb(email, name), ctb(web, org)) if e)))
@@ -177,16 +177,16 @@ def documentation_block(doc):
 
     try:
 
-        for t in doc.resources(term='Root.IncludeDocumentation', section='Documentation'):
+        for t in doc['Documentation'].find('Root.IncludeDocumentation'):
             paths = download_and_cache(SourceSpec(t.value), cache_fs=doc._cache)
 
             with open(paths['sys_path']) as f:
                 inline += f.read()
 
-        for t in doc.resources(term=['Root.Documentation'], section='Documentation'):
+        for t in doc['Documentation'].find('Root.Documentation'):
 
-            title = t.properties.get('title')
-            desc = t.properties.get('description')
+            title = t.get_value('title')
+            desc = t.get_value('description')
 
             if title and desc:
                 dl_templ = "{}\n:   {}\n\n"
@@ -204,12 +204,12 @@ def documentation_block(doc):
         # The doc_img alt text is so we can set a class for CSS to resize the image.
         # img[alt=doc_img] { width: 100 px; }
 
-        for t in doc.resources(term=['Root.Image'], section='Documentation'):
+        for t in doc['Documentation'].find('Root.Image'):
             doc_links += ('[![{}]({} "{}")]({})'
-                          .format('doc_img', t.resolved_url, t.properties.get('title'),
+                          .format('doc_img', t.resolved_url, t.get_value('title'),
                                   t.resolved_url))
 
-        for t in doc.resources(term='Root.Note', section='Documentation'):
+        for t in doc['Documentation'].find('Root.Note'):
             notes.append(t.value)
 
 
@@ -472,10 +472,13 @@ def identity_block(doc):
         identifier=doc.find_first_value('Root.Identifier'),
     )
 
-    for k, v in name.properties.items():
+    for k, v in name.props.items():
         d[k] = v
 
-    del d['@value']
+    try:
+        del d['@value']
+    except KeyError:
+        pass
 
     return "".join(dl_templ.format(k, v) for k, v in d.items())
 

@@ -14,27 +14,31 @@ from nbconvert.writers import FilesWriter
 
 from datapackage import convert_to_datapackage
 from metatab import DEFAULT_METATAB_FILE
-from .core import Package
-from metapack.exc import PackageError
-from metapack.util import ensure_exists, ensure_dir, write_csv
+from .core import PackageBuilder
+from metapack.util import ensure_dir, write_csv, slugify
 from rowgenerators import Url
 
-class FileSystemPackage(Package):
-    """A File System package"""
+class FileSystemPackageBuilder(PackageBuilder):
+    """Build a filesystem package"""
 
-    def __init__(self, path=None, callback=None, cache=None, env=None):
+    def __init__(self, source_ref, package_root, cache=None, callback=None, env=None):
+        super().__init__(source_ref, package_root, cache, callback, env)
 
-        super(FileSystemPackage, self).__init__(path, callback=callback, cache=cache, env=env)
-        self.package_dir = None
+        if not isdir(self.package_root):
+            ensure_dir(self.package_root)
 
-    def exists(self, path=None):
+        self.package_path = join(self.package_root, self.package_name)
 
-        if self.package_dir is None:
-            self._init_dir(path)
+    def exists(self):
 
-        return exists(join(self.save_path(path), DEFAULT_METATAB_FILE))
+        return isdir(self.package_path)
 
-    def is_older_than_metatada(self, path=None):
+    def remove(self):
+
+        if isdir(self.package_path):
+            shutil.rmtree(self.package_path)
+
+    def is_older_than_metatada(self):
         """
         Return True if the package save file is older than the metadata. Returns False if the time of either can't be determined
 
@@ -49,31 +53,16 @@ class FileSystemPackage(Package):
         except (FileNotFoundError, OSError):
             return False
 
-    def save_path(self, path=None):
 
-        base = self.doc.find_first_value('Root.Name')
-
-        if path and not path.endswith('.zip'):
-            return join(path, base)
-        else:
-            return base
-
-    def save(self, path=None):
+    def save(self):
 
         self.check_is_ready()
-
-        if not self.doc.find_first_value('Root.Name'):
-            raise PackageError("Package must have Root.Name term defined")
 
         self.sections.resources.sort_by_term()
 
         self.doc.cleanse()
 
         self.load_declares()
-
-        self._init_dir(path)
-
-        ensure_exists(dirname(self.save_path(path)))
 
         self._load_documentation_files()
 
@@ -91,57 +80,28 @@ class FileSystemPackage(Package):
 
         return doc_file
 
-    def remove(self, path=None):
-
-        if path is None:
-            path = getcwd()
-
-        name = self.doc.find_first_value('Root.Name')
-
-        np = join(path, name)
-
-        if isdir(np):
-            shutil.rmtree(np)
-
-    def _init_dir(self, path=None):
-
-        if path is None:
-            path = getcwd()
-
-        name = self.doc.find_first_value('Root.Name')
-
-        assert path
-        assert name
-
-        np = join(path, name)
-
-        if not isdir(np):
-            makedirs(np)
-
-        self.package_dir = np
-
     def _write_doc(self):
-        path = join(self.package_dir, DEFAULT_METATAB_FILE)
+        path = join(self.package_path, DEFAULT_METATAB_FILE)
         self._doc.write_csv(path)
         return path
 
     def _write_dpj(self):
 
-        with open(join(self.package_dir, 'datapackage.json'), 'w') as f:
+        with open(join(self.package_path, 'datapackage.json'), 'w') as f:
             f.write(json.dumps(convert_to_datapackage(self._doc), indent=4))
 
     def _write_html(self):
 
-        with open(join(self.package_dir, 'index.html'), 'w') as f:
+        with open(join(self.package_path, 'index.html'), 'w') as f:
             f.write(self._doc.html)
 
     def _load_resource(self, r, gen, headers):
 
         self.prt("Loading data for '{}' ".format(r.name))
 
-        r.url = 'data/' + r.name + '.csv'
+        new_url = 'data/' + r.name + '.csv'
 
-        path = join(self.package_dir, r.url)
+        path = join(self.package_path, new_url)
 
         makedirs(dirname(path), exist_ok=True)
 
@@ -149,6 +109,8 @@ class FileSystemPackage(Package):
             remove(path)
 
         write_csv(path, headers, gen)
+
+        r.url = new_url
 
         # Writting between resources so row-generating programs and notebooks can
         # access previously created resources. We have to clean the doc before writing it
@@ -158,8 +120,7 @@ class FileSystemPackage(Package):
         # What a wreck ... we also have to get rid of the 'Transform' values, since the CSV files
         # that are written don't need them, and a lot of intermediate processsing ( specifically,
         # jupyter Notebooks, ) does not load them.
-        p = FileSystemPackage(ref)
-        p._init_dir('_packages')
+        p = FileSystemPackageBuilder(ref, self.package_root)
         p._clean_doc()
         ref = p._write_doc()
 
@@ -181,7 +142,7 @@ class FileSystemPackage(Package):
 
         de = DocumentationExporter()
         fw = FilesWriter()
-        fw.build_directory = join(self.package_dir,'docs')
+        fw.build_directory = join(self.package_path,'docs')
 
         # Now, generate the documents directly into the filesystem package
         for term in notebook_docs:
@@ -203,7 +164,7 @@ class FileSystemPackage(Package):
 
         self.prt("Loading documentation for '{}', '{}' ".format(title, file_name))
 
-        path = join(self.package_dir, 'docs/' + file_name)
+        path = join(self.package_path, 'docs/' + file_name)
 
         makedirs(dirname(path), exist_ok=True)
 
@@ -219,7 +180,7 @@ class FileSystemPackage(Package):
         if "__pycache__" in filename:
             return
 
-        path = join(self.package_dir, filename)
+        path = join(self.package_path, filename)
 
         ensure_dir(dirname(path))
 

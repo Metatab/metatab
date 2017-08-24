@@ -4,29 +4,24 @@
 """ """
 
 from os.path import join, dirname
-from .core import Package
+from .core import PackageBuilder
 from metapack.exc import PackageError
-from metapack.util import ensure_exists
+from metapack.util import  ensure_dir, slugify
 
 
-class ExcelPackage(Package):
+class ExcelPackageBuilder(PackageBuilder):
     """An Excel File Package"""
 
-    def __init__(self, ref=None, callback=None, cache=None, env=None):
+    def __init__(self, source_ref=None, package_root=None, cache=None, callback=None, env=None):
+        super().__init__(source_ref, package_root, cache, callback, env)
 
-        super(ExcelPackage, self).__init__(ref, callback=callback, cache=cache, env=env)
+        self.package_path = join(self.package_root, self.package_name+".xlsx")
 
-    def save_path(self, path=None):
-        base = self.doc.find_first_value('Root.Name') + '.xlsx'
+        ensure_dir(self.package_root)
 
-        if path and not path.endswith('.xlsx'):
-            return join(path, base)
-        elif path:
-            return path
-        else:
-            return base
 
-    def save(self, path=None):
+
+    def save(self):
         from openpyxl import Workbook
         from openpyxl.cell import WriteOnlyCell
         from openpyxl.styles import PatternFill, Alignment
@@ -44,9 +39,6 @@ class ExcelPackage(Package):
         meta_ws.column_dimensions['C'].width = 20
         meta_ws.column_dimensions['D'].width = 20
         meta_ws.column_dimensions['E'].width = 20
-
-        if not self.doc.find_first_value('Root.Name'):
-            raise PackageError("Package must have Root.Name term defined")
 
         self.sections.resources.sort_by_term()
 
@@ -76,11 +68,10 @@ class ExcelPackage(Package):
             else:
                 meta_ws.append(row)
 
-        ensure_exists(dirname(self.save_path(path)))
 
-        self.wb.save(self.save_path(path))
+        self.wb.save(self.package_path)
 
-        return self.save_path(path)
+        return self.package_path
 
     def _load_resources(self):
         """Remove the geography from the files, since it isn't particularly useful in Excel"""
@@ -99,9 +90,9 @@ class ExcelPackage(Package):
 
         ws = self.wb.create_sheet(r.name)
 
-        r.url = r.name
-
         ws.append(headers)
 
         for row in gen:
             ws.append(row)
+
+        r.url = r.name

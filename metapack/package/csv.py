@@ -5,42 +5,36 @@
 
 from os import getcwd
 from os.path import join, dirname
+from metapack.util import ensure_dir
 
-from metapack.package.core import Package
-from metapack.util import ensure_exists
+from metapack.package.core import PackageBuilder
 
-
-class CsvPackage(Package):
+class CsvPackageBuilder(PackageBuilder):
     """"""
 
-    def save_path(self, path=None):
-        base = self.doc.find_first_value('Root.Name') + '.csv'
+    def __init__(self, source_ref=None, package_root=None, cache=None, callback=None, env=None):
+        super().__init__(source_ref, package_root, cache, callback, env)
 
-        if path is None:
-            path = getcwd()
+        self.package_path = join(self.package_root, self.package_name + ".csv")
 
-        if path and not path.endswith('.csv'):
-            return join(path, base)
-        elif path:
-            return path
-        else:
-            return base
+        ensure_dir(self.package_root)
 
     def _load_resource(self, r, gen, headers):
+        """The CSV package has no reseources, so we just need to resolve the URLs to them. Usually, the
+        CSV package is built from a file system ackage on a publically acessible server. """
 
         r.url = r.resolved_url
 
-
     def _relink_documentation(self):
 
-        for doc in self.doc.resources(term=['Root.Documentation', 'Root.Image'], section='Documentation'):
+        for doc in self.doc['Documentation'].find(['Root.Documentation', 'Root.Image']):
             doc.url =  doc.resolved_url
 
     def save(self, path=None):
 
         # HACK ...
         if not self.doc.ref:
-            self.doc._ref = self.save_path(path)  # Really should not do this but ...
+            self.doc._ref = self.package_path  # Really should not do this but ...
 
         self.check_is_ready()
 
@@ -54,10 +48,7 @@ class CsvPackage(Package):
 
         self._clean_doc()
 
-        _path = self.save_path(path)
 
-        ensure_exists(dirname(_path))
+        self.doc.write_csv(self.package_path)
 
-        self.doc.write_csv(_path)
-
-        return _path
+        return self.package_path

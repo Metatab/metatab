@@ -1,40 +1,26 @@
 from os import walk
 from os.path import join
 from zipfile import ZipFile
+from metapack.util import slugify
 
-from .core import Package
+from .core import PackageBuilder
 
 
-class ZipPackage(Package):
+class ZipPackageBuilder(PackageBuilder):
     """A Zip File package"""
 
-    def __init__(self, ref=None, callback=None, cache=None, env=None):
+    def __init__(self, source_ref=None, package_root=None, cache=None, callback=None, env=None):
+        super().__init__(source_ref, package_root, cache, callback, env)
 
-        super(ZipPackage, self).__init__(ref, callback=callback, cache=cache, env=env)
-
-    def save_path(self, path=None):
-        base = self.doc.find_first_value('Root.Name') + '.zip'
-
-        if path and not path.endswith('.zip'):
-            return join(path, base)
-        elif path:
-            return path
-        else:
-            return base
-
-    def _init_zf(self, path):
-
-
-
-        self.zf = ZipFile(self.save_path(path), 'w')
+        self.package_path = join(self.package_root, self.package_name + ".zip")
 
     def save(self, path=None):
 
         self.check_is_ready()
 
-        root_dir = self.doc.find_first_value('Root.Name')
+        root_dir = slugify(self.doc.find_first_value('Root.Name'))
 
-        self._init_zf(path)
+        self.zf = ZipFile(self.package_path, 'w')
 
         for root, dirs, files in walk(self.source_dir):
             for f in files:
@@ -46,4 +32,4 @@ class ZipPackage(Package):
 
         self.zf.close()
 
-        return self.save_path(path)
+        return self.package_path

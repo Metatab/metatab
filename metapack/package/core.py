@@ -14,101 +14,43 @@ from six import string_types, text_type
 from tableintuit import RowIntuiter
 
 from metapack import MetapackDoc
-from metatab import TermParser, Resource, slugify, DEFAULT_METATAB_FILE
+from metatab import TermParser, slugify, DEFAULT_METATAB_FILE
 from metapack.exc import PackageError
 from rowgenerators import Url, get_cache, SourceSpec, RowGenerator, TextEncodingError, enumerate_contents, \
     download_and_cache, DownloadError, get_dflo, reparse_url, parse_url_to_dict, unparse_url_dict
 from util import Bunch
 
 
-class Package(object):
-    def __new__(cls, ref=None, cache=None, callback=None, env=None, save_url=None, acl=None):
+class PackageBuilder(object):
 
-        from metapack.package.csv import CsvPackage
-        from metapack.package.excel import ExcelPackage
-        from metapack.package.s3 import S3Package
-        from metapack.package.zip import ZipPackage
-        from metapack.exc import PackageError
 
-        if cls == Package:
-
-            if isinstance(ref, Url):
-                b = Bunch(ref.dict)
-            else:
-                b = Bunch(Url(ref).dict)
-
-            if b.resource_format in ('xls', 'xlsx'):
-                return super(Package, cls).__new__(ExcelPackage)
-            elif b.resource_format == 'zip':
-                return super(Package, cls).__new__(ZipPackage)
-            #elif b.proto == 'gs':
-            #    return super(Package, cls).__new__(GooglePackage)
-            elif b.proto == 's3':
-                return super(Package, cls).__new__(S3Package)
-            elif b.resource_format == 'csv' or b.target_format == 'csv':
-                return super(Package, cls).__new__(CsvPackage)
-            else:
-                raise PackageError("Can't determine package type for ref '{}' ".format(ref))
-
-        else:
-            return super(Package, cls).__new__(cls)
-
-    def __init__(self, ref=None, cache=None, callback=None, env=None):
+    def __init__(self, source_ref=None, package_root = None, cache=None, callback=None, env=None):
 
         self._cache = cache if cache else get_cache('metapack')
-        self._ref = ref
-        self._doc = None
+        self._source_ref = source_ref
+
+        self.package_root = package_root
         self._callback = callback
         self._env = env if env is not None else {}
-        self.source_dir = dirname(Url(ref).path())
-        self.init_doc()
 
-    def load_doc(self, ref):
+        self._source_doc = MetapackDoc(self._source_ref, cache=self._cache) # this one stays constant
+        self.source_dir = dirname(Url(self._source_ref).path())
+        self._doc = MetapackDoc(self._source_ref, cache=self._cache) # This one gets edited
 
-        if isinstance(ref, string_types):
-            self._doc = MetapackDoc(ref, cache=self._cache)
-        else:
-            self._doc = ref
+        if not self.doc.find_first_value('Root.Name'):
+            raise PackageError("Package must have Root.Name term defined")
 
-        return self
-
-    def init_doc(self):
-
-        if self._ref:
-            self.load_doc(self._ref)
-        else:
-            self._doc = MetatabDoc()
-
-            if not self._doc.find("Root.Declare"):
-                # FIXME. SHould really have a way to insert this term as the first term.
-                self.sections.root.new_term('Declare', 'metatab-latest')
-                self._doc.load_declarations(['metatab-latest'])
-
-        return self.doc
-
-    def _open(self):
-        """Open the package, possibly downloading it to the cache."""
-        if not self._cache:
-            raise IOError(
-                "Package must have a cache, set either in the package constructor, or with the METAPACK_CACHE env var")
 
     @property
     def path(self):
         return self._ref
 
-    def save_path(self):
-        """Default path for the file to be wrotten to"""
-        raise NotImplementedError()
 
-    def exists(self, path=None):
-        return exists(self.save_path(path))
+    def exists(self):
+        return exists(self.package_path)
 
     @property
     def doc(self):
-        """Return the Metatab metadata document"""
-        if not self._doc and self._ref:
-            self._doc = MetatabDoc(TermParser(self._ref))
-
         return self._doc
 
     def copy_section(self, section_name, doc):
@@ -117,14 +59,15 @@ class Package(object):
             self.doc.add_term(t)
 
     def resources(self, name=None, term=None, section='resources'):
-        for r in self.doc.resources(name, term, section=section):
+
+        for r in self.doc['Resources'].find('root.resource'):
             yield r
+
 
     @property
     def datafiles(self):
 
-        for r in self.doc.resources(term=['root.datafile', 'root.suplimentarydata',
-                                          'root.datadictionary']):
+        for r in self.doc['Resources'].find(['root.datafile', 'root.suplimentarydata', 'root.datadictionary']):
             yield r
 
     def datafile(self, ref):
@@ -149,7 +92,7 @@ class Package(object):
 
     @property
     def package_name(self):
-        return self._doc.find_first_value('Root.Name')
+        return slugify(self.doc.get_value('Root.Name'))
 
     @property
     def sections(self):
@@ -396,6 +339,7 @@ class Package(object):
 
         for r in self.datafiles:
 
+
             if not r.url:
                 self.warn("No value for URL for {} ".format(r.term))
                 continue
@@ -416,21 +360,11 @@ class Package(object):
             except AttributeError:
                 raise PackageError("Resource '{}' of type {} does not have a headers property"
                                    .format(r.url, type(r)))
-            try:
-                code_path = join(dirname(self.package_dir), 'row_processors', r.name + '.py')
-            except AttributeError:
-                # Not all packages have a package_dir property, which is an error,
-                # but we really only need code_path for the FilesystemPackage
-                code_path = None
 
-
-            rg = self.doc.resource(r.name, env=self._env,code_path=code_path)
-
-            assert rg is not None
 
             if True:
-                # Skipping the first line because we'll insetrt the headers manually
-                self._load_resource(r, islice(rg, 1, None), r.headers)
+                # Skipping the first line because we'll insert the headers manually
+                self._load_resource(r, islice(r, 1, None), r.headers)
 
             else:
 
@@ -439,7 +373,7 @@ class Package(object):
 
                 start_line = int(r.get_value('startline')) if r.get_value('startline') is not None  else 1
 
-                gen = islice(rg, start_line, None)
+                gen = islice(r, start_line, None)
 
                 r.encoding = None
                 r.startline = None
@@ -451,7 +385,7 @@ class Package(object):
     def _get_ref_contents(self, t):
 
         uv = Url(t.value)
-        ur = Url(self._ref)
+        ur = Url(self.source_dir) # base url
 
         # In the case that the input doc is a file, and the ref is to a file,
         # try interpreting the file as relative.
@@ -530,11 +464,10 @@ class Package(object):
 
                     self._load_file( dest, f.read())
 
-
         for term in self.resources(term = 'Root.Pythonlib'):
 
             uv = Url(term.value)
-            ur = Url(self._ref)
+            ur = Url(self.source_dir)
 
             # In the case that the input doc is a file, and the ref is to a file,
             # try interpreting the file as relative.
@@ -554,7 +487,6 @@ class Package(object):
 
         if exists(nb_dir) and isdir(nb_dir):
             copy_dir(nb_dir)
-
 
 
     def _load_file(self,  filename, contents):

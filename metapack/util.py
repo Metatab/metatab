@@ -314,10 +314,7 @@ def copytree(src, dst, symlinks=False, ignore=None):
             shutil.copy2(s, d)
 
 
-def ensure_exists(d):
 
-    if not exists(d):
-        makedirs(d)
 
 
 def write_csv(path_or_flo, headers, gen):

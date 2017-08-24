@@ -1,42 +1,59 @@
 from itertools import islice
 
 from metapack.doc import EMPTY_SOURCE_HEADER
-from metatab import Resource
+from metatab import Term
+from metatab import Term
 from rowgenerators import RowGenerator, Url, reparse_url, DownloadError
 from rowpipe import RowProcessor
 import six
 from metapack.exc import PackageError
 
 
-class MetapackResource(Resource):
+class Resource(Term):
 
         # These property names should return null if they aren't actually set.
         _common_properties = 'url name description schema'.split()
 
-        def __init__(self, term, base_url, package=None, env=None, code_path=None):
+        def __init__(self, term, value, term_args=False, row=None, col=None, file_name=None, file_type=None,
+                     parent=None, doc=None, section=None,
+                     ):
 
-            super().__init__(term, base_url, package, env, code_path)
-
-            super(Resource, self).__init__(term.term, term.value, term.args,
-                                           term.row, term.col,
-                                           term.file_name, term.file_type,
-                                           term.parent, term.doc, term.section)
-
-            self._orig_term = term
-            self.base_url = base_url
-            self.package = package
-
-            self.code_path = code_path
-
-            self._parent_term = term
-            self.term_value_name = term.term_value_name
-            self.children = term.children
-
-            self.env = env if env is not None else {}
+            #self.base_url = base_url
+            #self.package = package
+            #self.code_path = code_path
+            #self.env = env if env is not None else {}
 
             self.errors = {}  # Typecasting errors
 
-            self.__initialised = True
+            super().__init__(term, value, term_args, row, col, file_name, file_type, parent, doc, section)
+
+
+        @property
+        def base_url(self):
+            """Base URL for resolving resource URLs"""
+
+            return self.doc.package_url if self.doc.package_url else self.doc._ref
+
+        @property
+        def env(self):
+            """The execution context for rowprocessors and row-generating notebooks and functions. """
+
+            return self.doc.env
+
+
+
+        @property
+        def code_path(self):
+            from .util import slugify
+            from fs.errors import DirectoryExists
+
+            sub_dir = 'resource-code/{}'.format(slugify(self.doc.name))
+            try:
+                self.doc.cache.makedirs(sub_dir)
+            except DirectoryExists:
+                pass
+
+            return self.doc.cache.opendir(sub_dir).getsyspath(slugify(self.name)+'.py')
 
         @property
         def _self_url(self):
@@ -46,7 +63,9 @@ class MetapackResource(Resource):
             finally:  # WTF? No idea, probably wrong.
                 return self.value
 
-        def _resolved_url(self):
+
+        @property
+        def resolved_url(self):
             """Return a URL that properly combines the base_url and a possibly relative
             resource url"""
 
@@ -56,7 +75,7 @@ class MetapackResource(Resource):
                 u = Url(self.base_url)
 
             else:
-                u = Url(self.doc.package_url)  # Url(self.doc.ref)
+                u = Url(self.doc.package_url)
 
             if not self._self_url:
                 return None
@@ -74,11 +93,6 @@ class MetapackResource(Resource):
 
             assert nu
             return nu
-
-        @property
-        def resolved_url(self):
-            return self._resolved_url()
-
 
         def _name_for_col_term(self, c, i):
 
@@ -434,9 +448,8 @@ class MetapackResource(Resource):
             return ckan_resource_markdown(self)
 
 
-class MetapackReference(MetapackResource):
-    def __init__(self, term, base_url, package=None, env=None, code_path=None):
-        super().__init__(term, base_url, package, env, code_path)
+class Reference(Resource):
+
 
     def dataframe(self, limit=None):
         """Return a Pandas Dataframe using read_csv or read_excel"""
@@ -477,3 +490,43 @@ class MetapackReference(MetapackResource):
 
 
         return df
+
+class Distribution(Term):
+
+    def distributions(self, type=False):
+        """"Return a dict of distributions, or if type is specified, just the first of that type
+
+        """
+        from collections import namedtuple
+
+        Dist = namedtuple('Dist', 'type url term')
+
+        def dist_type(url):
+
+            if url.target_file == 'metadata.csv':
+                return 'fs'
+            elif url.target_format == 'xlsx':
+                return 'excel'
+            elif url.resource_format == 'zip':
+                return "zip"
+            elif url.target_format == 'csv':
+                return "csv"
+
+            else:
+
+                return "unk"
+
+        dists = []
+
+        for d in self.find('Root.Distribution'):
+
+            u = Url(d.value)
+
+            t = dist_type(u)
+
+            if type == t:
+                return Dist(t, u, d)
+            elif type is False:
+                dists.append(Dist(t, u, d))
+
+        return dists
