@@ -20,8 +20,9 @@ from metatab.parser import TermParser
 from metatab.generate import CsvPathRowGenerator, WebResolver
 from metatab.exc import MetatabError
 from metatab.util import slugify
-from .terms import SectionTerm, RootSectionTerm, Resource
+from .terms import SectionTerm, RootSectionTerm
 from .util import get_cache
+from itertools import groupby
 
 logger = logging.getLogger('doc')
 
@@ -39,6 +40,7 @@ class MetatabDoc(object):
         self.terms = []
         self.sections = OrderedDict()
         self.super_terms = {}
+        self.derived_terms = {}
         self.errors = []
         self.package_url = package_url
 
@@ -171,6 +173,9 @@ class MetatabDoc(object):
         :param class_or_name: A class, or a fully-qualified, dotted class name.
         :return:
         """
+
+        return TermParser.register_term_class(term_name, class_or_name)
+
 
     def load_declarations(self, decls):
 
@@ -310,7 +315,7 @@ class MetatabDoc(object):
         for s in self.sections.values():
             yield s
 
-    def find(self, term, value=False, section=None, **kwargs):
+    def find(self, term, value=False, section=None, _expand_derived=True, **kwargs):
         """Return a list of terms, possibly in a particular section. Use joined term notation, such as 'Root.Name' The kwargs arg is used to set term properties, all of which match returned terms, so ``name='foobar'`` will match terms that have a ``name`` property of ``foobar``
 
         :param term: The type of term to find, in fully-qulified notation, or use '*' for wild cards in either the parent or the record parts, such as 'Root.*', '*.Table' or '*.*'
@@ -347,11 +352,29 @@ class MetatabDoc(object):
             else:
                 return section.lower() == term.section.name.lower()
 
+        # Try to replace the term with the list of its derived terms; that is, replace the super-class with all
+        # of the derived classes, but only do this expansion once.
+        if _expand_derived:
+            try:
+                try:
+                    # Term is a string
+                    term = list(self.derived_terms[term.lower()]) + [term]
+                except AttributeError: # Term is hopefully a list
+                    terms = []
+                    for t in term:
+                        terms.append(term)
+                        for dt in self.derived_terms[t.lower()]:
+                            terms.append(dt)
+            except KeyError:
+                pass
+
+
         # Find any of a list of terms
         if isinstance(term, (list, tuple)):
-            return list(itertools.chain(*[self.find(e, value=value, section=section) for e in term]))
+            return list(itertools.chain(*[self.find(e, value=value, section=section, _expand_derived=False) for e in term]))
 
         else:
+
             term = term.lower()
 
             found = []
@@ -396,15 +419,24 @@ class MetatabDoc(object):
         else:
             return term.value
 
+    def get(self, term, default=None):
+        """Return the first term, returning the default if no term is found"""
+        v =  self.find_first(term)
+
+        if not v:
+            return default
+        else:
+            return v
+
+
     def get_value(self, term, default=None):
+        """Return the first value, returning the default if no term is found"""
         term = self.find_first(term, value=False)
 
         if term is None:
             return default
         else:
             return term.value
-
-
 
     def resolve_url(self, url):
         """Resolve an application specific URL to a web URL"""
@@ -440,6 +472,11 @@ class MetatabDoc(object):
             self.decl_sections.update(dd['sections'])
 
             self.super_terms = terms.super_terms()
+
+            kf = lambda e: e[1]  # Sort on the value
+            self.derived_terms ={ k:set( e[0] for e in g)
+                                  for k, g in groupby(sorted(self.super_terms.items(), key=kf), kf)}
+
 
         except AttributeError as e:
             pass

@@ -208,39 +208,7 @@ class MyTestCase(unittest.TestCase):
 
         self.assertTrue('bad_declare.csv' in e[0]['error'])
 
-    def test_serializer(self):
 
-        return
-
-        doc = MetatabDoc(test_data('schema.csv'))
-        d = doc.as_dict()
-
-        s = Serializer()
-        s.load_declarations(d)
-
-        sections = defaultdict(list)
-
-        for e in s.semiflatten(d):
-            print(e)
-
-        return
-
-        for e in sorted(s.serialize(d)):
-            has_int = any(isinstance(ki, int) for ki in e[0])
-            key_no_int = tuple(ki for ki in e[0] if not isinstance(ki, int))
-            print(key_no_int)
-            pr = '.'.join(key_no_int[-2:])
-            t = Term(pr, e[1], row=0, col=0, file_name=None)
-            section = s.decl['terms'].get(t.join(), {}).get('section', 'Root')
-
-            sections[section].append(t)
-
-        return
-
-        for k, v in sections.items():
-            print("=====", k)
-            for t in v:
-                print(t)
 
     def test_headers(self):
 
@@ -256,6 +224,18 @@ class MyTestCase(unittest.TestCase):
         doc = MetatabDoc(test_data('example1.csv'))
 
         self.assertEquals('cdph.ca.gov-hci-registered_voters-county', doc.find_first('Root.Identifier').value)
+
+        doc = MetatabDoc(test_data('resources.csv'))
+
+        self.assertEqual({'root.downloadpage', 'root.supplementarydata', 'root.api', 'root.citation',
+                          'root.datafile', 'root.datadictionary', 'root.image', 'root.reference',
+                          'root.documentation', 'root.homepage'},
+                         doc.derived_terms['root.resource'])
+
+        self.assertEqual(['example1', 'example10', 'example2', 'example3', 'example4', 'example5', 'example6',
+                'example7', 'example8', 'example9'], sorted([t.name for t in doc.find('root.resource')]))
+
+        self.assertEquals(['example1', 'example2'], [t.name for t in doc.find('root.datafile')])
 
     def test_sections(self):
 
@@ -434,7 +414,7 @@ class MyTestCase(unittest.TestCase):
 
 
     def test_term_subclasses(self):
-        from metatab.terms import Term, SectionTerm, Resource
+        from metatab.terms import Term, SectionTerm
 
         doc = MetatabDoc()
         tp = TermParser(test_data('example1.csv'), doc=doc)
@@ -444,8 +424,8 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(Term, tp.get_term_class('root.summary'))
         self.assertEqual(Term, tp.get_term_class('root.name'))
         self.assertEqual(SectionTerm, tp.get_term_class('root.section'))
-        self.assertEqual(Resource, tp.get_term_class('root.resource'))
-        self.assertEqual(Resource, tp.get_term_class('root.homepage'))
+        #self.assertEqual(Resource, tp.get_term_class('root.resource'))
+        #self.assertEqual(Resource, tp.get_term_class('root.homepage'))
 
         class TestTermClass(Term):
             pass
@@ -459,8 +439,8 @@ class MyTestCase(unittest.TestCase):
         self.assertEqual(Term, type(doc.find_first('root.description')))
         self.assertEqual(TestTermClass, type(doc.find_first('root.name')))
         self.assertEqual(SectionTerm, type(doc.find_first('root.section')))
-        self.assertEqual(Resource, type(doc.find_first('root.datafile')))
-        self.assertEqual(Resource, type(doc.find_first('root.homepage')))
+        #self.assertEqual(Resource, type(doc.find_first('root.datafile')))
+        #self.assertEqual(Resource, type(doc.find_first('root.homepage')))
 
 if __name__ == '__main__':
     unittest.main()

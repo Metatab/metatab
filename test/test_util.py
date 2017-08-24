@@ -23,15 +23,12 @@ def test_data(*paths):
 
 class TestUtil(unittest.TestCase):
 
-     def test_import(self):
-         from metatab.util import import_name_or_class
-         from metatab.terms import Resource
+    def test_import(self):
+        from metatab.util import import_name_or_class
+        from metatab.terms import Resource
 
-         for e in ("metatab.terms.Resource", Resource):
-             self.assertEqual(import_name_or_class(e), Resource)
-
-
-
+        for e in ("metatab.terms.Resource", Resource):
+            self.assertEqual(import_name_or_class(e), Resource)
 
 
 if __name__ == '__main__':

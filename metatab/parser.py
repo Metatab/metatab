@@ -37,8 +37,7 @@ class TermParser(object):
     # Map term names to subclass objects
     term_classes = {
         'root.section': 'metatab.terms.SectionTerm',
-        'root.root': 'metatab.terms.RootSectionTerm',
-        'root.resource': 'metatab.terms.Resource'
+        'root.root': 'metatab.terms.RootSectionTerm'
     }
 
     def __init__(self, ref,  resolver=None, doc=None, remove_special=True):
@@ -114,7 +113,7 @@ class TermParser(object):
     def super_terms(self):
         """Return a dictionary mapping term names to their super terms"""
 
-        return  {k: v['inheritsfrom'].lower()
+        return  {k.lower(): v['inheritsfrom'].lower()
                          for k, v in self._declared_terms.items() if 'inheritsfrom' in v}
 
     @property
@@ -171,11 +170,10 @@ class TermParser(object):
 
         cls.term_classes[term_name.lower()] = class_or_name
 
-
-
     def get_term_class(self, term_name):
 
         tnl = term_name.lower()
+
 
         try:
             return import_name_or_class(self.term_classes[tnl])

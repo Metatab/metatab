@@ -17,10 +17,6 @@ from metatab.parser import ROOT_TERM, ELIDED_TERM
 EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination table but not in the source
 
 
-
-
-
-
 class Term(object):
     """Term object represent a row in a Metatab file, and handle interpeting the
         row into the parts of a term
@@ -282,7 +278,7 @@ class Term(object):
 
             c = self.find_first(item)
             if c is None:
-                raise KeyError("Failed to find key '{}' in term '{}'".format(item, str(self)))
+                raise KeyError("Failed to find key '{}' in term '{}'".format(item, repr(self)))
 
             return c
 
@@ -320,6 +316,8 @@ class Term(object):
             # Normal child
             return self.__getitem__(item).value
         except KeyError:
+            # We want the common properties to return a value even if they aren't explicitly set
+            # with a term
             if item.lower() in self._common_properties:
                 return None
             else:
@@ -328,7 +326,7 @@ class Term(object):
                 except Exception as e:
                     m = item
 
-                raise AttributeError(m)
+                return self.__getattribute__(item) #raise AttributeError(m)
 
     def __setattr__(self, item, value):
         """ """
@@ -647,6 +645,9 @@ class Term(object):
             for d in c.descendents:
                 yield d
 
+    def __iter__(self):
+        raise NotImplementedError("Can't iterate a term. Did you expect a Section or a Resource?")
+
     def __repr__(self):
         return "<{}: {}{}.{} {} {}>".format(self.__class__.__name__, self.file_ref(), self.parent_term,
                                               self.record_term, self.value, self.args)
@@ -905,22 +906,4 @@ class RootSectionTerm(SectionTerm):
 
         return d
 
-
-class Resource(Term):
-    """Term variant for resources"""
-
-    @property
-    def _self_url(self):
-        try:
-            if self.url:
-                return self.url
-        finally:  # WTF? No idea, probably wrong.
-            return self.value
-
-    @property
-    def resolved_url(self):
-        return self._doc.resolve_url(self.url)
-
-    def new_child(self, term, value, **kwargs):
-        raise NotImplementedError("DOn't create children from resources. ")
 
