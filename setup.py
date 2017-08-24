@@ -28,11 +28,9 @@ classifiers = [
     'License :: OSI Approved :: BSD License',
     'Operating System :: OS Independent',
     'Programming Language :: Python',
-    'Programming Language :: Python :: 2.7',
     'Programming Language :: Python :: 3.4',
     'Topic :: Software Development :: Libraries :: Python Modules',
 ]
-
 
 # Setup a directory for a fake package for importing plugins
 
@@ -56,7 +54,7 @@ setup(
         #'rowpipe>=0.1.2',
         #'tableintuit>=0.0.6',
         #'geoid>=1.0.4'
-        #'metatabdecl',
+        'metatabdecl',
         'deprecation'
 
     ],
