@@ -11,6 +11,7 @@ from os.path import join, basename, dirname
 
 import unicodecsv as csv
 
+from appurl import get_cache
 
 def declaration_path(name):
     """Return the path to an included declaration"""

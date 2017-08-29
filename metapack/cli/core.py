@@ -8,15 +8,17 @@ from uuid import uuid4
 import six
 from tableintuit import TypeIntuiter
 
+from metapack import MetapackDoc
 from metapack.package.s3 import S3PackageBuilder
 from metapack.package.csv import CsvPackageBuilder
 from metapack.package.excel import ExcelPackageBuilder
 from metapack.package.filesystem import FileSystemPackageBuilder
 from metapack.package.zip import ZipPackageBuilder
 from metatab import  DEFAULT_METATAB_FILE
-from metatab import _meta, MetatabDoc
+from metatab import _meta
 from metatab.util import make_metatab_file
-from rowgenerators import Url, SelectiveRowGenerator
+from rowgenerators import SelectiveRowGenerator
+from appurl import parse_app_url
 from os.path import dirname
 
 logger = logging.getLogger('user')
@@ -303,10 +305,10 @@ def make_s3_package(file, package_root,  cache,  env,  skip_if_exists, acl='publ
 
 def update_name(mt_file, fail_on_missing=False, report_unchanged=True, force=False):
 
-    if isinstance(mt_file, MetatabDoc):
+    if isinstance(mt_file, MetapackDoc):
         doc = mt_file
     else:
-        doc = MetatabDoc(mt_file)
+        doc = MetapackDoc(mt_file)
 
     o_name = doc.find_first_value("Root.Name", section=['Identity', 'Root'])
 
@@ -369,7 +371,7 @@ def write_doc(doc, mt_file):
         t = doc['Root'].get_or_new_term('GitUrl')
         t.value = fetchline[-1]
 
-    u = Url(mt_file)
+    u = parse_app_url(mt_file)
 
     if u.scheme == 'file':
         doc.write_csv(mt_file)
@@ -383,11 +385,11 @@ def process_schemas(mt_file, cache=None, clean=False):
     from rowgenerators import SourceError
     from requests.exceptions import ConnectionError
 
-    if isinstance(mt_file, MetatabDoc):
+    if isinstance(mt_file, MetapackDoc):
         doc = mt_file
         write_doc_to_file = False
     else:
-        doc = MetatabDoc(mt_file)
+        doc = MetapackDoc(mt_file)
         write_doc_to_file = True
 
     try:
@@ -399,16 +401,13 @@ def process_schemas(mt_file, cache=None, clean=False):
     except KeyError:
         doc.new_section('Schema', ['DataType', 'Altname', 'Description'])
 
-    for r in doc.resources(env=get_lib_module_dict(doc)):
+    for r in doc['Resources'].find('Root.Resource'):
 
-        schema_name = r.get_value('schema', r.get_value('name'))
-
-        schema_term = doc.find_first(term='Table', value=schema_name, section='Schema')
+        schema_term = r.schema_term
 
         if schema_term:
-            prt("Found table for '{}'; skipping".format(schema_name))
+            prt("Found table for '{}'; skipping".format(r.schema_name))
             continue
-
 
         path, name = extract_path_name(r.url)
 
@@ -427,9 +426,9 @@ def process_schemas(mt_file, cache=None, clean=False):
             warn("Failed to download '{}'; {}".format(path, e))
             continue
 
-        table = doc['Schema'].new_term('Table', schema_name)
+        table = doc['Schema'].new_term('Table', r.schema_name)
 
-        prt("Adding table '{}' ".format(schema_name))
+        prt("Adding table '{}' ".format(r.schema_name))
 
         for i, c in enumerate(ti.to_rows()):
 
@@ -447,19 +446,18 @@ def process_schemas(mt_file, cache=None, clean=False):
 def extract_path_name(ref):
     from os.path import splitext, basename, abspath
     from rowgenerators.util import parse_url_to_dict
-    from rowgenerators import SourceSpec
 
-    uparts = parse_url_to_dict(ref)
+    uparts = parse_app_url(ref)
 
-    ss = SourceSpec(url=ref)
+    ss = parse_app_url(ref)
 
-    if not uparts['scheme']:
+    if not uparts.scheme:
         path = abspath(ref)
         name = basename(splitext(path)[0])
     else:
         path = ref
 
-        v = ss.target_file if ss.target_file else uparts['path']
+        v = ss.target_file if ss.target_file else uparts.path
 
         name = basename(splitext(v)[0])
 

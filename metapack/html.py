@@ -6,9 +6,8 @@ Create Markdown and HTML of datasets.
 """
 
 import datetime
-
+from appurl import parse_app_url
 from markdown import markdown as convert_markdown
-
 from nameparser import HumanName
 from pybtex import PybtexEngine
 from pybtex.backends.html import Backend as HtmlBackend
@@ -17,10 +16,8 @@ from pybtex.style.formatting.plain import Style
 from pybtex.style.template import (
     words, together, field, sentence, optional_field, href, optional
 )
-from rowgenerators import SourceSpec
-from rowgenerators import Url
-from rowgenerators.fetch import download_and_cache
 from yaml import safe_dump
+
 from metatab.doc import MetatabDoc
 
 dl_templ = "{}\n:   {}\n\n"
@@ -31,12 +28,12 @@ def ns(v):
 
 
 def linkify(v, description=None, cwd_url=None):
-    from rowgenerators import Url
+
 
     if not v:
         return None
 
-    u = Url(v)
+    u = parse_app_url(v)
 
     if u.scheme in ('http', 'https', 'mailto'):
 
@@ -46,7 +43,7 @@ def linkify(v, description=None, cwd_url=None):
 
     elif u.scheme == 'file':
 
-        return '[{desc}]({url})'.format(url=u.parts.path, desc=description)
+        return '[{desc}]({url})'.format(url=u.path, desc=description)
 
     else:
         return v
@@ -178,7 +175,8 @@ def documentation_block(doc):
     try:
 
         for t in doc['Documentation'].find('Root.IncludeDocumentation'):
-            paths = download_and_cache(SourceSpec(t.value), cache_fs=doc._cache)
+            raise NotImplemented()
+            #paths = download_and_cache(SourceSpec(t.value), cache_fs=doc._cache)
 
             with open(paths['sys_path']) as f:
                 inline += f.read()
@@ -352,10 +350,10 @@ def make_metatab_citation_dict(t):
 
     try:
 
-        if Url(t.url).proto == 'metatab':
+        if parse_app_url(t.url).proto == 'metatab':
 
             try:
-                url = Url(str(t.resolved_url)).resource_url
+                url = parse_app_url(str(t.resolved_url)).resource_url
                 doc = t.row_generator.generator.package
 
             except AttributeError as e:

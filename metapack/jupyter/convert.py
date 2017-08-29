@@ -9,7 +9,7 @@ from metapack.cli.core import prt
 from metapack.util import ensure_dir, copytree
 from os.path import abspath
 from os import getcwd
-from rowgenerators import Url
+from appurl import parse_app_url
 from rowgenerators.util import fs_join as join
 
 
@@ -25,7 +25,7 @@ def convert_documentation(m):
     from nbconvert.writers import FilesWriter
     import nbformat
 
-    nb_path = Url(m.mt_file).parts.path
+    nb_path = parse_app_url(m.mt_file).path
 
     with open(nb_path) as f:
         nb = nbformat.reads(f.read(), as_version=4)

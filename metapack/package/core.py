@@ -10,15 +10,16 @@ from itertools import islice
 from os import walk
 from os.path import dirname, abspath, basename, splitext, join, isdir
 
-from six import string_types, text_type
-from tableintuit import RowIntuiter
+from six import text_type
 
+from appurl import parse_app_url
 from metapack import MetapackDoc
-from metatab import TermParser, slugify, DEFAULT_METATAB_FILE
 from metapack.exc import PackageError
-from rowgenerators import Url, get_cache, SourceSpec, RowGenerator, TextEncodingError, enumerate_contents, \
-    download_and_cache, DownloadError, get_dflo, reparse_url, parse_url_to_dict, unparse_url_dict
-from util import Bunch
+from metapack.terms import Resource
+from metapack.util import Bunch, get_cache
+from metatab import slugify, DEFAULT_METATAB_FILE
+from rowgenerators import get_generator
+from tableintuit import RowIntuiter
 
 
 class PackageBuilder(object):
@@ -34,7 +35,7 @@ class PackageBuilder(object):
         self._env = env if env is not None else {}
 
         self._source_doc = MetapackDoc(self._source_ref, cache=self._cache) # this one stays constant
-        self.source_dir = dirname(Url(self._source_ref).path())
+        self.source_dir = dirname(parse_app_url(self._source_ref).path)
         self._doc = MetapackDoc(self._source_ref, cache=self._cache) # This one gets edited
 
         if not self.doc.find_first_value('Root.Name'):
@@ -140,7 +141,7 @@ class PackageBuilder(object):
     @staticmethod
     def extract_path_name(ref):
 
-        du = Url(ref)
+        du = parse_app_url(ref)
 
         if du.proto == 'file':
             path = abspath(ref)
@@ -165,7 +166,7 @@ class PackageBuilder(object):
     @staticmethod
     def classify_url(url):
 
-        ss = SourceSpec(url=url)
+        ss = parse_app_url(url=url)
 
         if ss.format in ('xls', 'xlsx', 'tsv', 'csv'):
             term_name = 'DataFile'
@@ -177,14 +178,13 @@ class PackageBuilder(object):
         return term_name
 
     @staticmethod
-    def run_row_intuit(path, cache):
+    def run_row_intuit(url, cache):
 
         for encoding in ('ascii', 'utf8', 'latin1'):
-            try:
-                rows = list(islice(RowGenerator(url=path, encoding=encoding, cache=cache), 5000))
-                return encoding, RowIntuiter().run(list(rows))
-            except TextEncodingError:
-                pass
+
+            rows = list(islice(get_generator(url), 5000))
+            return encoding, RowIntuiter().run(list(rows))
+
 
         raise Exception('Failed to convert with any encoding')
 
@@ -382,43 +382,7 @@ class PackageBuilder(object):
 
                 self._load_resource(r, gen, r.headers)
 
-    def _get_ref_contents(self, t):
 
-        uv = Url(t.value)
-        ur = Url(self.source_dir) # base url
-
-        # In the case that the input doc is a file, and the ref is to a file,
-        # try interpreting the file as relative.
-        if ur.proto == 'file' and uv.proto == 'file':
-            path = uv.prefix_path(Url(ur.dirname()).parts.path)
-            ss = SourceSpec(path)
-
-        else:
-            ss = SourceSpec(t.value)
-
-        return self._download_ss(ss)
-
-    def _download_ss(self,ss):
-
-        try:
-            d = download_and_cache(ss, self._cache)
-        except DownloadError as e:
-            self.warn("Failed to load file for '{}': {}".format(ss, e))
-            return None, None
-
-        dflo = get_dflo(ss, d['sys_path'])
-
-        f = dflo.open('rb')
-
-        try:
-            # For file file, the target_file may actually be a regex, so we have to resolve the
-            # regex before using it as a filename
-            real_name = basename(dflo.memo[1].name)  # Internal detail of how Zip files are accessed
-        except (AttributeError, TypeError):
-
-            real_name = basename(ss.target_file)
-
-        return real_name, f
 
     def _load_documentation_files(self):
         """Copy all of the Datafile entries into the Excel file"""
@@ -466,15 +430,15 @@ class PackageBuilder(object):
 
         for term in self.resources(term = 'Root.Pythonlib'):
 
-            uv = Url(term.value)
-            ur = Url(self.source_dir)
+            uv = parse_app_url(term.value)
+            ur = parse_app_url(self.source_dir)
 
             # In the case that the input doc is a file, and the ref is to a file,
             # try interpreting the file as relative.
             if ur.proto == 'file' and uv.proto == 'file':
 
                 # Either a file or a directory
-                path = join(self.source_dir, uv.path())
+                path = join(self.source_dir, uv.path)
                 if isdir(path):
                     copy_dir(path)
 
@@ -513,43 +477,43 @@ def resolve_package_metadata_url(ref):
     """Re-write a url to a resource to include the likely refernce to the
     internal Metatab metadata"""
 
-    du = Url(ref)
+    du = parse_app_url(ref)
 
     if du.resource_format == 'zip':
-        package_url = reparse_url(ref, fragment=False)
-        metadata_url = reparse_url(ref, fragment=DEFAULT_METATAB_FILE)
+        package_url = parse_app_url(ref, fragment=False)
+        metadata_url = parse_app_url(ref, fragment=DEFAULT_METATAB_FILE)
 
     elif du.target_format == 'xlsx' or du.target_format == 'xls':
-        package_url = reparse_url(ref, fragment=False)
-        metadata_url = reparse_url(ref, fragment='meta')
+        package_url = parse_app_url(ref, fragment=False)
+        metadata_url = parse_app_url(ref, fragment='meta')
 
     elif du.resource_file == DEFAULT_METATAB_FILE:
-        metadata_url = reparse_url(ref)
-        package_url = reparse_url(ref, path=dirname(parse_url_to_dict(ref)['path']), fragment=False) + '/'
+        metadata_url = parse_app_url(ref)
+        package_url = parse_app_url(ref, path=dirname(du.path+ '/'), fragment=False)
 
     elif du.target_format == 'csv':
-        package_url = reparse_url(ref, fragment=False)
-        metadata_url = reparse_url(ref)
+        package_url = parse_app_url(ref, fragment=False)
+        metadata_url = parse_app_url(ref)
 
     elif du.proto == 'file':
-        p = parse_url_to_dict(ref)
+        u = parse_app_url(ref)
 
-        if isfile(p['path']):
-            metadata_url = reparse_url(ref)
-            package_url = reparse_url(ref, path=dirname(p['path']), fragment=False)
-        else:
-
-            p['path'] = join(p['path'], DEFAULT_METATAB_FILE)
-            package_url = reparse_url(ref, fragment=False, path=p['path'].rstrip('/') + '/')
-            metadata_url = unparse_url_dict(p)
+        if isfile(u.path): # References a real file
+            raise NotImplementedError("How can this happen?", u)
+            metadata_url = parse_app_url(ref)
+            package_url = parse_app_url(ref, path=dirname(u.path), fragment=False)
+        else: # Assume it references a directory
+            dmf = join(u.path, DEFAULT_METATAB_FILE)
+            package_url = parse_app_url(ref, fragment=False, path=dmf.rstrip('/') + '/')
+            metadata_url = parse_app_url(ref,  path=dmf.rstrip('/') + '/')
 
         # Make all of the paths absolute. Saves a lot of headaches later.
-        package_url = reparse_url(package_url, path=abspath(parse_url_to_dict(package_url)['path']))
-        metadata_url = reparse_url(metadata_url, path=abspath(parse_url_to_dict(metadata_url)['path']))
+        package_url.path = abspath(package_url.path)
+        metadata_url.path = abspath(metadata_url.path)
 
     else:
-        metadata_url = join(ref, DEFAULT_METATAB_FILE)
-        package_url = reparse_url(ref, fragment=False)
+        metadata_url = parse_app_url(join(ref, DEFAULT_METATAB_FILE))
+        package_url = parse_app_url(ref, fragment=False)
 
     # raise PackageError("Can't determine package URLs for '{}'".format(ref))
 

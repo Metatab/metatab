@@ -12,21 +12,22 @@ from uuid import uuid4
 import re
 import six
 from genericpath import isdir
-from metatab import _meta, DEFAULT_METATAB_FILE, MetatabDoc, ConversionError
-from metapack import resolve_package_metadata_url
+from metatab import _meta, DEFAULT_METATAB_FILE, ConversionError
+from metapack import resolve_package_metadata_url, MetapackDoc
 
 from metapack.jupyter.convert import convert_documentation, convert_notebook
 from metapack.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, \
     get_lib_module_dict, write_doc, datetime_now, \
     make_excel_package, make_filesystem_package, make_csv_package, make_zip_package, update_name, \
-    cli_init, process_schemas, extract_path_name
+    cli_init, process_schemas, extract_path_name, PACKAGE_PREFIX
 from metapack.util import make_metatab_file
 from os import getcwd
 from os.path import dirname, abspath, exists
-from rowgenerators import get_cache, SourceError, Url
+from rowgenerators import SourceError
 from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
 from tableintuit import RowIntuitError
+from appurl import get_cache, parse_app_url
 
 def metapack():
     import argparse
@@ -171,11 +172,14 @@ def metapack():
             self.frag = frag
             self.mtfile_arg = mtf + frag
 
-            self.mtfile_url = Url(self.mtfile_arg)
+            self.mtfile_url = parse_app_url(self.mtfile_arg)
 
-            self.resource = self.mtfile_url.parts.fragment
+            self.resource = self.mtfile_url.fragment
 
-            self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url.rebuild_url(False, False))
+            self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url)
+
+            assert self.package_url.proto == 'file'
+            self.package_root = join(dirname(self.package_url.path),PACKAGE_PREFIX)
 
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 
@@ -216,7 +220,7 @@ def metatab_build_handler(m):
 
         template = m.args.create if m.args.create else 'metatab'
 
-        if not exists(m.mt_file):
+        if not m.mt_file.exists():
 
             doc = make_metatab_file(template)
 
@@ -270,7 +274,7 @@ def metatab_build_handler(m):
 
         doc = MetatabDoc(m.mt_file)
 
-        u = Url(m.mt_file)
+        u = parse_app_url(m.mt_file)
 
         if u.proto == 'file':
             dpj_file = join(dirname(abspath(u.parts.path)), 'datapackage.json')
@@ -300,7 +304,7 @@ def metatab_derived_handler(m, skip_if_exists=None):
     create_list = []
     url = None
 
-    doc = MetatabDoc(m.mt_file)
+    doc = MetapackDoc(m.mt_file)
 
     env = get_lib_module_dict(doc)
 
@@ -318,7 +322,7 @@ def metatab_derived_handler(m, skip_if_exists=None):
         # to be run once.
         if any([m.args.filesystem, m.args.excel, m.args.zip]):
 
-            _, url, created = make_filesystem_package(m.mt_file, m.cache, env, skip_if_exists)
+            _, url, created = make_filesystem_package(m.mt_file, m.package_root, m.cache, env, skip_if_exists)
             create_list.append(('fs', url, created))
 
             m.mt_file = url
@@ -326,15 +330,15 @@ def metatab_derived_handler(m, skip_if_exists=None):
             env = {}  # Don't need it anymore, since no more programs will be run.
 
         if m.args.excel is not False:
-            _, url, created = make_excel_package(m.mt_file, m.cache, env, skip_if_exists)
+            _, url, created = make_excel_package(m.mt_file, m.package_root, m.cache, env, skip_if_exists)
             create_list.append(('xlsx', url, created))
 
         if m.args.zip is not False:
-            _, url, created = make_zip_package(m.mt_file, m.cache, env, skip_if_exists)
+            _, url, created = make_zip_package(m.mt_file, m.package_root, m.cache, env, skip_if_exists)
             create_list.append(('zip', url, created))
 
         if m.args.csv is not False:
-            _, url, created = make_csv_package(m.mt_file, m.cache, env, skip_if_exists)
+            _, url, created = make_csv_package(m.mt_file, m.package_root, m.cache, env, skip_if_exists)
             create_list.append(('csv', url, created))
 
     except PackageError as e:
@@ -372,7 +376,7 @@ def metatab_admin_handler(m):
 
     if m.args.html:
         from metatab.html import html
-        doc = MetatabDoc(m.mt_file)
+        doc = MetapackDoc(m.mt_file)
 
         # print(doc.html)
         prt(html(doc))
@@ -380,14 +384,14 @@ def metatab_admin_handler(m):
     if m.args.markdown:
         from metatab.html import markdown
 
-        doc = MetatabDoc(m.mt_file)
+        doc = MetapackDoc(m.mt_file)
         prt(markdown(doc))
 
     if m.args.clean_cache:
         clean_cache('metapack')
 
     if m.args.name:
-        doc = MetatabDoc(m.mt_file)
+        doc = MetapackDoc(m.mt_file)
         prt(doc.find_first_value("Root.Name"))
         exit(0)
 
@@ -412,10 +416,10 @@ def add_resource(mt_file, ref, cache):
     the same reference"""
     from metatab.util import enumerate_contents
 
-    if isinstance(mt_file, MetatabDoc):
+    if isinstance(mt_file, MetapackDoc):
         doc = mt_file
     else:
-        doc = MetatabDoc(mt_file)
+        doc = MetapackDoc(mt_file)
 
     if not 'Resources' in doc:
         doc.new_section('Resources')
@@ -502,17 +506,18 @@ def add_single_resource(doc, ref, cache, seen_names):
                                      encoding=encoding)
 
 def run_row_intuit(path, cache):
-    from rowgenerators import RowGenerator
+
     from tableintuit import RowIntuiter
     from itertools import islice
-    from rowgenerators import TextEncodingError
+    from rowgenerators import TextEncodingError, get_generator
 
     for encoding in ('ascii', 'utf8', 'latin1'):
         try:
-            rows = list(islice(RowGenerator(url=path,
-                                            encoding=encoding,
-                                            cache=cache,
-                                            ), 5000))
+
+            u = parse_app_url(path)
+            u.encoding = encoding
+
+            rows = list(islice(get_generator(url=str(u),cache=cache,), 5000))
             return encoding, RowIntuiter().run(list(rows))
         except (TextEncodingError, UnicodeEncodeError) as e:
             pass

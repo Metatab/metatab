@@ -9,12 +9,10 @@ from os import walk
 import boto3
 import unicodecsv as csv
 
-from datapackage import convert_to_datapackage
+from appurl import parse_app_url
 from metatab import DEFAULT_METATAB_FILE
-from rowgenerators import parse_url_to_dict, Url
 from .core import PackageBuilder
-from metapack.exc import PackageError
-from metapack.util import slugify
+
 
 
 
@@ -78,7 +76,7 @@ class S3PackageBuilder(PackageBuilder):
 
         # Rewrite Documentation urls:
         for r in self.doc.find(['Root.Documentation', 'Root.Image']):
-            if Url(r.url).proto == 'file':
+            if parse_app_url(r.url).proto == 'file':
                 r.url = self.bucket.access_url(r.url)
 
         # re-write the metatab with the new URLs
@@ -160,13 +158,13 @@ class S3Bucket(object):
 
         self._acl = acl
 
-        p = parse_url_to_dict(url)
+        p = parse_app_url(url)
 
-        if p['netloc']:  # The URL didn't have the '//'
-            self._prefix = p['path']
-            bucket_name = p['netloc']
+        if p.netloc:  # The URL didn't have the '//'
+            self._prefix = p.path
+            bucket_name = p.netloc
 
-            if p['scheme'] != 's3':
+            if p.scheme != 's3':
                 raise ReferenceError("Must be an S3 url; got: {}".format(url))
 
         else:

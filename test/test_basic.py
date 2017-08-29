@@ -12,6 +12,22 @@ def test_data(*paths):
 
 class MetatabTestCase(unittest.TestCase):
 
+    def test_resolve_packages(self):
+
+        from metapack.package.core import resolve_package_metadata_url
+
+        def u(v):
+            return "http://example.com/d/{}".format(v)
+
+        def f(v):
+            return "file:/d/{}".format(v)
+
+        for us in (u('package.zip'), u('package.xlsx'), u('package.csv'), u('package/metadata.csv'),
+                   f('package.zip'), f('package.xlsx'), f('package.csv'), f('package/metadata.csv'),):
+
+            print(resolve_package_metadata_url(us))
+
+
     def test_open_package(self):
 
         from metapack import open_package
@@ -34,10 +50,14 @@ class MetatabTestCase(unittest.TestCase):
         self.assertEqual('random-names', p.resource('random-names').name)
 
         r = p.find_first('Root.DataFile')
-        self.assertEquals('http://public.source.civicknowledge.com/example.com/sources/test_data.zip#test_data%2Fcsv%2Frandom-names.csv',
+        self.assertEquals('http://public.source.civicknowledge.com/example.com/sources/test_data.zip#random-names.csv',
                           r.resolved_url)
 
         for r in p.find('Root.DataFile'):
+
+            if r.name != 'unicode-latin1':
+                continue
+
             self.assertEquals(int(r.nrows), len(list(r)))
 
         self.assertEquals(['ipums', 'bordley', 'mcdonald', 'majumder'],
@@ -48,7 +68,7 @@ class MetatabTestCase(unittest.TestCase):
 
         from metapack.cli.core import make_filesystem_package, make_excel_package, \
             make_zip_package, make_csv_package, make_s3_package, PACKAGE_PREFIX
-        from rowgenerators import get_cache
+        from metapack.util import get_cache
         from os import getcwd
         from os.path import dirname, join
 

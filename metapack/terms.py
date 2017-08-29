@@ -1,13 +1,13 @@
 from itertools import islice
 
-from metapack.doc import EMPTY_SOURCE_HEADER
-from metatab import Term
-from metatab import Term
-from rowgenerators import RowGenerator, Url, reparse_url, DownloadError
-from rowpipe import RowProcessor
 import six
+from rowpipe import RowProcessor
+from appurl import parse_app_url
+from metapack.doc import EMPTY_SOURCE_HEADER
 from metapack.exc import PackageError
-
+from metatab import Term
+from rowgenerators import DownloadError, get_generator
+from metapack import MetapackError
 
 class Resource(Term):
 
@@ -69,27 +69,17 @@ class Resource(Term):
             """Return a URL that properly combines the base_url and a possibly relative
             resource url"""
 
-            from rowgenerators.generators import PROTO_TO_SOURCE_MAP
 
             if self.base_url:
-                u = Url(self.base_url)
+                u = parse_app_url(self.base_url)
 
             else:
-                u = Url(self.doc.package_url)
+                u = parse_app_url(self.doc.package_url)
 
             if not self._self_url:
                 return None
 
             nu = u.component_url(self._self_url)
-
-            # For some URLs, we ned to put the proto back on.
-            su = Url(self._self_url)
-
-            if not su.reparse:
-                return su
-
-            if su.proto in PROTO_TO_SOURCE_MAP().keys():
-                nu = reparse_url(nu, scheme_extension=su.proto)
 
             assert nu
             return nu
@@ -119,6 +109,9 @@ class Resource(Term):
             """Return the Table term for this resource, which is referenced either by the `table` property or the
             `schema` property"""
 
+            if not self.name:
+                raise MetapackError("Resource for url '{}' doe not have name".format(self.url))
+
             t = self.doc.find_first('Root.Table', value=self.get_value('name'))
             frm = 'name'
 
@@ -129,7 +122,7 @@ class Resource(Term):
             if not t:
                 frm = None
 
-            return t, frm
+            return t
 
         @property
         def headers(self):
@@ -138,7 +131,7 @@ class Resource(Term):
             are specifically applicable to the output table, and may not apply to the resource source. FOr those headers,
             use source_headers"""
 
-            t, _ = self.schema_term
+            t = self.schema_term
 
             if t:
                 return [self._name_for_col_term(c, i)
@@ -151,7 +144,7 @@ class Resource(Term):
             """"Returns the headers for the resource source. Specifically, does not include any header that is
             the EMPTY_SOURCE_HEADER value of _NONE_"""
 
-            t, _ = self.schema_term
+            t  = self.schema_term
 
             if t:
                 return [self._name_for_col_term(c, i)
@@ -163,7 +156,7 @@ class Resource(Term):
 
         def columns(self):
 
-            t, _ = self.schema_term
+            t  = self.schema_term
 
             if not t:
                 return
@@ -236,7 +229,7 @@ class Resource(Term):
 
             d = self.all_props
 
-            d['url'] = self.resolved_url
+            d['source'] = self.resolved_url
             d['target_format'] = d.get('format')
             d['target_segment'] = d.get('segment')
             d['target_file'] = d.get('file')
@@ -257,7 +250,9 @@ class Resource(Term):
             d['working_dir'] = self._doc.doc_dir
             d['generator_args'] = generator_args
 
-            return RowGenerator(**d)
+            g = get_generator(**d)
+
+            return g
 
         def _get_header(self):
             """Get the header from the deinfed header rows, for use  on references or resources where the schema
@@ -303,14 +298,7 @@ class Resource(Term):
                 yield headers
                 rg = islice(self._row_generator(), start, None)
 
-            if six.PY3:
-                # Would like to do this, but Python2 can't handle the syntax
-                # yield from rg
-                for row in rg:
-                    yield row
-            else:
-                for row in rg:
-                    yield row
+            yield from rg
 
             try:
                 self.errors = rg.errors if rg.errors else {}
@@ -333,7 +321,7 @@ class Resource(Term):
 
         def _upstream_dataframe(self, limit=None):
 
-            from rowgenerators.generators import MetapackSource
+            from old.generators import MetapackSource
 
             rg = self.row_generator
 
@@ -398,7 +386,7 @@ class Resource(Term):
         @property
         def sub_package(self):
             """For references to Metapack resoruces, the original package"""
-            from rowgenerators.generators import MetapackSource
+
 
             rg = self.row_generator
 
@@ -410,7 +398,7 @@ class Resource(Term):
         @property
         def sub_resource(self):
             """For references to Metapack resoruces, the original package"""
-            from rowgenerators.generators import MetapackSource
+
 
             rg = self.row_generator
 
@@ -420,7 +408,6 @@ class Resource(Term):
                 return None
 
         def _repr_html_(self):
-            from rowgenerators.generators import MetapackSource
 
             try:
                 return self.sub_resource._repr_html_()

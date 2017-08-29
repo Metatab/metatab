@@ -10,7 +10,7 @@ EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination
 
 from metapack.terms import Resource, Reference
 from metatab import MetatabDoc
-from rowgenerators import Url
+from appurl import parse_app_url
 from .html import linkify
 from .util import slugify
 
@@ -49,10 +49,11 @@ class MetapackDoc(MetatabDoc):
         from importlib import import_module
         import sys
 
-        u = Url(self.ref)
+        u = parse_app_url(self.ref)
+
         if u.proto == 'file':
 
-            doc_dir = dirname(abspath(u.parts.path))
+            doc_dir = dirname(abspath(u.path))
 
             # Add the dir with the metatab file to the system path
             sys.path.append(doc_dir)

@@ -12,11 +12,11 @@ from os.path import join, dirname, isdir
 
 from nbconvert.writers import FilesWriter
 
-from datapackage import convert_to_datapackage
+from metatab.datapackage import convert_to_datapackage
 from metatab import DEFAULT_METATAB_FILE
 from .core import PackageBuilder
 from metapack.util import ensure_dir, write_csv, slugify
-from rowgenerators import Url
+
 
 class FileSystemPackageBuilder(PackageBuilder):
     """Build a filesystem package"""
@@ -28,6 +28,8 @@ class FileSystemPackageBuilder(PackageBuilder):
             ensure_dir(self.package_root)
 
         self.package_path = join(self.package_root, self.package_name)
+
+        self.doc_file = join(self.package_path, DEFAULT_METATAB_FILE)
 
     def exists(self):
 
@@ -46,10 +48,8 @@ class FileSystemPackageBuilder(PackageBuilder):
 
         """
 
-
-
         try:
-            return getmtime(self.save_path(path) + "/metadata.csv") > self._doc.mtime
+            return getmtime(self.doc_file) > self._doc.mtime
         except (FileNotFoundError, OSError):
             return False
 
@@ -81,9 +81,9 @@ class FileSystemPackageBuilder(PackageBuilder):
         return doc_file
 
     def _write_doc(self):
-        path = join(self.package_path, DEFAULT_METATAB_FILE)
-        self._doc.write_csv(path)
-        return path
+
+        self._doc.write_csv(self.doc_file)
+        return self.doc_file
 
     def _write_dpj(self):
 
