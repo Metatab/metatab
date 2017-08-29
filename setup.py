@@ -78,7 +78,7 @@ setup(
         'six',
         'unicodecsv',
         'pyyaml',
-        'datapackage',
+        'datapackage<1.0',
         'bs4',
         'markdown',
         'ckanapi',
