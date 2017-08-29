@@ -10,12 +10,11 @@ import sys
 import six
 from uuid import uuid4
 from genericpath import exists
-from rowgenerators import get_cache, Url
-from rowgenerators.util import clean_cache
+from rowgenerators import  Url
 
 from metatab._meta import __version__
 from metatab import  DEFAULT_METATAB_FILE, MetatabDoc
-from metatab.util import prt, err, cli_init, make_metatab_file
+from metatab.util import prt, err, cli_init, make_metatab_file, get_cache, clean_cache
 
 
 def metatab():
@@ -70,7 +69,7 @@ def metatab():
     if args.file.startswith('#'):
         args.file = DEFAULT_METATAB_FILE + args.file
 
-    cache = get_cache('metapack')
+    cache = get_cache('metatab')
 
     if args.info:
         prt('Version  : {}'.format(_meta.__version__))

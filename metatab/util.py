@@ -14,15 +14,16 @@ from os.path import join, basename, dirname, isdir, abspath
 #from rowgenerators import reparse_url, parse_url_to_dict, unparse_url_dict, Url
 
 from metatab import DEFAULT_METATAB_FILE
+from appurl import get_cache
 
 
 def declaration_path(name):
     """Return the path to an included declaration"""
     from os.path import dirname, join, exists
-    import  metatab_declarations
+    import  metatabdecl
     from metatab.exc import IncludeError
 
-    d = dirname(metatab_declarations.__file__)
+    d = dirname(metatabdecl.__file__)
 
     path = join(d, name)
 
@@ -206,17 +207,6 @@ def warn(*args, **kwargs):
 def err(*args, **kwargs):
     logger_err.critical(' '.join(str(e) for e in args), **kwargs)
     sys.exit(1)
-
-
-def get_cache(clean=False):
-    from rowgenerators.util import get_cache, clean_cache
-
-    cache = get_cache('metapack')
-
-    if clean:
-        clean_cache(cache)
-
-    return cache
 
 
 def import_name_or_class(name):

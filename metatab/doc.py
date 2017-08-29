@@ -12,23 +12,22 @@ from time import time
 
 import six
 import unicodecsv as csv
-from rowgenerators.urls import Url
-from rowgenerators.exceptions import SourceError
 
+from appurl import parse_app_url
+from rowgenerators.exceptions import SourceError
 from metatab import DEFAULT_METATAB_FILE
 from metatab.parser import TermParser
 from metatab.generate import CsvPathRowGenerator, WebResolver
 from metatab.exc import MetatabError
-from metatab.util import slugify
+from metatab.util import slugify, get_cache
 from .terms import SectionTerm, RootSectionTerm
-from .util import get_cache
+
 from itertools import groupby
 
 logger = logging.getLogger('doc')
 
 
 class MetatabDoc(object):
-
 
     def __init__(self, ref=None, decl=None, package_url=None, cache=None, resolver = None, clean_cache=False):
 
@@ -53,7 +52,6 @@ class MetatabDoc(object):
         else:
             self.decls = decl
 
-
         self.load_declarations(self.decls)
 
         if ref:
@@ -65,10 +63,10 @@ class MetatabDoc(object):
             except SourceError as e:
                 raise MetatabError("Failed to load terms for document '{}': {}".format(self._ref, e))
 
-            u = Url(self._ref)
+            u = parse_app_url(self._ref)
             if u.scheme == 'file':
                 try:
-                    self._mtime = getmtime(u.parts.path)
+                    self._mtime = getmtime(u.path)
                 except (FileNotFoundError, OSError):
                     self._mtime = 0
             else:
@@ -93,12 +91,12 @@ class MetatabDoc(object):
         if not isinstance(self.ref, str):
             return None
 
-        u = Url(self.ref)
+        u = parse_app_url(self.ref)
 
         if u.proto != 'file':
             return None
 
-        return u.parts.path
+        return u.path
 
     @property
     def cache(self):
@@ -160,8 +158,8 @@ class MetatabDoc(object):
         """The absolute directory of the document"""
         from os.path import abspath
 
-        u = Url(self.ref)
-        return abspath(dirname(u.parts.path))
+        u = parse_app_url(self.ref)
+        return abspath(dirname(u.path))
 
     @classmethod
     def register_term_class(cls, term_name, class_or_name):
@@ -539,15 +537,17 @@ class MetatabDoc(object):
 
         self.ensure_identifier()
 
-        orig_name = self.find_first_value('Root.Name')
 
-        if not orig_name:
+
+        if not self.find_first('Root.Name'):
             if create_term:
                 self['Root'].new_term('Root.Name', '')
                 orig_name = ''
             else:
                 updates.append("No Root.Name, can't update name")
                 return updates
+
+        orig_name = self.find_first_value('Root.Name')
 
         identifier = self.get_value('Root.Identifier')
 
@@ -710,7 +710,7 @@ class MetatabDoc(object):
         return s.getvalue()
 
     def write_csv(self, path=None):
-        from rowgenerators import Url
+
 
         self.cleanse()
 
@@ -720,13 +720,13 @@ class MetatabDoc(object):
             else:
                 path = DEFAULT_METATAB_FILE
 
-        u = Url(path)
+        u = parse_app_url(path)
 
         if u.scheme != 'file':
             raise MetatabError("Can't write file to URL '{}'".format(path))
 
-        with open(u.parts.path, 'wb') as f:
+        with open(u.path, 'wb') as f:
             f.write(self.as_csv())
 
-        return u.parts.path
+        return u.path
 

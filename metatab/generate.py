@@ -7,6 +7,7 @@ Generate rows from a variety of paths, references or other input
 
 from .exc import IncludeError, GenerateError
 from os.path import exists
+from appurl import parse_app_url
 
 
 class WebResolver(object):
@@ -36,7 +37,7 @@ class WebResolver(object):
 
         """Return a row generator for a reference"""
         from inspect import isgenerator
-        from rowgenerators import Url
+
 
         if isinstance(ref, (list, tuple)) or isgenerator(ref):
             # Either row data, or a row generator
@@ -48,13 +49,15 @@ class WebResolver(object):
 
         if isinstance(ref, str):
 
-            u = Url(ref)
+            u = parse_app_url(ref)
+        else:
+            u = ref
 
-            if u.proto == 'file':
-                return CsvPathRowGenerator(u.path())
+        if u.proto == 'file':
+            return CsvPathRowGenerator(u)
 
-            if u.proto == 'http':
-                return CsvUrlRowGenerator(ref)
+        if u.proto == 'http':
+            return CsvUrlRowGenerator(u)
 
         raise GenerateError("Cant figure out how to generate rows from {} ref: {}".format(type(ref), ref))
 
@@ -131,9 +134,9 @@ class CsvPathRowGenerator(MetatabRowGenerator):
     csv.reader, but it add a path property so term interperters know where the terms are coming from
     """
 
-    def __init__(self, path):
+    def __init__(self, url):
 
-        self._path = path
+        self._path = url.path
         self._f = None
 
     @property
