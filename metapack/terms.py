@@ -1,13 +1,12 @@
 from itertools import islice
 
-import six
-from rowpipe import RowProcessor
 from appurl import parse_app_url
+from metapack import MetapackError
 from metapack.doc import EMPTY_SOURCE_HEADER
 from metapack.exc import PackageError
 from metatab import Term
 from rowgenerators import DownloadError, get_generator
-from metapack import MetapackError
+from rowpipe import RowProcessor
 
 class Resource(Term):
 
@@ -57,6 +56,8 @@ class Resource(Term):
 
         @property
         def _self_url(self):
+            """Return the URl value, which might just be the value, and not self.url, if the document
+            declartion is broken"""
             try:
                 if self.url:
                     return self.url
@@ -81,8 +82,9 @@ class Resource(Term):
 
             nu = u.component_url(self._self_url)
 
-            assert nu
-            return nu
+            # The manipulations of component_url can result in the .inner sub-url being very different from the
+            # .resource_url sub-url. Reparsing should fix all of that.
+            return parse_app_url(str(nu))
 
         def _name_for_col_term(self, c, i):
 
@@ -223,13 +225,10 @@ class Resource(Term):
 
         @property
         def row_generator(self):
-            return self._row_generator()
-
-        def _row_generator(self):
 
             d = self.all_props
 
-            d['source'] = self.resolved_url
+            d['source'] = self.resolved_url.get_resource().get_target()
             d['target_format'] = d.get('format')
             d['target_segment'] = d.get('segment')
             d['target_file'] = d.get('file')
@@ -264,7 +263,7 @@ class Resource(Term):
                 header_lines = [0]
 
             # We're processing the raw datafile, with no schema.
-            header_rows = islice(self._row_generator(), min(header_lines), max(header_lines) + 1)
+            header_rows = islice(self.row_generator, min(header_lines), max(header_lines) + 1)
 
             from tableintuit import RowIntuiter
             headers = RowIntuiter.coalesce_headers(header_rows)
@@ -286,7 +285,7 @@ class Resource(Term):
             if headers:  # There are headers, so use them, and create a RowProcess to set data types
                 yield headers
 
-                rg = RowProcessor(islice(self._row_generator(), start, None),
+                rg = RowProcessor(islice(self.row_generator, start, None),
                                   self.row_processor_table(),
                                   source_headers=self.source_headers,
                                   env=self.env,
@@ -296,7 +295,7 @@ class Resource(Term):
                 headers = self._get_header()  # Try to get the headers from defined header lines
 
                 yield headers
-                rg = islice(self._row_generator(), start, None)
+                rg = islice(self.row_generator, start, None)
 
             yield from rg
 
@@ -319,9 +318,22 @@ class Resource(Term):
 
                 yield dict(zip(headers, row))
 
+        def _convert_geometry(self, df):
+
+            if 'geometry' in df.columns:
+
+                try:
+                    import geopandas as gpd
+                    shapes = [row['geometry'].shape for i, row in df.iterrows()]
+                    df['geometry'] = gpd.GeoSeries(shapes)
+                except ImportError:
+                    raise
+                    pass
+
         def _upstream_dataframe(self, limit=None):
 
-            from old.generators import MetapackSource
+
+            return None
 
             rg = self.row_generator
 
@@ -347,24 +359,10 @@ class Resource(Term):
 
             return None
 
-        def _convert_geometry(self, df):
-
-            if 'geometry' in df.columns:
-
-                try:
-                    import geopandas as gpd
-                    shapes = [row['geometry'].shape for i, row in df.iterrows()]
-                    df['geometry'] = gpd.GeoSeries(shapes)
-                except ImportError:
-                    raise
-                    pass
-
         def dataframe(self, limit=None):
             """Return a pandas datafrome from the resource"""
 
-            from .pands import MetatabDataFrame
-
-            d = self.properties
+            from metapack.jupyter.pandas import MetatabDataFrame
 
             df = self._upstream_dataframe(limit)
 
@@ -443,7 +441,7 @@ class Reference(Resource):
 
         from pandas import read_csv
         from rowgenerators import download_and_cache
-        from .pands import MetatabDataFrame, MetatabSeries
+        from metapack.jupyter.pands import MetatabDataFrame, MetatabSeries
 
         df = self._upstream_dataframe(limit)
 

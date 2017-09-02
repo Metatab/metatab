@@ -1,21 +1,9 @@
 from __future__ import print_function
 
-import json
 import unittest
 
-from metatab import IncludeError
-from metatab import MetatabRowGenerator, TermParser, CsvPathRowGenerator, parse_file
-from metatab.doc import MetatabDoc
-from metatab.util import flatten, declaration_path
-from metatab import TermParser, CsvPathRowGenerator, Serializer, Term
-from collections import defaultdict
-from metatab.doc import Resource
-import csv
-from os.path import dirname
-from metatab.doc import open_package
-import json
-from os.path import exists
-from metatab import parse_file, MetatabDoc
+from metapack import open_package
+from metatab.util import flatten
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
@@ -24,8 +12,7 @@ def test_data(*paths):
 
 
 import logging
-import sys
-from metatab.cli.core import cli_init
+from metapack.cli.core import cli_init
 
 logger = logging.getLogger('user')
 logger_err = logging.getLogger('cli-errors')
@@ -59,6 +46,28 @@ class TestIPython(unittest.TestCase):
 
         self.assertEqual(0, errors)
 
+
+    def test_html(self):
+        p = open_package(test_data('packages/example.com/example-package/metadata.csv'))
+
+        self.assertTrue(len(p._repr_html_()) > 6500 )
+
+        print ( list(e.name for e in p.find('Root.Resource')))
+
+        r = p.find_first('Root.Resource', name='random-names')
+
+        self.assertTrue(len(r._repr_html_()) > 400 )
+
+    def test_dataframe(self):
+        p = open_package(test_data('packages/example.com/example-package/metadata.csv'))
+
+        r = p.resource('random-names')
+
+        df = r.dataframe()
+
+        print (df.describe())
+
+
     def test_ipy(self):
         from rowgenerators import SourceSpec, Url, RowGenerator, get_cache
 
@@ -87,7 +96,7 @@ class TestIPython(unittest.TestCase):
 
         print(len(rows))
 
-    def test_pandas(self):
+    def x_test_pandas(self):
 
         package_dir = '/Volumes/Storage/proj/virt-proj/metatab3/metatab-packages/civicknowledge.com/immigration-vs-gdp'
 
@@ -103,11 +112,9 @@ class TestIPython(unittest.TestCase):
 
         print(df.head())
 
-    def test_text_row_generator(self):
+    def x_test_text_row_generator(self):
 
         from metatab.generate import TextRowGenerator
-        from io import StringIO
-        import re
 
         # Generate the text output:
         cdoc = MetatabDoc(test_data('example1.csv'))
@@ -122,7 +129,7 @@ class TestIPython(unittest.TestCase):
 
         self.assertEqual(len(list(cdoc.all_terms)), len(list(doc.all_terms)))
 
-    def test_metatab_line(self):
+    def x_test_metatab_line(self):
         from metatab.generate import TextRowGenerator
         from metatab.cli.core import process_schemas
 
@@ -137,10 +144,9 @@ class TestIPython(unittest.TestCase):
         for c in r.columns():
             print(c)
 
-    def test_nbconvert(self):
+    def x_test_nbconvert(self):
 
         from metatab.jupyter.exporters import PackageExporter
-        import logging
 
         from traitlets.config import  Config
         from metatab.jupyter.exporters import PackageExporter
@@ -156,7 +162,7 @@ class TestIPython(unittest.TestCase):
 
         pe.from_filename(test_data('notebooks/MagicsTest.ipynb'))
 
-    def test_get_ipython(self):
+    def x_test_get_ipython(self):
 
         from metatab.jupyter.script import  ScriptIPython
 

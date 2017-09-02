@@ -12,8 +12,9 @@ from os.path import dirname, abspath, basename, splitext, join, isdir
 
 from six import text_type
 
-from appurl import parse_app_url
+from appurl import Url, parse_app_url
 from metapack import MetapackDoc
+from metapack.appurl import MetapackUrl
 from metapack.exc import PackageError
 from metapack.terms import Resource
 from metapack.util import Bunch, get_cache
@@ -21,9 +22,7 @@ from metatab import slugify, DEFAULT_METATAB_FILE
 from rowgenerators import get_generator
 from tableintuit import RowIntuiter
 
-
 class PackageBuilder(object):
-
 
     def __init__(self, source_ref=None, package_root = None, cache=None, callback=None, env=None):
 
@@ -41,10 +40,13 @@ class PackageBuilder(object):
         if not self.doc.find_first_value('Root.Name'):
             raise PackageError("Package must have Root.Name term defined")
 
-
     @property
     def path(self):
-        return self._ref
+        return self._source_ref
+
+    @property
+    def source_url(self):
+        return parse_app_url(self._source_ref)
 
 
     def exists(self):
@@ -382,30 +384,39 @@ class PackageBuilder(object):
 
                 self._load_resource(r, gen, r.headers)
 
+    def _get_ref_contents(self, t):
 
+        uv = parse_app_url(t.value)
+
+        # In the case that the input doc is a file, and the ref is to a file,
+        # try interpreting the file as relative.
+        if self.source_url.proto == 'file' and uv.proto == 'file':
+            u = self.source_url.component_url(uv)
+        else:
+            u = uv
+
+        return u.get_resource()
 
     def _load_documentation_files(self):
         """Copy all of the Datafile entries into the Excel file"""
 
         for doc in self.doc.find(['Root.Documentation', 'Root.Image']):
 
-            real_name, f = self._get_ref_contents(doc)
+            resource = self._get_ref_contents(doc)
 
-            if not f:
+            if not resource:
                 continue
 
             if doc.term_is('Root.Documentation'):
                 # Prefer the slugified title to the base name, because in cases of collections
                 # of many data releases, like annual datasets, documentation files may all have the same name,
                 # but the titles should be different.
-                real_name_base, ext = splitext(real_name)
+                real_name_base, ext = splitext(resource.resource_file)
 
                 name = doc.get_value('name') if doc.get_value('name') else real_name_base
                 real_name = slugify(name) + ext
 
-            self._load_documentation(doc, f.read(), real_name)
-
-            f.close()
+            self._load_documentation(doc, resource.read(), resource.resource_file)
 
     def _load_documentation(self, term, contents):
         raise NotImplementedError()
@@ -421,12 +432,12 @@ class PackageBuilder(object):
                         continue
 
                     relpath = dr.replace(self.source_dir, '').strip('/')
-                    src = join(dr, fn)
+                    src = parse_app_url(join(dr, fn))
                     dest = join(relpath, fn)
 
-                    real_name, f = self._download_ss(SourceSpec(src))
+                    resource = src.get_resource()
 
-                    self._load_file( dest, f.read())
+                    self._load_file( dest, resource.read())
 
         for term in self.resources(term = 'Root.Pythonlib'):
 
@@ -466,55 +477,13 @@ TableColumn = namedtuple('TableColumn', 'path name start_line header_lines colum
 
 def open_package(ref, cache=None, clean_cache=False):
 
-    package_url, metadata_url = resolve_package_metadata_url(ref)
+    if isinstance(ref, MetapackUrl):
+        u = ref
+    else:
+        u = MetapackUrl(str(ref))
 
     cache = cache if cache else get_cache()
 
-    return MetapackDoc(metadata_url, package_url=package_url, cache=cache)
+    return MetapackDoc(u, cache=cache)
 
 
-def resolve_package_metadata_url(ref):
-    """Re-write a url to a resource to include the likely refernce to the
-    internal Metatab metadata"""
-
-    du = parse_app_url(ref)
-
-    if du.resource_format == 'zip':
-        package_url = parse_app_url(ref, fragment=False)
-        metadata_url = parse_app_url(ref, fragment=DEFAULT_METATAB_FILE)
-
-    elif du.target_format == 'xlsx' or du.target_format == 'xls':
-        package_url = parse_app_url(ref, fragment=False)
-        metadata_url = parse_app_url(ref, fragment='meta')
-
-    elif du.resource_file == DEFAULT_METATAB_FILE:
-        metadata_url = parse_app_url(ref)
-        package_url = parse_app_url(ref, path=dirname(du.path+ '/'), fragment=False)
-
-    elif du.target_format == 'csv':
-        package_url = parse_app_url(ref, fragment=False)
-        metadata_url = parse_app_url(ref)
-
-    elif du.proto == 'file':
-        u = parse_app_url(ref)
-
-        if isfile(u.path): # References a real file
-            raise NotImplementedError("How can this happen?", u)
-            metadata_url = parse_app_url(ref)
-            package_url = parse_app_url(ref, path=dirname(u.path), fragment=False)
-        else: # Assume it references a directory
-            dmf = join(u.path, DEFAULT_METATAB_FILE)
-            package_url = parse_app_url(ref, fragment=False, path=dmf.rstrip('/') + '/')
-            metadata_url = parse_app_url(ref,  path=dmf.rstrip('/') + '/')
-
-        # Make all of the paths absolute. Saves a lot of headaches later.
-        package_url.path = abspath(package_url.path)
-        metadata_url.path = abspath(metadata_url.path)
-
-    else:
-        metadata_url = parse_app_url(join(ref, DEFAULT_METATAB_FILE))
-        package_url = parse_app_url(ref, fragment=False)
-
-    # raise PackageError("Can't determine package URLs for '{}'".format(ref))
-
-    return package_url, metadata_url

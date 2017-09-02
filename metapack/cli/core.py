@@ -354,6 +354,7 @@ def write_doc(doc, mt_file):
         'Root.Modified',
         'Root.Issued',
         'Root.Access',
+        'Root.Access',
         'Root.Distribution'
     ])
 
@@ -364,7 +365,7 @@ def write_doc(doc, mt_file):
             .stdout.decode('utf-8')
 
         fetchline = next(l.split() for l in out.splitlines() if 'Fetch' in l )
-    except TimeoutError:
+    except (TimeoutError, StopIteration):
         fetchline = None
 
     if fetchline:

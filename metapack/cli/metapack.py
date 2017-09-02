@@ -13,8 +13,8 @@ import re
 import six
 from genericpath import isdir
 from metatab import _meta, DEFAULT_METATAB_FILE, ConversionError
-from metapack import resolve_package_metadata_url, MetapackDoc
-
+from metapack import MetapackDoc
+from metapack.appurl import  MetapackUrl
 from metapack.jupyter.convert import convert_documentation, convert_notebook
 from metapack.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, \
     get_lib_module_dict, write_doc, datetime_now, \
@@ -172,11 +172,12 @@ def metapack():
             self.frag = frag
             self.mtfile_arg = mtf + frag
 
-            self.mtfile_url = parse_app_url(self.mtfile_arg)
+            self.mtfile_url = MetapackUrl(self.mtfile_arg)
 
             self.resource = self.mtfile_url.fragment
 
-            self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url)
+            self.package_url = self.mtfile_url.package_url
+            self.mt_file = self.mtfile_url.metadata_url
 
             assert self.package_url.proto == 'file'
             self.package_root = join(dirname(self.package_url.path),PACKAGE_PREFIX)

@@ -86,6 +86,19 @@ setup(
         'nbconvert.exporters': [
             'metapack = metapack.jupyter:MetapackExporter',
         ],
+        'appurl.urls' : [
+            "metapack+ = metapack.appurl:MetapackUrl",
+            ".ipynb = metapack.appurl:JupyterUrl"
+
+        ],
+        'rowgenerators': [
+
+            "<MetapackUrl> = metapack.rowgenerator:MetapackGenerator",
+            "<JupyterUrl> = metapack.rowgenerator:JupyterGenerator",
+
+        ]
+
+
     },
 
     include_package_data=True,

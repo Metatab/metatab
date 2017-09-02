@@ -3,7 +3,7 @@
 
 """ """
 
-from .core import open_package, resolve_package_metadata_url
+from .core import open_package
 from .filesystem import FileSystemPackageBuilder
 from .zip import ZipPackageBuilder
 from .s3 import S3PackageBuilder

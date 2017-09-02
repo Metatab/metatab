@@ -14,7 +14,6 @@ class MetatabTestCase(unittest.TestCase):
 
     def test_resolve_packages(self):
 
-        from metapack.package.core import resolve_package_metadata_url
 
         def u(v):
             return "http://example.com/d/{}".format(v)

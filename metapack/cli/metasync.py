@@ -7,19 +7,23 @@ CLI program for storing pacakges in CKAN
 
 import sys
 from os import getcwd, makedirs, getenv
-from os.path import join, basename, exists, dirname
-from tabulate import tabulate
-from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
-from metatab.cli.core import prt, err, get_lib_module_dict, write_doc, datetime_now, \
-    make_excel_package, make_s3_package, make_zip_package, make_filesystem_package, \
-    update_name, metatab_info, PACKAGE_PREFIX, cli_init
-from metatab.s3 import S3Bucket
-from metatab.package import ZipPackage, ExcelPackage, FileSystemPackage, CsvPackage
-from rowgenerators import Url, get_cache
-from rowgenerators.util import clean_cache, join_url_path
-from metatab.package import PackageError
-from botocore.exceptions import NoCredentialsError
+from os.path import basename, dirname, exists
 
+from tabulate import tabulate
+
+from appurl import get_cache, parse_app_url
+from metapack import MetapackDoc
+from metapack.cli.core import prt, err, metatab_info, get_lib_module_dict, write_doc, datetime_now, \
+    make_filesystem_package, make_zip_package, make_s3_package, make_excel_package, update_name, \
+    cli_init
+from metapack.package import *
+from metapack.package.s3 import S3Bucket
+from metatab import _meta, DEFAULT_METATAB_FILE
+from metapack.exc import  PackageError
+from rowgenerators.util import clean_cache
+from rowgenerators.util import fs_join as join
+
+from botocore.exceptions import  NoCredentialsError
 
 def metasync():
     import argparse
@@ -86,15 +90,18 @@ def metasync():
                 self.args.s3 = self.args.all_s3
                 self.args.excel = True
                 self.args.zip = True
+                self.args.zip = True
                 self.args.csv = True
                 self.args.fs = True
 
             self.mtfile_arg = self.args.metatabfile if self.args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
 
-            self.mtfile_url = Url(self.mtfile_arg)
-            self.resource = self.mtfile_url.parts.fragment
+            self.mtfile_url = parse_app_url(self.mtfile_arg)
+            self.resource = self.mtfile_url.fragment
 
-            self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url.rebuild_url(False, False))
+            self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url)
+
+            self.package_root = join(dirname(self.package_url.path), PACKAGE_PREFIX)
 
             self.args.fs = self.args.csv or self.args.fs
 
@@ -112,7 +119,7 @@ def metasync():
         exit(0)
 
     if not m.args.s3:
-        doc = MetatabDoc(m.mt_file)
+        doc = MetapackDoc(m.mt_file)
         m.args.s3 = doc['Root'].find_first_value('Root.S3')
 
     if not m.args.s3:
@@ -121,7 +128,7 @@ def metasync():
     if m.args.excel is not False or m.args.zip is not False or m.args.fs is not False:
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
 
-    doc = MetatabDoc(m.mt_file)
+    doc = MetapackDoc(m.mt_file)
     doc['Root'].get_or_new_term('Root.S3', m.args.s3)
     write_doc(doc, m.mt_file)
 
@@ -201,7 +208,7 @@ def update_dist(doc, old_dists, v):
 
     for d in old_dists:
 
-        if Url(d.value).resource_format == Url(v).resource_format and name not in d.value:
+        if parse_app_url(d.value).resource_format == parse_app_url(v).resource_format and name not in d.value:
             try:
                 doc.remove_term(d)
             except ValueError:
@@ -220,7 +227,7 @@ def update_dist(doc, old_dists, v):
 def update_distributions(m):
     """Add a distribution term for each of the distributions the sync is creating. Also updates the 'Issued' time"""
 
-    doc = MetatabDoc(m.mt_file)
+    doc = MetapackDoc(m.mt_file)
 
     access_value = doc.find_first_value('Root.Access')
 
@@ -233,28 +240,28 @@ def update_distributions(m):
     old_dists = list(doc.find('Root.Distribution'))
 
     if m.args.fs is not False:
-        p = FileSystemPackage(m.mt_file)
-        if update_dist(doc, old_dists, b.access_url(p.save_path(), DEFAULT_METATAB_FILE)):
+        p = FileSystemPackageBuilder(m.mt_file, m.package_root)
+        if update_dist(doc, old_dists, b.access_url(p.doc_file)):
             prt("Added FS distribution to metadata")
             updated = True
 
     if m.args.excel is not False:
-        p = ExcelPackage(m.mt_file)
+        p = ExcelPackageBuilder(m.mt_file, m.package_root)
 
-        if update_dist(doc, old_dists, b.access_url(p.save_path())):
+        if update_dist(doc, old_dists, b.access_url(p.package_path)):
             prt("Added Excel distribution to metadata")
             updated = True
 
     if m.args.zip is not False:
-        p = ZipPackage(m.mt_file)
-        if update_dist(doc, old_dists, b.access_url(p.save_path())):
+        p = ZipPackageBuilder(m.mt_file, m.package_root)
+        if update_dist(doc, old_dists, b.access_url(p.package_path)):
             prt("Added ZIP distribution to metadata")
             updated = True
 
     if m.args.csv is not False:
 
-        p = CsvPackage(m.mt_file)
-        url = b.access_url(basename(p.save_path()))
+        p = CsvPackageBuilder(m.mt_file, m.package_root)
+        url = b.access_url(basename(p.package_path))
         if update_dist(doc, old_dists, url):
             prt("Added CSV distribution to metadata", url)
             updated = True
@@ -295,7 +302,7 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
     create_list = []
     url = None
 
-    doc = MetatabDoc(second_stage_mtfile)
+    doc = MetapackDoc(second_stage_mtfile)
 
     access_value = doc.find_first_value('Root.Access')
 
@@ -327,22 +334,23 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
         # data for the other packages. This means that Transform processes and programs only need
         # to be run once.
 
-        _, third_stage_mtfile, created = make_filesystem_package(second_stage_mtfile, m.cache, get_lib_module_dict(doc), skip_if_exists)
+
+        _, third_stage_mtfile, created = make_filesystem_package(second_stage_mtfile.path,  None, m.cache, get_lib_module_dict(doc), skip_if_exists)
 
         if m.args.excel is not False:
-            _, ex_url, created = make_excel_package(third_stage_mtfile, m.cache, env, skip_if_exists)
+            _, ex_url, created = make_excel_package(third_stage_mtfile, None, m.cache, env, skip_if_exists)
             with open(ex_url, mode='rb') as f:
                 urls.append(('excel', s3.write(f.read(), basename(ex_url), acl)))
 
         if m.args.zip is not False:
-            _, zip_url, created = make_zip_package(third_stage_mtfile, m.cache, env, skip_if_exists)
+            _, zip_url, created = make_zip_package(third_stage_mtfile, None, m.cache, env, skip_if_exists)
             with open(zip_url, mode='rb') as f:
                 urls.append(('zip', s3.write(f.read(), basename(zip_url), acl)))
 
         # Note! This is a FileSystem package on the remote S3 bucket, not locally
         if m.args.fs is not False:
             try:
-                fs_p, fs_url, created = make_s3_package(third_stage_mtfile, m.args.s3, m.cache, env, acl, skip_if_exists)
+                fs_p, fs_url, created = make_s3_package(third_stage_mtfile, None, m.args.s3, m.cache, env, acl, skip_if_exists)
             except NoCredentialsError:
                 print(getenv('AWS_SECRET_ACCESS_KEY'))
                 err("Failed to find boto credentials for S3. "
@@ -359,7 +367,7 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
         if m.args.csv is not False:
 
             # Using the signed url in case the bucket is private
-            p = CsvPackage(fs_p.access_url, cache=m.tmp_cache)
+            p = CsvPackageBuilder(fs_p.access_url, None, cache=m.tmp_cache)
             csv_url = p.save(PACKAGE_PREFIX)
             with open(csv_url, mode='rb') as f:
                 urls.append(('csv', s3.write(f.read(), basename(csv_url), acl)))

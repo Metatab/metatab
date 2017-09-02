@@ -11,7 +11,7 @@ from os import getcwd, makedirs, remove
 from os.path import join, dirname, isdir
 
 from nbconvert.writers import FilesWriter
-
+from appurl import parse_app_url
 from metatab.datapackage import convert_to_datapackage
 from metatab import DEFAULT_METATAB_FILE
 from .core import PackageBuilder
@@ -132,7 +132,7 @@ class FileSystemPackageBuilder(PackageBuilder):
 
         # First find and remove them from the doc.
         for term in list(self.doc['Documentation'].find('Root.Documentation')):
-            u = Url(term.value)
+            u = parse_app_url(term.value)
             if u.target_format == 'ipynb':
                 notebook_docs.append(term)
                 self.doc.remove_term(term)
@@ -146,7 +146,7 @@ class FileSystemPackageBuilder(PackageBuilder):
 
         # Now, generate the documents directly into the filesystem package
         for term in notebook_docs:
-            u = Url(term.value)
+            u = parse_app_url(term.value)
             nb_path = u.path(self.source_dir)
 
             output, resources = de.from_filename(nb_path)

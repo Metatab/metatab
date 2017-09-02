@@ -8,24 +8,32 @@ Extensions to the MetatabDoc, Resources and References, etc.
 EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination table but not in the source
 
 
-from metapack.terms import Resource, Reference
-from metatab import MetatabDoc
+from metatab import MetatabDoc, WebResolver
+from metapack.appurl import MetapackDocumentUrl, MetapackResourceUrl, MetapackUrl
 from appurl import parse_app_url
 from .html import linkify
 from .util import slugify
 
+class Resolver(WebResolver):
+    def get_row_generator(self, ref, cache=None):
+
+        try:
+            return ref.metadata_url.generator
+        except AttributeError:
+            return super().get_row_generator(ref, cache)
 
 class MetapackDoc(MetatabDoc):
 
-
-
-    def __init__(self, ref=None, decl=None, package_url=None, cache=None, resolver=None, clean_cache=False):
+    def __init__(self, ref=None, decl=None,  cache=None, resolver=None, clean_cache=False):
 
         self.register_term_class('root.resource', 'metapack.terms.Resource')
         self.register_term_class('root.reference', 'metapack.terms.Resource')
 
-        super().__init__(ref, decl, package_url, cache, resolver, clean_cache)
+        if not isinstance(ref, MetapackDocumentUrl) or isinstance(ref, MetapackResourceUrl):
+            ref = MetapackUrl(ref)
 
+        super().__init__(ref, decl,
+                         str(ref.package_url.inner), cache, resolver or Resolver(), clean_cache)
 
     @property
     def name(self):
@@ -71,10 +79,12 @@ class MetapackDoc(MetatabDoc):
         else:
             return {}
 
-    def resource(self, name=None, term='Root.Datafile', section='Resources'):
 
+    def resources(self, term='Root.Resource', section='Resources'):
+        return self.find(term=term, section=section)
+
+    def resource(self, name=None, term='Root.Resource', section='Resources'):
         return self.find_first(term=term, name=name, section=section)
-
 
     def _repr_html_(self, **kwargs):
         """Produce HTML for Jupyter Notebook"""
@@ -163,7 +173,7 @@ class MetapackDoc(MetatabDoc):
             description=self.find_first_value('Root.Description', section='Root'),
             doc=documentation(),
             contact=contacts(),
-            resources='\n'.join(["<li>" + resource_repr(r) + "</li>" for r in self.resources()])
+            resources='\n'.join(["<li>" + resource_repr(r) + "</li>" for r in self.find('Root.Resource')])
         )
 
     @property
@@ -175,4 +185,3 @@ class MetapackDoc(MetatabDoc):
     def markdown(self):
         from .html import markdown
         return markdown(self)
-

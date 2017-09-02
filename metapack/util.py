@@ -119,12 +119,12 @@ def make_metatab_file(template='metatab'):
     from os.path import  dirname
     from rowgenerators.util import fs_join as join
     import metatab.templates
-    from metatab.doc import MetatabDoc
+    from metapack import  MetapackDoc
 
     template_path = join(dirname(metatab.templates.__file__),template+'.csv')
 
 
-    doc = MetatabDoc(template_path)
+    doc = MetapackDoc(template_path)
 
     return doc
 

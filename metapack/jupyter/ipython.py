@@ -4,11 +4,11 @@
 """Support for IPython and Python kernels in Jupyter Notebooks"""
 
 
-from . import open_package as op
+from metapack import open_package as op
 from os import getcwd
-from .util import walk_up
+from metapack.util import walk_up
 from os.path import getmtime, join, exists
-from .exc import PackageError
+from metapack.exc import PackageError
 
 def caller_locals():
     """Get the local variables in the caller's frame."""
