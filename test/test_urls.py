@@ -14,7 +14,6 @@ def test_data(*paths):
 class TestUrls(unittest.TestCase):
     """Test Metapack AppUrls and Row Generators"""
 
-    def test_metapack_urls_gen(self):
 
 
 
