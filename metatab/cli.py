@@ -10,7 +10,7 @@ import sys
 import six
 from uuid import uuid4
 from genericpath import exists
-from rowgenerators import  Url
+
 
 from metatab._meta import __version__
 from metatab import  DEFAULT_METATAB_FILE, MetatabDoc

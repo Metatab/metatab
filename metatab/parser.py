@@ -22,7 +22,7 @@ from .exc import IncludeError, DeclarationError, ParserError, GenerateError
 from .generate import MetatabRowGenerator
 from os.path import dirname, join, exists
 from .util import declaration_path, import_name_or_class
-from .generate import WebResolver
+
 from functools import lru_cache
 
 # Python2 doesn't have FileNotFoundError
@@ -47,6 +47,10 @@ class TermParser(object):
         :return:
         """
 
+        self.resolver = resolver
+
+        assert self.resolver is not None
+
         self._remove_special = remove_special
 
         self._ref = ref
@@ -69,7 +73,7 @@ class TermParser(object):
 
         self.install_declare_terms()
 
-        self.resolver = resolver or WebResolver()
+
 
 
     @property
@@ -268,14 +272,10 @@ class TermParser(object):
 
         # This method is seperate from __iter__ so it can recurse for Include and Declare
 
-        if isinstance(ref, MetatabRowGenerator):
-            row_gen = ref
-            ref = row_gen.path
-        else:
-            row_gen = self.resolver.get_row_generator(ref, cache=self.doc.cache)
+        row_gen = self.resolver.get_row_generator(ref, cache=self.doc.cache)
 
-            if not isinstance(ref, six.string_types):
-                ref = six.text_type(ref)
+        if not isinstance(ref, six.string_types):
+            ref = six.text_type(ref)
 
         last_section = root
 

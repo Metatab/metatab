@@ -37,29 +37,15 @@ class WebResolver(object):
 
         """Return a row generator for a reference"""
         from inspect import isgenerator
+        from rowgenerators import get_generator
 
+        g = get_generator(ref)
 
-        if isinstance(ref, (list, tuple)) or isgenerator(ref):
-            # Either row data, or a row generator
-            return MetatabRowGenerator(ref)
-
-        if isinstance(ref, bytes):
-            # A CSV file
-            return CsvDataRowGenerator(ref)
-
-        if isinstance(ref, str):
-
-            u = parse_app_url(ref)
+        if not g:
+            raise GenerateError("Cant figure out how to generate rows from {} ref: {}".format(type(ref), ref))
         else:
-            u = ref
+            return g
 
-        if u.proto == 'file':
-            return CsvPathRowGenerator(u)
-
-        if u.proto == 'http':
-            return CsvUrlRowGenerator(u)
-
-        raise GenerateError("Cant figure out how to generate rows from {} ref: {}".format(type(ref), ref))
 
 class MetatabRowGenerator(object):
     """An object that generates rows. The current implementation mostly just a wrapper around
@@ -106,9 +92,9 @@ class CsvUrlRowGenerator(MetatabRowGenerator):
         import six.moves.urllib as urllib
         try:
             if sys.version_info[0] < 3:
-                self._f = urllib.request.urlopen(self._url)
+                self._f = urllib.request.urlopen(str(self._url))
             else:
-                self._f = urllib.request.urlopen(self._url)
+                self._f = urllib.request.urlopen(str(self._url))
 
         except urllib.error.URLError:
             raise IncludeError("Failed to find file by url: {}".format(self._url))

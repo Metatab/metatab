@@ -43,6 +43,8 @@ class MetatabDoc(object):
         self.errors = []
         self.package_url = package_url
 
+        assert resolver is not None
+
         self.resolver = resolver or WebResolver()
 
         if decl is None:
@@ -57,7 +59,7 @@ class MetatabDoc(object):
         if ref:
             self._ref = ref
             self.root = None
-            self._term_parser = TermParser(self._ref, doc=self)
+            self._term_parser = TermParser(self._ref, resolver=self.resolver, doc=self)
             try:
                 self.load_terms(self._term_parser)
             except SourceError as e:
@@ -177,7 +179,9 @@ class MetatabDoc(object):
 
     def load_declarations(self, decls):
 
-        term_interp = TermParser(self.resolver.get_row_generator([['Declare', dcl] for dcl in decls], cache=self._cache), doc=self)
+        rg = self.resolver.get_row_generator([['Declare', dcl] for dcl in decls], cache=self._cache)
+
+        term_interp = TermParser(rg, resolver=self.resolver, doc=self)
 
         list(term_interp)
         dd = term_interp.declare_dict
