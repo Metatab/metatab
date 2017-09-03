@@ -80,7 +80,7 @@ class Resource(Term):
             if not self._self_url:
                 return None
 
-            nu = u.component_url(self._self_url)
+            nu = u.join_dir(self._self_url)
 
             # The manipulations of component_url can result in the .inner sub-url being very different from the
             # .resource_url sub-url. Reparsing should fix all of that.

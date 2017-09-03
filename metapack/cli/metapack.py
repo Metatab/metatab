@@ -27,7 +27,7 @@ from rowgenerators import SourceError
 from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
 from tableintuit import RowIntuitError
-from appurl import get_cache, parse_app_url
+from appurl import get_cache, parse_app_url, Downloader
 
 def metapack():
     import argparse
@@ -150,7 +150,11 @@ def metapack():
         def __init__(self, args):
             self.cwd = getcwd()
             self.args = args
-            self.cache = get_cache('metapack')
+
+            self.downloader = Downloader(get_cache())
+
+            self.cache = self.downloader.cache
+
             frag = ''
 
             # Just the fragment was provided
@@ -172,7 +176,7 @@ def metapack():
             self.frag = frag
             self.mtfile_arg = mtf + frag
 
-            self.mtfile_url = MetapackUrl(self.mtfile_arg)
+            self.mtfile_url = MetapackUrl(self.mtfile_arg, downloader=self.downloader)
 
             self.resource = self.mtfile_url.fragment
 
@@ -180,7 +184,10 @@ def metapack():
             self.mt_file = self.mtfile_url.metadata_url
 
             assert self.package_url.proto == 'file'
-            self.package_root = join(dirname(self.package_url.path),PACKAGE_PREFIX)
+            self.package_root = self.package_url.join(PACKAGE_PREFIX).inner
+
+            assert self.package_root._downloader
+
 
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 

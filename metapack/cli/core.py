@@ -8,7 +8,7 @@ from uuid import uuid4
 import six
 from tableintuit import TypeIntuiter
 
-from metapack import MetapackDoc
+from metapack import MetapackDoc, MetapackUrl
 from metapack.package.s3 import S3PackageBuilder
 from metapack.package.csv import CsvPackageBuilder
 from metapack.package.excel import ExcelPackageBuilder
@@ -205,10 +205,9 @@ PACKAGE_PREFIX = '_packages'
 
 def make_excel_package(file, package_root, cache, env, skip_if_exists):
 
-    if package_root is None:
-        package_root = join(dirname(file), PACKAGE_PREFIX)
+    assert package_root
 
-    p = ExcelPackageBuilder(file, package_root, callback=prt, cache=cache, env=env)
+    p = ExcelPackageBuilder(file, package_root, callback=prt,  env=env)
     prt('Making Excel Package')
 
     if not p.exists() or not skip_if_exists:
@@ -218,17 +217,17 @@ def make_excel_package(file, package_root, cache, env, skip_if_exists):
     elif p.exists():
         prt("Excel Package already exists")
         created = False
-        url = p.package_path
+        url = p.package_path.path
 
-    return p, url, created
+    return p, MetapackUrl(url, downloader=package_root.downloader), created
 
 
 def make_zip_package(file, package_root, cache, env, skip_if_exists):
 
-    if package_root is None:
-        package_root = join(dirname(file), PACKAGE_PREFIX)
+    assert package_root
 
-    p = ZipPackageBuilder(file, package_root, callback=prt, cache=cache, env=env)
+
+    p = ZipPackageBuilder(file, package_root, callback=prt,  env=env)
     prt('Making ZIP Package')
     if not p.exists() or not skip_if_exists:
         url = p.save()
@@ -237,17 +236,16 @@ def make_zip_package(file, package_root, cache, env, skip_if_exists):
     elif p.exists():
         prt("ZIP Package already exists")
         created = False
-        url = p.package_path
+        url = p.package_path.path
 
-    return p, url, created
+    return p, MetapackUrl(url, downloader=package_root.downloader), created
 
 
 def make_filesystem_package(file, package_root, cache, env, skip_if_exists):
 
-    if package_root is None:
-        package_root = join(dirname(file), PACKAGE_PREFIX)
+    assert package_root
 
-    p = FileSystemPackageBuilder(file, package_root, callback=prt, cache=cache, env=env)
+    p = FileSystemPackageBuilder(file, package_root, callback=prt, env=env)
 
     if skip_if_exists is None:
         skip_if_exists = p.is_older_than_metatada()
@@ -259,19 +257,18 @@ def make_filesystem_package(file, package_root, cache, env, skip_if_exists):
         prt("Packaged saved to: {}".format(url))
         created = True
     elif p.exists():
+
         prt("Filesystem Package already exists")
         created = False
-        url = join(p.package_path.rstrip('/'), DEFAULT_METATAB_FILE)
+        url = join(p.package_path.path.rstrip('/'), DEFAULT_METATAB_FILE)
 
-    return p, url, created
+    return p, MetapackUrl(url, downloader=package_root.downloader), created
 
 
 def make_csv_package(file, package_root, cache, env, skip_if_exists):
+    assert package_root
 
-    if package_root is None:
-        package_root = join(dirname(file), PACKAGE_PREFIX)
-
-    p = CsvPackageBuilder(file, package_root, callback=prt, cache=cache, env=env)
+    p = CsvPackageBuilder(file, package_root, callback=prt,  env=env)
     prt('Making CSV Package')
     if not p.exists() or not skip_if_exists:
         url = p.save()
@@ -280,15 +277,15 @@ def make_csv_package(file, package_root, cache, env, skip_if_exists):
     elif p.exists():
         prt("CSV Package already exists")
         created = False
-        url = p.package_path
+        url = p.package_path.path
 
-    return p, url, created
+    return p, MetapackUrl(url, downloader=package_root.downloader), created
 
 def make_s3_package(file, package_root,  cache,  env,  skip_if_exists, acl='public-read'):
 
     assert package_root
 
-    p = S3PackageBuilder(file, package_root, callback=prt, cache=cache, env=env, acl=acl)
+    p = S3PackageBuilder(file, package_root, callback=prt,  env=env, acl=acl)
 
     prt('Making S3 Package')
     if not p.exists() or not skip_if_exists:
@@ -300,7 +297,7 @@ def make_s3_package(file, package_root,  cache,  env,  skip_if_exists, acl='publ
         created = False
         url = p.access_url
 
-    return p, url, created
+    return p, MetapackUrl(url, downloader=file.downloader), created
 
 
 def update_name(mt_file, fail_on_missing=False, report_unchanged=True, force=False):
@@ -365,7 +362,7 @@ def write_doc(doc, mt_file):
             .stdout.decode('utf-8')
 
         fetchline = next(l.split() for l in out.splitlines() if 'Fetch' in l )
-    except (TimeoutError, StopIteration):
+    except (TimeoutError, StopIteration, subprocess.TimeoutExpired):
         fetchline = None
 
     if fetchline:

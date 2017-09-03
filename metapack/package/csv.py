@@ -12,12 +12,16 @@ from metapack.package.core import PackageBuilder
 class CsvPackageBuilder(PackageBuilder):
     """"""
 
-    def __init__(self, source_ref=None, package_root=None, cache=None, callback=None, env=None):
-        super().__init__(source_ref, package_root, cache, callback, env)
+    def __init__(self, source_ref=None, package_root=None,  callback=None, env=None):
+        super().__init__(source_ref, package_root,  callback, env)
 
-        self.package_path = join(self.package_root, self.package_name + ".csv")
+        self.package_path = self.package_root.join(self.package_name + ".csv")
 
-        ensure_dir(self.package_root)
+        try:
+            self.package_root.ensure_dir()
+        except AttributeError:
+            # Only works for file system packages.
+            pass
 
     def _load_resource(self, r, gen, headers):
         """The CSV package has no reseources, so we just need to resolve the URLs to them. Usually, the
@@ -49,6 +53,8 @@ class CsvPackageBuilder(PackageBuilder):
         self._clean_doc()
 
 
-        self.doc.write_csv(self.package_path)
+        assert self.package_path.inner.proto == 'file', self.package_path
+
+        self.doc.write_csv(self.package_path.path)
 
         return self.package_path

@@ -24,9 +24,11 @@ from tableintuit import RowIntuiter
 
 class PackageBuilder(object):
 
-    def __init__(self, source_ref=None, package_root = None, cache=None, callback=None, env=None):
+    def __init__(self, source_ref=None, package_root = None,  callback=None, env=None):
 
-        self._cache = cache if cache else get_cache('metapack')
+        self._downloader = source_ref._downloader
+        self._cache = self._downloader.cache
+
         self._source_ref = source_ref
 
         self.package_root = package_root
@@ -35,6 +37,7 @@ class PackageBuilder(object):
 
         self._source_doc = MetapackDoc(self._source_ref, cache=self._cache) # this one stays constant
         self.source_dir = dirname(parse_app_url(self._source_ref).path)
+
         self._doc = MetapackDoc(self._source_ref, cache=self._cache) # This one gets edited
 
         if not self.doc.find_first_value('Root.Name'):
@@ -50,7 +53,7 @@ class PackageBuilder(object):
 
 
     def exists(self):
-        return exists(self.package_path)
+        return self.package_path.exists()
 
     @property
     def doc(self):
@@ -69,19 +72,17 @@ class PackageBuilder(object):
 
     @property
     def datafiles(self):
-
-        for r in self.doc['Resources'].find(['root.datafile', 'root.suplimentarydata', 'root.datadictionary']):
+        """Iterate over data file *in the original document*. Don't alter these! """
+        for r in self._source_doc['Resources'].find(['root.datafile', 'root.suplimentarydata', 'root.datadictionary']):
             yield r
 
     def datafile(self, ref):
-        """Return a resource, as a file-like-object, given it's name or url as a reference. """
+        """Return a resource, as a file-like-object, given it's name or url as a reference.
 
-        r = list(self.doc.resources(name=ref))
+        Returns from the editable document copy.
+        """
 
-        if not r:
-            return None
-        else:
-            return r[0]
+        return self.doc.resource(ref)
 
     @property
     def documentation(self):
@@ -339,6 +340,7 @@ class PackageBuilder(object):
 
         assert type(self.doc) == MetapackDoc
 
+
         for r in self.datafiles:
 
 
@@ -391,7 +393,7 @@ class PackageBuilder(object):
         # In the case that the input doc is a file, and the ref is to a file,
         # try interpreting the file as relative.
         if self.source_url.proto == 'file' and uv.proto == 'file':
-            u = self.source_url.component_url(uv)
+            u = self.source_url.join_dir(uv)
         else:
             u = uv
 

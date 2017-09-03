@@ -19,9 +19,9 @@ from .core import PackageBuilder
 class S3PackageBuilder(PackageBuilder):
     """A Zip File package"""
 
-    def __init__(self, source_ref=None, package_root=None, cache=None, callback=None, env=None, acl=None, force=False):
+    def __init__(self, source_ref=None, package_root=None, callback=None, env=None, acl=None, force=False):
 
-        super().__init__(source_ref, package_root, cache, callback, env)
+        super().__init__(source_ref, package_root, callback, env)
 
         self.package_path = join(self.package_root, self.package_name)
 

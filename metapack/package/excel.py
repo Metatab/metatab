@@ -12,13 +12,12 @@ from metapack.util import  ensure_dir, slugify
 class ExcelPackageBuilder(PackageBuilder):
     """An Excel File Package"""
 
-    def __init__(self, source_ref=None, package_root=None, cache=None, callback=None, env=None):
-        super().__init__(source_ref, package_root, cache, callback, env)
+    def __init__(self, source_ref=None, package_root=None,  callback=None, env=None):
+        super().__init__(source_ref, package_root, callback, env)
 
-        self.package_path = join(self.package_root, self.package_name+".xlsx")
+        self.package_path = self.package_root.join(self.package_name+".xlsx")
 
-        ensure_dir(self.package_root)
-
+        self.package_root.ensure_dir()
 
 
     def save(self):
@@ -69,7 +68,7 @@ class ExcelPackageBuilder(PackageBuilder):
                 meta_ws.append(row)
 
 
-        self.wb.save(self.package_path)
+        self.wb.save(self.package_path.path)
 
         return self.package_path
 

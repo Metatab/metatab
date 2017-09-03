@@ -24,6 +24,7 @@ from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
 
 from botocore.exceptions import  NoCredentialsError
+from appurl import get_cache, Downloader
 
 def metasync():
     import argparse
@@ -79,7 +80,9 @@ def metasync():
 
             self.args = parser.parse_args(self.raw_args[1:])
 
-            self.cache = get_cache('metapack')
+            self.downloader = Downloader(get_cache())
+
+            self.cache = self.downloader.cache
 
             # This one is for loading packages that have just been
             # written to S3.
@@ -94,16 +97,20 @@ def metasync():
                 self.args.csv = True
                 self.args.fs = True
 
+
+
             self.mtfile_arg = self.args.metatabfile if self.args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
 
-            self.mtfile_url = MetapackUrl(self.mtfile_arg)
+            self.mtfile_url = MetapackUrl(self.mtfile_arg, downloader=self.downloader)
 
             self.resource = self.mtfile_url.fragment
 
             self.package_url = self.mtfile_url.package_url
             self.mt_file = self.mtfile_url.metadata_url
 
-            self.package_root = join(dirname(self.package_url.path), PACKAGE_PREFIX)
+            self.package_root = self.package_url.join(PACKAGE_PREFIX).inner
+
+            assert self.package_root._downloader
 
             self.args.fs = self.args.csv or self.args.fs
 
@@ -132,6 +139,8 @@ def metasync():
 
     doc = MetapackDoc(m.mt_file)
     doc['Root'].get_or_new_term('Root.S3', m.args.s3)
+
+
     write_doc(doc, m.mt_file)
 
     # Update the Root.Distribution Term in the second stage metatab file.
@@ -200,6 +209,8 @@ def run_docker(m):
     exit(exitcode)
 
 
+
+
 def update_dist(doc, old_dists, v):
 
     # This isn't quite correct, because it will try to remove the .csv format
@@ -231,6 +242,13 @@ def update_distributions(m):
 
     doc = MetapackDoc(m.mt_file)
 
+    # Clear out all of the old distributions
+    for d in doc.find('Root.Distribution'):
+        try:
+            doc.remove_term(d)
+        except ValueError:
+            pass
+
     access_value = doc.find_first_value('Root.Access')
 
     acl = 'private' if access_value == 'private' else 'public'
@@ -243,27 +261,27 @@ def update_distributions(m):
 
     if m.args.fs is not False:
         p = FileSystemPackageBuilder(m.mt_file, m.package_root)
-        if update_dist(doc, old_dists, b.access_url(p.doc_file)):
+        if update_dist(doc, old_dists, b.access_url(p.doc_file.path)):
             prt("Added FS distribution to metadata")
             updated = True
 
     if m.args.excel is not False:
         p = ExcelPackageBuilder(m.mt_file, m.package_root)
 
-        if update_dist(doc, old_dists, b.access_url(p.package_path)):
+        if update_dist(doc, old_dists, b.access_url(p.package_path.path)):
             prt("Added Excel distribution to metadata")
             updated = True
 
     if m.args.zip is not False:
         p = ZipPackageBuilder(m.mt_file, m.package_root)
-        if update_dist(doc, old_dists, b.access_url(p.package_path)):
+        if update_dist(doc, old_dists, b.access_url(p.package_path.path)):
             prt("Added ZIP distribution to metadata")
             updated = True
 
     if m.args.csv is not False:
 
         p = CsvPackageBuilder(m.mt_file, m.package_root)
-        url = b.access_url(basename(p.package_path))
+        url = b.access_url(basename(p.package_path.path))
         if update_dist(doc, old_dists, url):
             prt("Added CSV distribution to metadata", url)
             updated = True
@@ -313,7 +331,7 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
     else:
         acl = 'public-read'
 
-    # Only the first Filesystem nees an env; the others won't need to run processing, since they
+    # Only the first Filesystem needs an env; the others won't need to run processing, since they
     # are building from processed files.
     env = {}
 
@@ -336,23 +354,22 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
         # data for the other packages. This means that Transform processes and programs only need
         # to be run once.
 
-
-        _, third_stage_mtfile, created = make_filesystem_package(second_stage_mtfile.path,  None, m.cache, get_lib_module_dict(doc), skip_if_exists)
+        _, third_stage_mtfile, created = make_filesystem_package(second_stage_mtfile,  m.package_root, m.cache, get_lib_module_dict(doc), skip_if_exists)
 
         if m.args.excel is not False:
-            _, ex_url, created = make_excel_package(third_stage_mtfile, None, m.cache, env, skip_if_exists)
-            with open(ex_url, mode='rb') as f:
-                urls.append(('excel', s3.write(f.read(), basename(ex_url), acl)))
+            _, ex_url, created = make_excel_package(third_stage_mtfile, m.package_root, m.cache, env, skip_if_exists)
+            with open(ex_url.path, mode='rb') as f:
+                urls.append(('excel', s3.write(f.read(), basename(ex_url.path), acl)))
 
         if m.args.zip is not False:
-            _, zip_url, created = make_zip_package(third_stage_mtfile, None, m.cache, env, skip_if_exists)
-            with open(zip_url, mode='rb') as f:
-                urls.append(('zip', s3.write(f.read(), basename(zip_url), acl)))
+            _, zip_url, created = make_zip_package(third_stage_mtfile, m.package_root, m.cache, env, skip_if_exists)
+            with open(zip_url.path, mode='rb') as f:
+                urls.append(('zip', s3.write(f.read(), basename(zip_url.path), acl)))
 
         # Note! This is a FileSystem package on the remote S3 bucket, not locally
         if m.args.fs is not False:
             try:
-                fs_p, fs_url, created = make_s3_package(third_stage_mtfile, None, m.args.s3, m.cache, env, acl, skip_if_exists)
+                fs_p, fs_url, created = make_s3_package(third_stage_mtfile, m.args.s3, m.cache, env, acl, skip_if_exists)
             except NoCredentialsError:
                 print(getenv('AWS_SECRET_ACCESS_KEY'))
                 err("Failed to find boto credentials for S3. "
@@ -369,10 +386,15 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
         if m.args.csv is not False:
 
             # Using the signed url in case the bucket is private
-            p = CsvPackageBuilder(fs_p.access_url, None, cache=m.tmp_cache)
+
+            u = MetapackUrl(fs_p.access_url, downloader=m.downloader)
+
+            p = CsvPackageBuilder(u, m.package_root, None)
+
             csv_url = p.save(PACKAGE_PREFIX)
-            with open(csv_url, mode='rb') as f:
-                urls.append(('csv', s3.write(f.read(), basename(csv_url), acl)))
+
+            with open(csv_url.path, mode='rb') as f:
+                urls.append(('csv', s3.write(f.read(), csv_url.target_file, acl)))
 
     except PackageError as e:
         err("Failed to generate package: {}".format(e))

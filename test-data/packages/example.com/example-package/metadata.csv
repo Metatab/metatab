@@ -7,8 +7,8 @@ Dataset,example-data-package
 Time,2017
 Space,US
 Version,1
-Modified,2017-09-03T16:41:56
-Issued,2017-09-03T16:41:56
+Modified,2017-09-03T23:00:18
+Issued,2017-09-03T23:00:18
 Distribution,http://s3.amazonaws.com/library.metatab.org/Volumes/Storage/proj/virt-proj/metapack/metapack/test-data/packages/example.com/example-package/_packages/example.com-example_data_package-2017-us-1/metadata.csv
 Distribution,http://s3.amazonaws.com/library.metatab.org/Volumes/Storage/proj/virt-proj/metapack/metapack/test-data/packages/example.com/example-package/_packages/example.com-example_data_package-2017-us-1.xlsx
 Distribution,http://s3.amazonaws.com/library.metatab.org/Volumes/Storage/proj/virt-proj/metapack/metapack/test-data/packages/example.com/example-package/_packages/example.com-example_data_package-2017-us-1.zip

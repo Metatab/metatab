@@ -9,10 +9,11 @@ from .core import PackageBuilder
 class ZipPackageBuilder(PackageBuilder):
     """A Zip File package"""
 
-    def __init__(self, source_ref=None, package_root=None, cache=None, callback=None, env=None):
-        super().__init__(source_ref, package_root, cache, callback, env)
+    def __init__(self, source_ref=None, package_root=None,  callback=None, env=None):
+        super().__init__(source_ref, package_root, callback, env)
 
-        self.package_path = join(self.package_root, self.package_name + ".zip")
+        self.package_path = self.package_root.join(self.package_name + ".zip")
+
 
     def save(self, path=None):
 
@@ -20,7 +21,11 @@ class ZipPackageBuilder(PackageBuilder):
 
         root_dir = slugify(self.doc.find_first_value('Root.Name'))
 
-        self.zf = ZipFile(self.package_path, 'w')
+        self.prt("Creating ZIP Package at '{}' from filesystem package at '{}'"
+                 .format(self.package_path, self.source_dir))
+
+        self.zf = ZipFile(self.package_path.path, 'w')
+
 
         for root, dirs, files in walk(self.source_dir):
             for f in files:

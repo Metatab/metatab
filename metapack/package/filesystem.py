@@ -16,29 +16,32 @@ from metatab.datapackage import convert_to_datapackage
 from metatab import DEFAULT_METATAB_FILE
 from .core import PackageBuilder
 from metapack.util import ensure_dir, write_csv, slugify
+from metapack.appurl import MetapackUrl
 
 
 class FileSystemPackageBuilder(PackageBuilder):
     """Build a filesystem package"""
 
-    def __init__(self, source_ref, package_root, cache=None, callback=None, env=None):
-        super().__init__(source_ref, package_root, cache, callback, env)
+    def __init__(self, source_ref, package_root, callback=None, env=None):
 
-        if not isdir(self.package_root):
-            ensure_dir(self.package_root)
+        super().__init__(source_ref, package_root,  callback, env)
 
-        self.package_path = join(self.package_root, self.package_name)
+        if not self.package_root.isdir():
+            self.package_root.ensure_dir()
 
-        self.doc_file = join(self.package_path, DEFAULT_METATAB_FILE)
+        self.package_path = self.package_root.join(self.package_name)
+
+        self.doc_file = self.package_path.join(DEFAULT_METATAB_FILE)
+
 
     def exists(self):
 
-        return isdir(self.package_path)
+        return self.package_path.isdir()
 
     def remove(self):
 
-        if isdir(self.package_path):
-            shutil.rmtree(self.package_path)
+        if self.package_path.is_dir():
+            shutil.rmtree(self.package_path.path)
 
     def is_older_than_metatada(self):
         """
@@ -83,25 +86,27 @@ class FileSystemPackageBuilder(PackageBuilder):
     def _write_doc(self):
 
         self._doc.write_csv(self.doc_file)
-        return self.doc_file
+        return MetapackUrl(self.doc_file, downloader=self._downloader)
 
     def _write_dpj(self):
 
-        with open(join(self.package_path, 'datapackage.json'), 'w') as f:
+        with open(join(self.package_path.path, 'datapackage.json'), 'w') as f:
             f.write(json.dumps(convert_to_datapackage(self._doc), indent=4))
 
     def _write_html(self):
 
-        with open(join(self.package_path, 'index.html'), 'w') as f:
+        with open(join(self.package_path.path, 'index.html'), 'w') as f:
             f.write(self._doc.html)
 
-    def _load_resource(self, r, gen, headers):
+    def _load_resource(self, source_r, gen, headers):
+
+        r = self.datafile(source_r.name)
 
         self.prt("Loading data for '{}' ".format(r.name))
 
         new_url = 'data/' + r.name + '.csv'
 
-        path = join(self.package_path, new_url)
+        path = join(self.package_path.path, new_url)
 
         makedirs(dirname(path), exist_ok=True)
 
@@ -142,7 +147,7 @@ class FileSystemPackageBuilder(PackageBuilder):
 
         de = DocumentationExporter()
         fw = FilesWriter()
-        fw.build_directory = join(self.package_path,'docs')
+        fw.build_directory = join(self.package_path.path,'docs')
 
         # Now, generate the documents directly into the filesystem package
         for term in notebook_docs:
@@ -164,7 +169,7 @@ class FileSystemPackageBuilder(PackageBuilder):
 
         self.prt("Loading documentation for '{}', '{}' ".format(title, file_name))
 
-        path = join(self.package_path, 'docs/' + file_name)
+        path = join(self.package_path.path, 'docs/' + file_name)
 
         makedirs(dirname(path), exist_ok=True)
 
@@ -180,7 +185,7 @@ class FileSystemPackageBuilder(PackageBuilder):
         if "__pycache__" in filename:
             return
 
-        path = join(self.package_path, filename)
+        path = join(self.package_path.path, filename)
 
         ensure_dir(dirname(path))
 

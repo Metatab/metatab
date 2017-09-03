@@ -26,14 +26,22 @@ class MetapackDoc(MetatabDoc):
 
     def __init__(self, ref=None, decl=None,  cache=None, resolver=None, clean_cache=False):
 
+        assert isinstance(ref, (MetapackDocumentUrl, MetapackResourceUrl)), (type(ref), ref)
+
         self.register_term_class('root.resource', 'metapack.terms.Resource')
         self.register_term_class('root.reference', 'metapack.terms.Resource')
 
-        if not isinstance(ref, MetapackDocumentUrl) or isinstance(ref, MetapackResourceUrl):
-            ref = MetapackUrl(ref)
-
         super().__init__(ref, decl,
                          str(ref.package_url.inner), cache, resolver or Resolver(), clean_cache)
+
+    @property
+    def path(self):
+        """Return the path to the file, if the ref is a file"""
+
+        if self.ref.inner.proto != 'file':
+            return None
+
+        return self.ref.path
 
     @property
     def name(self):
