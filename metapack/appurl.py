@@ -32,36 +32,51 @@ class MetapackDocumentUrl(Url, _MetapackUrl):
 
         self.scheme_extension = 'metapack'
 
-    def _process_resource_url(self):
-
-        super()._process_resource_url()
-
-        self.resource_format = file_ext(basename(self.path))
-
-        if self.resource_format not in ('zip', 'xlsx', 'csv'):
-            self.resource_format = 'csv'
-            self.resource_file = DEFAULT_METATAB_FILE
-            self.target_file = DEFAULT_METATAB_FILE
-            self.target_format = 'csv'
-            self.path = join(self.path, DEFAULT_METATAB_FILE)
-        else:
-            self.resource_file = basename(self.resource_url)
-            self.resource_format = file_ext(basename(self.path))
-
-        if self.resource_format == 'xlsx':
-            self.target_file = 'meta'
-            self.target_format = 'xlsx'
-            self.rebuild_fragment()
-        elif self.resource_format == 'zip':
-            self.target_file = 'metadata.csv'
-            self.target_format = 'csv'
-            self.rebuild_fragment()
-        else:
-            self.target_file = self.resource_file
-
     @classmethod
     def match(cls, url, **kwargs):
         raise MetapackError("This class should not be contructed through matching")
+
+
+    @property
+    def resource_format(self):
+
+        resource_format = file_ext(basename(self.path))
+
+        if resource_format not in ('zip', 'xlsx', 'csv'):
+            resource_format = 'csv'
+
+        return resource_format
+
+    @property
+    def resource_file(self):
+
+        if not basename(self.resource_url):
+            return DEFAULT_METATAB_FILE
+        else:
+            return basename(self.resource_url)
+
+
+    @property
+    def target_file(self):
+        if self.resource_format == 'csv':
+            return DEFAULT_METATAB_FILE
+        elif self.resource_format == 'xlsx':
+            return 'meta'
+        elif self.resource_format == 'zip':
+            return 'metadata.csv'
+        else:
+            return self.resource_file
+
+    @property
+    def target_format(self):
+        if self.resource_format == 'csv':
+            return 'csv'
+        elif self.resource_format == 'xlsx':
+            return 'xlsx'
+        elif self.resource_format == 'zip':
+            return 'csv'
+        else:
+            return 'csv'
 
     @property
     def doc(self):
@@ -80,7 +95,11 @@ class MetapackDocumentUrl(Url, _MetapackUrl):
 
     @property
     def metadata_url(self):
-        return self
+
+        if not basename(self.resource_url):
+            return self.clone(path=join(self.path,DEFAULT_METATAB_FILE))
+        else:
+            return self.clone()
 
     @property
     def package_url(self):
@@ -88,6 +107,7 @@ class MetapackDocumentUrl(Url, _MetapackUrl):
         if self.resource_file == DEFAULT_METATAB_FILE:
             u = self.inner.clone().clear_fragment()
             u.path = dirname(self.path) + '/'
+            u.scheme_extension = 'metapack'
             return u
         else:
             return self.inner.clear_fragment()
@@ -124,6 +144,21 @@ class MetapackResourceUrl(FileUrl, _MetapackUrl):
     def match(cls, url, **kwargs):
         raise MetapackError("This class should not be contructed through matching")
 
+
+    @property
+    def target_file(self):
+        from urllib.parse import unquote_plus
+
+        if self.fragment:
+
+            frag_parts = unquote_plus(self.fragment).split(';')
+
+            if frag_parts:
+                return frag_parts[0]
+
+        return None
+
+
     @property
     def doc(self):
         """Return the metatab document for the URL"""
@@ -131,7 +166,7 @@ class MetapackResourceUrl(FileUrl, _MetapackUrl):
 
     @property
     def metadata_url(self):
-        return MetapackDocumentUrl(str(self.clone().clear_fragment()), downloader=self._downloader)
+        return MetapackDocumentUrl(str(self.clone().clear_fragment()), downloader=self._downloader).metadata_url
 
     @property
     def package_url(self):

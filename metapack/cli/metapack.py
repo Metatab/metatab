@@ -188,6 +188,7 @@ def metapack():
     if m.args.make_package:
 
         if not m.mtfile_url.target_format == 'ipynb':
+            print (m.mtfile_url.dict)
             err("Input must be a Jupyter notebook file")
 
         if m.args.make_documentation:
@@ -240,28 +241,6 @@ def metatab_build_handler(m):
 
         add_resource(m.mt_file, m.args.add, cache=m.cache)
 
-    if False:  # m.args.resources:
-        update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
-
-        doc = MetatabDoc(m.mt_file)
-
-        try:
-            doc['Schema'].clean()
-        except KeyError:
-            pass
-
-        for t in list(doc['Resources']):  # w/o list(), will iterate over new terms
-
-            if not t.term_is('root.datafile'):
-                continue
-
-            if t.as_dict().get('url'):
-                add_resource(doc, t.as_dict()['url'], m.cache)
-
-            else:
-                warn("Entry '{}' on row {} is missing a url; skipping".format(t.join, t.row))
-
-        write_doc(doc, m.mt_file)
 
     if m.args.schemas:
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
@@ -269,11 +248,12 @@ def metatab_build_handler(m):
         process_schemas(m.mt_file, cache=m.cache, clean=m.args.clean)
 
     if m.args.datapackage:
+        err('Not Implemented')
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
 
         from metatab.datapackage import convert_to_datapackage
 
-        doc = MetatabDoc(m.mt_file)
+        doc = MetapackDoc(m.mt_file)
 
         u = parse_app_url(m.mt_file)
 

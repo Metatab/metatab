@@ -12,7 +12,7 @@ from os.path import basename, dirname, exists
 from tabulate import tabulate
 
 from appurl import get_cache, parse_app_url
-from metapack import MetapackDoc
+from metapack import MetapackDoc, MetapackUrl
 from metapack.cli.core import prt, err, metatab_info, get_lib_module_dict, write_doc, datetime_now, \
     make_filesystem_package, make_zip_package, make_s3_package, make_excel_package, update_name, \
     cli_init
@@ -96,10 +96,12 @@ def metasync():
 
             self.mtfile_arg = self.args.metatabfile if self.args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
 
-            self.mtfile_url = parse_app_url(self.mtfile_arg)
+            self.mtfile_url = MetapackUrl(self.mtfile_arg)
+
             self.resource = self.mtfile_url.fragment
 
-            self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url)
+            self.package_url = self.mtfile_url.package_url
+            self.mt_file = self.mtfile_url.metadata_url
 
             self.package_root = join(dirname(self.package_url.path), PACKAGE_PREFIX)
 
