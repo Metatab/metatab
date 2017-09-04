@@ -26,13 +26,22 @@ class MetapackDoc(MetatabDoc):
 
     def __init__(self, ref=None, decl=None,  cache=None, resolver=None, clean_cache=False):
 
-        assert isinstance(ref, (MetapackDocumentUrl, MetapackResourceUrl)), (type(ref), ref)
+        #assert isinstance(ref, (MetapackDocumentUrl, MetapackResourceUrl)), (type(ref), ref)
 
         self.register_term_class('root.resource', 'metapack.terms.Resource')
         self.register_term_class('root.reference', 'metapack.terms.Resource')
 
-        super().__init__(ref, decl,
-                         str(ref.package_url.inner), cache, resolver or Resolver(), clean_cache)
+        resolver = resolver or Resolver()
+
+        assert resolver is not None
+
+        try:
+            # For MetapackDocumentUrl, MetapackResourceUrl
+            super().__init__(ref, decl,
+                         str(ref.package_url.inner), cache, resolver, clean_cache)
+        except AttributeError:
+            # For iterators, generators
+            super().__init__(ref, decl,None, cache, resolver, clean_cache)
 
     @property
     def path(self):
@@ -92,6 +101,12 @@ class MetapackDoc(MetatabDoc):
         return self.find(term=term, section=section)
 
     def resource(self, name=None, term='Root.Resource', section='Resources'):
+        return self.find_first(term=term, name=name, section=section)
+
+    def references(self, term='Root.Reference', section='References'):
+        return self.find(term=term, section=section)
+
+    def reference(self, name=None, term='Root.Reference', section='References'):
         return self.find_first(term=term, name=name, section=section)
 
     def _repr_html_(self, **kwargs):

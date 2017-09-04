@@ -19,9 +19,10 @@ from IPython import get_ipython
 from IPython.core.magic import Magics, magics_class, line_magic, cell_magic
 from IPython.display import  display, HTML, Latex
 from collections import OrderedDict
-from metatab import MetatabDoc
+from metapack import MetapackDoc
 from metapack.cli.core import process_schemas
 from metatab.generate import TextRowGenerator
+from appurl import parse_app_url
 from os import makedirs, getcwd
 from os.path import join, abspath, dirname, exists, normpath
 from warnings import warn
@@ -83,7 +84,7 @@ class MetatabMagic(Magics):
 
         args = parse_argstring(self.metatab, line)
 
-        inline_doc = MetatabDoc(TextRowGenerator("Declare: metatab-latest\n" + cell))
+        inline_doc = MetapackDoc(TextRowGenerator("Declare: metatab-latest\n" + cell))
 
         extant_identifier = inline_doc.get_value('Root.Identifier')
 
@@ -137,8 +138,7 @@ class MetatabMagic(Magics):
     def mt_open_package(self, line):
         """Find the metatab file for this package, open it, and load it into the namespace. """
 
-        from metatab.ipython import open_package, open_source_package
-        from rowgenerators import Url
+        from metapack.jupyter.ipython import open_package, open_source_package
 
         args = parse_argstring(self.mt_open_package, line)
         self.shell.user_ns[MT_DOC_VAR] = open_package(self.shell.user_ns)
@@ -146,7 +146,7 @@ class MetatabMagic(Magics):
         self.shell.user_ns['_notebook_dir'] = getcwd()
 
         if self.mt_doc.package_url:
-            u = Url(self.mt_doc.package_url)
+            u = parse_app_url(self.mt_doc.package_url)
 
     @line_magic
     def mt_import_terms(self, line):
@@ -258,7 +258,7 @@ class MetatabMagic(Magics):
 
 
         """
-        from metatab.jupyter.core import process_schema
+        from metapack.jupyter.core import process_schema
 
         try:
             args = docopt.docopt(self.mt_add_dataframe.__doc__, argv=shlex.split(line))
@@ -396,10 +396,9 @@ class MetatabMagic(Magics):
 
         """
 
-        from rowgenerators import Url, download_and_cache, get_cache, SourceSpec
         from os.path import splitext, basename
 
-        args = parse_argstring(self.mt_lib_dir, line)
+        args = parse_argstring(self.mt_lib_dir, line) # Its a normal string
 
         if not args.lib_dir:
             lib_dir = 'lib'
@@ -407,15 +406,17 @@ class MetatabMagic(Magics):
         else:
             lib_dir = args.lib_dir
 
-        u = Url(lib_dir)
+        if not '_lib_dirs' in self.shell.user_ns:
+            self.shell.user_ns['_lib_dirs'] = set()
+
+        u = parse_app_url(lib_dir)
 
         # Assume files are actually directories
+        # This clause will pickup both directories and reference names, but ref names should not
+        # exist as directories.
         if u.proto == 'file':
 
             lib_dir = normpath(lib_dir).lstrip('./')
-
-            if not '_lib_dirs' in self.shell.user_ns:
-                self.shell.user_ns['_lib_dirs'] = set()
 
             for path in [ abspath(lib_dir), abspath(join('..',lib_dir))]:
                 if exists(path) and path not in sys.path:
@@ -423,35 +424,29 @@ class MetatabMagic(Magics):
                     self.shell.user_ns['_lib_dirs'].add(lib_dir)
                     return
 
-
         # Assume URLS are to Metapack packages on the net
-        if (u.proto == 'https' or u.proto == 'http'):
-
-            cache = get_cache('metapack')
-
-            d = download_and_cache(SourceSpec(lib_dir), cache)
-
-            zip_path = d['sys_path']
+        if (u.scheme == 'https' or u.scheme == 'http'):
 
             # The path has to be a Metatab ZIP archive, and the root directory must be the same as
             # the name of the path
 
-            pkg_name, _ = splitext(basename(zip_path))
+            r = u.get_resource()
 
-            lib_path = join(zip_path,pkg_name)
+            pkg_name, _ = splitext(basename(r.path))
+
+            lib_path = r.join(pkg_name).path
 
             if lib_path not in sys.path:
                 sys.path.insert(0,lib_path)
 
         # Assume anything else is a Metatab Reference term name
-        elif self.mt_doc and (self.mt_doc.reference(lib_dir) or self.mt_doc.resource(lib_dir) ) :
+        elif self.mt_doc.find_first('Root.Reference', name=lib_dir) or self.mt_doc.resource(lib_dir) :
 
-            r = self.mt_doc.reference(lib_dir) or self.mt_doc.resource(lib_dir)
+            r = self.mt_doc.find_first('Root.Reference', name=lib_dir) or self.mt_doc.resource(lib_dir)
 
+            ur = parse_app_url(r.url).inner
 
-            ur = Url(r.url).rebuild_url(fragment=False, proto=False, scheme_extension=False)
-
-            return self.mt_lib_dir(ur)
+            return self.mt_lib_dir(str(ur))
 
         else:
             logger.error("Can't find library directory: '{}' ".format(lib_dir))

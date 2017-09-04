@@ -2,8 +2,10 @@ from __future__ import print_function
 
 import unittest
 
-from metapack import open_package
+from appurl import parse_app_url
+from metapack import open_package, MetapackDoc
 from metatab.util import flatten
+from metatab.generate import TextRowGenerator
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
@@ -95,6 +97,44 @@ class TestIPython(unittest.TestCase):
         rows = gen.generator.execute()
 
         print(len(rows))
+
+    def test_line_doc(self):
+        from metapack.cli.core import process_schemas
+        from os.path import splitext, basename, join
+        import sys
+
+        with open(test_data('line-oriented-doc.txt')) as f:
+            text = f.read()
+
+
+        doc = MetapackDoc(TextRowGenerator("Declare: metatab-latest\n" + text))
+
+        process_schemas(doc)
+
+        r = doc.find_first('Root.Reference', name='incv')
+
+        assert r
+
+        # Test loading a Python Library from a package.
+        u = parse_app_url(r.url).inner.clear_fragment()
+
+        r = u.get_resource()
+
+        # The path has to be a Metatab ZIP archive, and the root directory must be the same as
+        # the name of the path
+
+        pkg_name, _ = splitext(basename(r.path))
+
+        lib_path = r.join(pkg_name).path
+
+        if lib_path not in sys.path:
+            sys.path.insert(0, lib_path)
+
+        from lib.incomedist import sum_densities
+
+        # Test Dataframes
+
+        incv = doc.reference('incv').dataframe()
 
     def x_test_pandas(self):
 

@@ -3,6 +3,7 @@ from __future__ import print_function
 import json
 import unittest
 from appurl import parse_app_url
+from metapack import MetapackUrl
 
 
 def test_data(*paths):
@@ -25,7 +26,9 @@ class MetatabTestCase(unittest.TestCase):
         for us in (u('package.zip'), u('package.xlsx'), u('package.csv'), u('package/metadata.csv'),
                    f('package.zip'), f('package.xlsx'), f('package.csv'), f('package/metadata.csv'),):
 
-            print(resolve_package_metadata_url(us))
+            u = MetapackUrl(us)
+
+            print(u.metadata_url)
 
 
     def test_open_package(self):
@@ -50,8 +53,9 @@ class MetatabTestCase(unittest.TestCase):
         self.assertEqual('random-names', p.resource('random-names').name)
 
         r = p.find_first('Root.DataFile')
+        print(r.resolved_url)
         self.assertEquals('http://public.source.civicknowledge.com/example.com/sources/test_data.zip#random-names.csv',
-                          r.resolved_url)
+                          str(r.resolved_url))
 
         for r in p.find('Root.DataFile'):
 

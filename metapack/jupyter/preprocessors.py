@@ -12,6 +12,7 @@ from .magic import MetatabMagic
 from nbformat.notebooknode import from_dict
 from IPython.core.magic_arguments import (argument, magic_arguments,
                                           parse_argstring)
+from metapack import MetapackDoc
 
 
 class RemoveDocsFromImages(Preprocessor):
@@ -140,10 +141,9 @@ class ExtractInlineMetatabDoc(ExtractMetatabTerms):
     def preprocess_cell(self, cell, resources, index):
         import re
         from metatab.generate import TextRowGenerator
-        from metatab import MetatabDoc
 
         if cell['source'].startswith('%%metatab'):
-            self.doc = MetatabDoc(TextRowGenerator("Declare: metatab-latest\n" +
+            self.doc = MetapackDoc(TextRowGenerator("Declare: metatab-latest\n" +
                                                    re.sub(r'\%\%metatab.*\n', '', cell['source'])))
         else:
             cell, resources = super().preprocess_cell(cell,resources,index)
@@ -177,13 +177,13 @@ class ExtractFinalMetatabDoc(Preprocessor):
     def preprocess_cell(self, cell, resources, index):
         import re
         from metatab.generate import TextRowGenerator
-        from metatab import MetatabDoc
+
 
         if cell['metadata'].get('mt_final_metatab'):
             if cell['outputs']:
                 o = ''.join(e['text'] for e in cell['outputs'])
 
-                self.doc = MetatabDoc(TextRowGenerator(o))
+                self.doc = MetapackDoc(TextRowGenerator(o))
 
                 # Give all of the sections their standard args, to make the CSV versions of the doc
                 # prettier
@@ -207,7 +207,7 @@ class ExtractMaterializedRefs(Preprocessor):
     def preprocess_cell(self, cell, resources, index):
         import re
         from metatab.generate import TextRowGenerator
-        from metatab import MetatabDoc
+
         from json import loads
 
         if cell['metadata'].get('mt_materialize'):

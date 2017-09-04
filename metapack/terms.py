@@ -80,7 +80,10 @@ class Resource(Term):
             if not self._self_url:
                 return None
 
-            nu = u.join_dir(self._self_url)
+            if u.resource_format in ('zip', 'xlsx'):
+                nu = u.clone(fragment=self._self_url)
+            else:
+                nu = u.join_dir(self._self_url)
 
             # The manipulations of component_url can result in the .inner sub-url being very different from the
             # .resource_url sub-url. Reparsing should fix all of that.
@@ -229,6 +232,7 @@ class Resource(Term):
             d = self.all_props
 
             d['source'] = self.resolved_url.get_resource().get_target()
+
             d['target_format'] = d.get('format')
             d['target_segment'] = d.get('segment')
             d['target_file'] = d.get('file')

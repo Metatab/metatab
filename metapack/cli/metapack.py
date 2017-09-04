@@ -194,9 +194,9 @@ def metapack():
     # Maybe need to convert a notebook first
     if m.args.make_package:
 
-        if not m.mtfile_url.target_format == 'ipynb':
+        if not m.mtfile_url.inner.target_format == 'ipynb':
             print (m.mtfile_url.dict)
-            err("Input must be a Jupyter notebook file")
+            err("Input must be a Jupyter notebook file. Got '{}' ".format(m.mtfile_url.target_format))
 
         if m.args.make_documentation:
             convert_documentation(m)

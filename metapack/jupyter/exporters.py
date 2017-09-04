@@ -13,6 +13,7 @@ import io
 import metapack
 from metapack.exc import MetapackError
 from metapack.jupyter.markdown import MarkdownExporter
+import nbformat
 from nbconvert.exporters import Exporter
 from nbconvert.exporters.html import HTMLExporter
 from nbconvert.exporters.pdf import PDFExporter

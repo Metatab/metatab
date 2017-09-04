@@ -1,0 +1,148 @@
+Identifier: 47bc1089-7584-41f0-b804-602ec42f1249
+Origin: civicknowledge.com
+Dataset: rcfe_affordability
+Version: 4
+Time: 2015
+Name: civicknowledge.com-rcfe_affordability-2015-4
+
+Section: Contacts
+Wrangler: Eric Busboom
+Wrangler.Email: eric@civicknowledge.com
+Wrangler.Organization: Civic Knowledge
+
+Section: References
+
+Reference: censusreporter:B09020/140/05000US06073
+Reference.Name: B09020
+Reference.Description: Relationship by Household Type (Including Living Alone) for Population 65 Years and Over
+
+Reference: censusreporter:B25007/140/05000US06073
+Reference.Name: B25007
+Reference.Description: Tenure by Age of Householder
+
+#
+# Household Income
+#
+
+Reference: censusreporter:B19049/140/05000US06073
+Reference.Name: B19049
+Reference.Description: Median Household Income by Age of Householder
+
+
+# For whole county
+
+Reference: censusreporter:B19049/050/05000US06073
+Reference.Name: B19049_county
+Reference.Description: Median Household Income by Age of Householder
+
+#
+# Home value distributions, by tract
+#
+
+Reference: censusreporter:B25076/140/05000US06073
+Reference.Name: B25076
+Reference.Description: Lower Value Quartile (Dollars)
+
+Reference: censusreporter:B25077/140/05000US06073
+Reference.Name: B25077
+Reference.Description: Median Value
+
+Reference: censusreporter:B25078/140/05000US06073
+Reference.Name: B25078
+Reference.Description: Upper Value Quartile (Dollars)
+
+#
+# Home  value distributions, for SD County
+#
+Reference: censusreporter:B25076/050/05000US06073
+Reference.Name: B25076_county
+Reference.Description: Lower Value Quartile (Dollars)
+
+Reference: censusreporter:B25077/050/05000US06073
+Reference.Name: B25077_county
+Reference.Description: Median Value
+
+Reference: censusreporter:B25078/050/05000US06073
+Reference.Name: B25078_county
+Reference.Description: Upper Value Quartile (Dollars)
+
+#
+# Tract crosswalk
+#
+Reference: metatab+http://s3.amazonaws.com/library.metatab.org/sangis.org-census_regions-2010-sandiego-7.csv#tract-sra-msa-xwalk
+Reference.Name: tracts
+Reference.Description: Crosswalk between crosswalks, tracts, zip codes and SRAs in San Diego County
+
+#
+# Tract boundaries
+#
+Reference: metatab+http://s3.amazonaws.com/library.metatab.org/sangis.org-census_regions-2010-sandiego-7.csv#tracts
+Reference.Name: tracts_geo
+Reference.Description: Geographics Boundaries for Tracts
+
+#
+# SRA boundaries
+#
+Reference: metatab+http://s3.amazonaws.com/library.metatab.org/sangis.org-census_regions-2010-sandiego-7.csv#sra
+Reference.Name: sra_geo
+Reference.Description: Geographics Boundaries for SRAs
+
+#
+# IPUMS Housing and Income Data
+#
+# Need to use the ZIP version b/c we need to import the Python Code
+Reference: metatab+http://s3.amazonaws.com/library.metatab.org/ipums.org-income_homevalue-5.zip#income_homeval
+Reference.Name: incv
+Reference.Description: Income and Home value records from IPUMS for San Diego County
+Section: Resources
+
+
+Section: Bibliography
+Citation: ipums
+Citation.Type: dataset
+Citation.Author: Steven Ruggles; Katie Genadek; Ronald Goeken; Josiah Grover; Matthew Sobek
+Citation.Title: Integrated Public Use Microdata Series
+Citation.Year: 2017
+Citation.Publisher: University of Minnesota
+Citation.Version: 7.0
+Citation.AccessDate: 20170718
+Citation.Url: https://usa.ipums.org/usa/index.shtml
+Citation.Doi: https://doi.org/10.18128/D010.V7.0
+
+Citation: bordley
+Citation.Type: article
+Citation.Author: Robert F. Bordley; James B. McDonald; Anand Mantrala
+Citation.Title: Something New, Something Old: Parametric Models for the Size of Distribution of Income
+Citation.Year: 1997
+Citation.Month: June
+Citation.Journal: Journal of Income Distribution
+Citation.Volume: 6
+Citation.Number: 1
+Citation.Pages: 5-5
+Citation.Url: https://ideas.repec.org/a/jid/journl/y1997v06i1p5-5.html
+
+Citation: mcdonald
+Citation.Type: article
+Citation.Author: McDonald, James B.;  Mantrala, Anand
+Citation.Title: The distribution of personal income: Revisited
+Citation.Journal: Journal of Applied Econometrics
+Citation.Volume: 10
+Citation.Number: 2
+Citation.Publisher: Wiley Subscription Services, Inc., A Wiley Company
+Citation.Issn: 1099-1255
+Citation.Doi: 10.1002/jae.3950100208
+Citation.Pages: 201--204,
+Citation.Year: 1995
+
+Citation: majumder
+Citation.Type: article
+Citation.Author: Majumder, Amita; Chakravarty, Satya Ranjan
+Citation.Title: Distribution of personal income: Development of a new model and its application to U.S. income data
+Citation.Journal: Journal of Applied Econometrics
+Citation.Volume: 5
+Citation.Number: 2
+Citation.Publisher: Wiley Subscription Services, Inc., A Wiley Company
+Citation.Issn: 1099-1255
+Citation.Doi: 10.1002/jae.3950050206
+Citation.Pages: 189--196
+Citation.Year: 1990

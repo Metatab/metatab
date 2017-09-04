@@ -88,6 +88,7 @@ setup(
         ],
         'appurl.urls' : [
             "metapack+ = metapack.appurl:MetapackUrl",
+            "metatab+ = metapack.appurl:MetapackUrl",
             ".ipynb = metapack.appurl:JupyterUrl"
 
         ],

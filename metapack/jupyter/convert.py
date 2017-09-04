@@ -4,7 +4,8 @@
 """
 Functions for converting Jupyter notebooks
 """
-from metatab import DEFAULT_METATAB_FILE, MetatabDoc
+from metatab import DEFAULT_METATAB_FILE
+from metapack import MetapackDoc
 from metapack.cli.core import prt
 from metapack.util import ensure_dir, copytree
 from os.path import abspath
@@ -51,12 +52,13 @@ def convert_notebook(m):
 
     from .core import logger
     from traitlets.config import Config
-    from metatab.jupyter.exporters import PackageExporter, DocumentationExporter
+    from metapack.jupyter.exporters import PackageExporter, DocumentationExporter
+    from appurl import parse_app_url
     from nbconvert.writers import FilesWriter
     from os.path import normpath
 
     prt('Convert notebook to Metatab source package')
-    nb_path = Url(m.mt_file).parts.path
+    nb_path = m.mt_file.path
 
     c = Config()
 
@@ -80,7 +82,7 @@ def convert_notebook(m):
 
     new_mt_file = join(pe.output_dir, DEFAULT_METATAB_FILE)
 
-    doc = MetatabDoc(new_mt_file)
+    doc = MetapackDoc(new_mt_file)
 
     de.update_metatab(doc, resources)
 

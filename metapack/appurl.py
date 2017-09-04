@@ -28,9 +28,17 @@ class MetapackDocumentUrl(Url, _MetapackUrl):
     def __init__(self, url=None, downloader=None, **kwargs):
         kwargs['proto'] = 'metapack'
 
-        super().__init__(url, downloader=downloader, **kwargs)
+        u = Url(url, **kwargs)
+
+        # If there is no file with an extension in the path, assume that this
+        # is a filesystem package, and that the path should have DEFAULT_METATAB_FILE
+        if file_ext(basename(u.path)) not in ('zip', 'xlsx', 'csv'):
+            u.path = join(u.path, DEFAULT_METATAB_FILE)
+
+        super().__init__(str(u), downloader=downloader, **kwargs)
 
         self.scheme_extension = 'metapack'
+
 
     @classmethod
     def match(cls, url, **kwargs):
@@ -42,19 +50,16 @@ class MetapackDocumentUrl(Url, _MetapackUrl):
 
         resource_format = file_ext(basename(self.path))
 
-        if resource_format not in ('zip', 'xlsx', 'csv'):
-            resource_format = 'csv'
+        assert resource_format, self.path # Should have either a definite file, or have added one in __init__
 
         return resource_format
 
     @property
     def resource_file(self):
 
-        if not basename(self.resource_url):
-            return DEFAULT_METATAB_FILE
-        else:
-            return basename(self.resource_url)
+        assert basename(self.resource_url)
 
+        return basename(self.resource_url)
 
     @property
     def target_file(self):
@@ -82,7 +87,7 @@ class MetapackDocumentUrl(Url, _MetapackUrl):
     def doc(self):
         """Return the metatab document for the URL"""
         from metapack import MetapackDoc
-        return MetapackDoc(self)
+        return MetapackDoc(self.get_resource().get_target())
 
     @property
     def generator(self):
@@ -104,13 +109,16 @@ class MetapackDocumentUrl(Url, _MetapackUrl):
     @property
     def package_url(self):
         """Return the package URL associated with this metadata"""
+
+
+
         if self.resource_file == DEFAULT_METATAB_FILE:
             u = self.inner.clone().clear_fragment()
             u.path = dirname(self.path) + '/'
             u.scheme_extension = 'metapack'
-            return u
+            return MetapackPackageUrl(str(u.clear_fragment()))
         else:
-            return self.inner.clear_fragment()
+            return MetapackPackageUrl(str(self.clear_fragment()))
 
     def get_resource(self):
 
@@ -123,6 +131,36 @@ class MetapackDocumentUrl(Url, _MetapackUrl):
 
     def get_target(self):
         return self.inner.get_target().clear_fragment()
+
+    def rebuild_fragment(self):
+
+        if basename(self.path) == DEFAULT_METATAB_FILE:
+            frag = ''
+        elif self.resource_format == 'csv':
+            frag = ''
+        elif self.resource_format == 'xlsx':
+            frag = 'meta'
+        elif self.resource_format ==  'zip':
+            frag = DEFAULT_METATAB_FILE
+
+        self.fragment = frag
+
+class MetapackPackageUrl(Url, _MetapackUrl):
+    """Special version of MetapackUrl for package urls, which never have a fragment"""
+
+    def __init__(self, url=None, downloader=None, **kwargs):
+        kwargs['proto'] = 'metapack'
+
+        super().__init__(url, downloader=downloader, **kwargs)
+        self.scheme_extension = 'metapack'
+
+        self.fragment = None
+        self.query = None
+
+
+    def rebuild_fragment(self):
+        self.fragment = ''
+
 
 class MetapackResourceUrl(FileUrl, _MetapackUrl):
     def __init__(self, url=None, downloader=None, **kwargs):
