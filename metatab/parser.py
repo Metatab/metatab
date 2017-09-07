@@ -7,7 +7,8 @@ objects.
 
 """
 from __future__ import print_function
-
+from appurl import Url, parse_app_url, DownloadError
+from rowgenerators import Source, get_generator
 ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
@@ -19,7 +20,6 @@ from .terms import Term, SectionTerm, RootSectionTerm
 import six
 
 from .exc import IncludeError, DeclarationError, ParserError, GenerateError
-from .generate import MetatabRowGenerator
 from os.path import dirname, join, exists
 from .util import declaration_path, import_name_or_class
 
@@ -47,13 +47,18 @@ class TermParser(object):
         :return:
         """
 
-        self.resolver = resolver
+        self.resolver = resolver or doc.resolver
 
         assert self.resolver is not None
 
         self._remove_special = remove_special
 
-        self._ref = ref
+        if isinstance(ref, (Url, Source)):
+            self._ref = ref
+        else:
+            self._ref = parse_app_url(ref)
+
+        assert isinstance(self._ref, (Url, Source)), (type(ref), ref)
 
         self._path = None # Set after running parse, from row generator
 
@@ -72,7 +77,6 @@ class TermParser(object):
         self.root = RootSectionTerm(file_name=self.path, doc=self._doc)
 
         self.install_declare_terms()
-
 
 
 
@@ -194,12 +198,13 @@ class TermParser(object):
     def errors_as_dict(self):
         """Return parse errors as a dict"""
         errors = []
+
         for e in self.errors:
             errors.append({
                 'file': e.term.file_name,
-                'row': e.term.row,
-                'col': e.term.col,
-                'term': e.term.join,
+                'row': e.term.row if e.term else '<unknown>',
+                'col': e.term.col if e.term else '<unknown>',
+                'term': e.term.join if e.term else '<unknown>',
                 'error': str(e)
             })
 
@@ -218,28 +223,39 @@ class TermParser(object):
 
          """
 
-        if exists(name):
-            return name
+        path = None
+        while True:
+            if exists(name):
+                path =name
+                break
 
-        try:
-            # Look for a local document
-            return declaration_path(name)
-        except IncludeError:
-            pass
+            try:
+                # Look for a local document
+                path = declaration_path(name)
+                break
+            except IncludeError:
+                pass
 
-        for fn in (join(d, name), join(d, name + '.csv')):
-            if exists(fn):
-                return fn
+            for fn in (join(d, name), join(d, name + '.csv')):
+                if exists(fn):
+                    path = fn
+                    break
+            if path:
+                break
 
-        if name.startswith('http'):
-            return name.strip('/')  # Look for the file on the web
-        elif exists(name):
-            return name
-        else:
-            return self.resolver.find_decl_doc(name)
+            if name.startswith('http'):
+                path = name.strip('/')  # Look for the file on the web
+                break
+            elif exists(name):
+                path = name
+                break
+            else:
+                path = self.resolver.find_decl_doc(name)
+                break
 
+            raise IncludeError("No local declaration file for '{}'".format(name))
 
-        raise IncludeError("No local declaration file for '{}'".format(name))
+        return parse_app_url(path)
 
     def find_include_doc(self, d, name):
         """Resolve a name or path for an include doc to a an absolute path or url
@@ -258,9 +274,9 @@ class TermParser(object):
 
             path = join(d, include_ref)
 
-        return path
+        return parse_app_url(path)
 
-    def generate_terms(self, ref, root, file_type=None):
+    def generate_terms(self, row_gen, root, file_type=None):
         """An generator that yields term objects, handling includes and argument
         children.
         :param file_type:
@@ -270,15 +286,12 @@ class TermParser(object):
 
         """
 
-        # This method is seperate from __iter__ so it can recurse for Include and Declare
-
-        row_gen = self.resolver.get_row_generator(ref, cache=self.doc.cache)
-
-        if not isinstance(ref, six.string_types):
-            ref = six.text_type(ref)
-
         last_section = root
 
+        try:
+            ref_path = row_gen.ref.path
+        except AttributeError:
+            ref_path = str(row_gen.ref)
 
         try:
             for line_n, row in enumerate(row_gen, 1):
@@ -295,7 +308,7 @@ class TermParser(object):
                          row[2:] if len(row) > 2 else [],
                          row=line_n,
                          col=1,
-                         file_name=ref, file_type=file_type, doc=self.doc)
+                         file_name=str(row_gen.ref), file_type=file_type, doc=self.doc)
 
                 if t.value and str(t.value).startswith('#'): # Comments are ignored
                     continue
@@ -303,17 +316,20 @@ class TermParser(object):
                 if t.term_is('include') or t.term_is('declare'):
 
                     if t.term_is('include'):
-                        resolved = self.find_include_doc(dirname(ref), t.value.strip())
+                        resolved = self.find_include_doc(dirname(ref_path), t.value.strip())
                     else:
-                        resolved = self.find_declare_doc(dirname(ref), t.value.strip())
+                        resolved = self.find_declare_doc(dirname(ref_path), t.value.strip())
 
-                    if ref == resolved:
+                    if row_gen.ref == resolved:
                         raise IncludeError("Include loop for '{}' ".format(resolved))
 
                     yield t
 
                     try:
-                        for t in self.generate_terms(resolved, root, file_type=t.record_term_lc):
+
+                        sub_gen = get_generator(resolved.get_resource().get_target())
+
+                        for t in self.generate_terms(sub_gen, root, file_type=t.record_term_lc):
                             yield t
 
                         if last_section:
@@ -323,7 +339,7 @@ class TermParser(object):
                         e.term = t
                         raise
 
-                    except (OSError, FileNotFoundError, GenerateError) as e:
+                    except (OSError, FileNotFoundError, GenerateError, DownloadError) as e:
                         e = IncludeError("Failed to Include; {}".format(e))
                         e.term = t
                         raise e
@@ -347,12 +363,12 @@ class TermParser(object):
                             yield term_class(term_name, six.text_type(value), [],
                                        row=line_n,
                                        col=col + 2,  # The 0th argument starts in col 2
-                                       file_name=ref,
+                                       file_name=ref_path,
                                        file_type=file_type,
                                        parent=t)
         except IncludeError as e:
             from six import text_type
-            exc = IncludeError(text_type(e) + "; in '{}' ".format(ref))
+            exc = IncludeError(text_type(e) + "; in '{}' ".format(row_gen.ref))
             exc.term = e.term if hasattr(e, 'term') else None
             raise exc
 
@@ -373,8 +389,13 @@ class TermParser(object):
         yield self.root
 
         try:
+            t = self._ref.get_resource().get_target() # An AppUrl
+        except AttributeError as e:
+            t = self._ref # Hopefully a generator
 
-            for i, t in enumerate(self.generate_terms(self._ref, root)):
+        try:
+
+            for i, t in enumerate(self.generate_terms(get_generator(t), root)):
 
                 # Substitute synonyms
                 if t.join_lc in self.synonyms:
@@ -462,6 +483,7 @@ class TermParser(object):
                     yield t
 
         except IncludeError as e:
+            assert e is not None
             self.errors.add(e)
             raise
 

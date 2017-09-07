@@ -92,7 +92,7 @@ class Term(object):
 
         self.children = []  # When terms are linked, hold term's children.
 
-        assert self.file_name is None or isinstance(self.file_name, six.string_types)
+        assert self.file_name is None or isinstance(self.file_name, six.string_types), self.file_name
 
         self.__initialised = True
 
@@ -672,6 +672,9 @@ class SectionTerm(Term):
                  doc=None, section=None):
 
         assert doc is not None
+
+        if term is None:
+            term = 'Root.Section'
 
         self.doc = doc
 

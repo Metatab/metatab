@@ -17,11 +17,11 @@ from appurl import parse_app_url
 from rowgenerators.exceptions import SourceError
 from metatab import DEFAULT_METATAB_FILE
 from metatab.parser import TermParser
-from metatab.generate import CsvPathRowGenerator, WebResolver
+from metatab.resolver import WebResolver
 from metatab.exc import MetatabError
 from metatab.util import slugify, get_cache
 from .terms import SectionTerm, RootSectionTerm
-
+from appurl import AppUrlError, Url
 from itertools import groupby
 
 logger = logging.getLogger('doc')
@@ -43,8 +43,6 @@ class MetatabDoc(object):
         self.errors = []
         self.package_url = package_url
 
-        assert resolver is not None
-
         self.resolver = resolver or WebResolver()
 
         if decl is None:
@@ -57,22 +55,27 @@ class MetatabDoc(object):
         self.load_declarations(self.decls)
 
         if ref:
-            self._ref = ref
+            try:
+                self._ref = parse_app_url(ref)
+
+                if self._ref.scheme == 'file':
+                    try:
+                        self._mtime = getmtime(self._ref.path)
+                    except (FileNotFoundError, OSError):
+                        self._mtime = 0
+                else:
+                    self._mtime = 0
+
+            except AppUrlError as e:  # ref is probably a generator, not a string or Url
+                self._ref = None
+
             self.root = None
-            self._term_parser = TermParser(self._ref, resolver=self.resolver, doc=self)
+            self._term_parser = TermParser(ref, resolver=self.resolver, doc=self)
             try:
                 self.load_terms(self._term_parser)
             except SourceError as e:
                 raise MetatabError("Failed to load terms for document '{}': {}".format(self._ref, e))
 
-            u = parse_app_url(self._ref)
-            if u.scheme == 'file':
-                try:
-                    self._mtime = getmtime(u.path)
-                except (FileNotFoundError, OSError):
-                    self._mtime = 0
-            else:
-                self._mtime = 0
 
         else:
             self._ref = None
@@ -95,7 +98,7 @@ class MetatabDoc(object):
 
         u = parse_app_url(self.ref)
 
-        if u.proto != 'file':
+        if u.inner.proto != 'file':
             return None
 
         return u.path
@@ -159,6 +162,9 @@ class MetatabDoc(object):
     def doc_dir(self):
         """The absolute directory of the document"""
         from os.path import abspath
+
+        if not self.ref:
+            return None
 
         u = parse_app_url(self.ref)
         return abspath(dirname(u.path))
@@ -260,7 +266,7 @@ class MetatabDoc(object):
 
     def new_section(self, name, params=None):
         """Return a new section"""
-        self.sections[name.lower()] = SectionTerm(name, term_args=params, parent=self.root, doc=self)
+        self.sections[name.lower()] = SectionTerm(None, name, term_args=params, doc=self)
 
         # Set the default arguments
         s = self.sections[name.lower()]
@@ -273,7 +279,7 @@ class MetatabDoc(object):
     def get_or_new_section(self, name, params=None):
         """Create a new section or return an existing one of the same name"""
         if name not in self.sections:
-            self.sections[name.lower()] = SectionTerm(name, term_args=params, parent=self.root, doc=self)
+            self.sections[name.lower()] = SectionTerm(None, name, term_args=params, doc=self)
 
         return self.sections[name.lower()]
 
@@ -496,9 +502,7 @@ class MetatabDoc(object):
 
         return self.load_terms(term_interp)
 
-    def load_csv(self, file_name):
-        """Load a Metatab CSV file into the builder to continue editing it. """
-        return self.load_rows(CsvPathRowGenerator(file_name))
+
 
 
 

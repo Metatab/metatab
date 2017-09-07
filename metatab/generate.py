@@ -1,59 +1,22 @@
+
 # Copyright (c) 2016 Civic Knowledge. This file is licensed under the terms of the
 # Revised BSD License, included in this distribution as LICENSE
 
 """
-Generate rows from a variety of paths, references or other input
+
 """
 
-from .exc import IncludeError, GenerateError
-from os.path import exists
-from appurl import parse_app_url
+from rowgenerators import Source
 
-
-class WebResolver(object):
-
-    def fetch_row_source(self, url):
-        pass
-
-    def find_decl_doc(self, name):
-
-
-        raise IncludeError(name)
-
-        import requests
-        from requests.exceptions import InvalidSchema
-        url = METATAB_ASSETS_URL + name + '.csv'
-        try:
-            # See if it exists online in the official repo
-            r = requests.head(url, allow_redirects=False)
-            if r.status_code == requests.codes.ok:
-                return url
-
-        except InvalidSchema:
-            pass  # It's probably FTP
-
-
-    def get_row_generator(self, ref, cache=None):
-
-        """Return a row generator for a reference"""
-        from inspect import isgenerator
-        from rowgenerators import get_generator
-
-        g = get_generator(ref)
-
-        if not g:
-            raise GenerateError("Cant figure out how to generate rows from {} ref: {}".format(type(ref), ref))
-        else:
-            return g
-
-
-class MetatabRowGenerator(object):
+class MetatabRowGenerator(Source):
     """An object that generates rows. The current implementation mostly just a wrapper around
     csv.reader, but it add a path property so term interperters know where the terms are coming from
     """
 
-    def __init__(self, rows, path=None):
-        self._rows = rows
+    def __init__(self, ref, cache=None, working_dir=None, path = None, **kwargs):
+        super().__init__(ref, cache, working_dir, **kwargs)
+
+        self._rows = ref
         self._path = path or '<none>'
 
     @property
@@ -71,158 +34,12 @@ class MetatabRowGenerator(object):
             yield row
 
 
-# FIXME: Can probably remove this class in favor of GenericRowGenerator
-class CsvUrlRowGenerator(MetatabRowGenerator):
-    """An object that generates rows. The current implementation mostly just a wrapper around
-    csv.reader, but it add a path property so term interperters know where the terms are coming from
-    """
-
-    def __init__(self, url):
-
-        self._url = url
-        self._f = None
-
-    @property
-    def path(self):
-        return self._url
-
-    def open(self):
-        import sys
-
-        import six.moves.urllib as urllib
-        try:
-            if sys.version_info[0] < 3:
-                self._f = urllib.request.urlopen(str(self._url))
-            else:
-                self._f = urllib.request.urlopen(str(self._url))
-
-        except urllib.error.URLError:
-            raise IncludeError("Failed to find file by url: {}".format(self._url))
-
-    def close(self):
-        pass
-
-    def __iter__(self):
-        import unicodecsv as csv
-
-        self.open()
-
-        # Python 3, should use yield from
-        for row in csv.reader(self._f):
-            yield row
-
-        self.close()
-
-
-# FIXME: Can probably remove this class in favor of GenericRowGenerator
-class CsvPathRowGenerator(MetatabRowGenerator):
-    """An object that generates rows. The current implementation mostly just a wrapper around
-    csv.reader, but it add a path property so term interperters know where the terms are coming from
-    """
-
-    def __init__(self, url):
-
-        self._path = url.path
-        self._f = None
-
-    @property
-    def path(self):
-        return self._path
-
-    def open(self):
-        import sys
-
-        from os.path import join
-
-        try:
-
-            if sys.version_info[0] < 3:
-                self._f = open(self._path, 'rb')
-            else:
-                self._f = open(self._path, 'rb')  # 'b' because were using unicodecsv
-
-        except IOError:
-            raise IncludeError("Failed to find file: {}".format(self._path))
-
-    def close(self):
-
-        if self._f:
-            self._f.close()
-            self._f = None
-
-    def __iter__(self):
-        import unicodecsv as csv
-
-        self.open()
-
-        # Python 3, should use yield from
-        for row in csv.reader(self._f):
-            yield row
-
-        self.close()
-
-
-# FIXME: Can probably remove this class in favor of GenericRowGenerator
-class CsvDataRowGenerator(MetatabRowGenerator):
-    """Generate rows from CSV data, as a string
-    """
-
-    def __init__(self, data, path=None):
-        self._data = data
-        self._path = path or '<none>'
-
-    @property
-    def path(self):
-        return self._path
-
-    def open(self):
-        pass
-
-    def close(self):
-        pass
-
-    def __iter__(self):
-        import unicodecsv as csv
-        from io import BytesIO
-
-        f = BytesIO(self._data)
-
-        # Python 3, should use yield from
-        for row in csv.reader(f):
-            yield row
-
-
-class GenericRowGenerator(MetatabRowGenerator):
-    """Use generators from the rowgenerator package"""
-
-    def __init__(self, url, cache=None):
-        self._url = url
-        self._cache = cache
-
-    @property
-    def path(self):
-        return self._url
-
-    def open(self):
-        pass
-
-    def close(self):
-        pass
-
-    def __iter__(self):
-        raise NotImplementedError()
-        from rowgenerators import SourceSpec
-
-        spec = SourceSpec(url=self._url)
-
-        for row in spec.get_generator(self._cache):
-            yield row
-
 
 class TextRowGenerator(MetatabRowGenerator):
     """Return lines of text of a line-oriented metatab file, breaking them to be used as Metatab rows"""
 
-    def __init__(self, ref, path=None):
+    def __init__(self, ref, cache=None, working_dir=None, path = None, **kwargs):
+        super().__init__(ref, cache, working_dir, path, **kwargs)
 
         while True:
 

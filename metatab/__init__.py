@@ -8,6 +8,5 @@ DEFAULT_METATAB_FILE = 'metadata.csv'
 
 from .parser import *
 from .exc import *
-from .generate import *
 from .doc import *
 

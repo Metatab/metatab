@@ -2,18 +2,17 @@ from __future__ import print_function
 
 import json
 import unittest
-
+from appurl import parse_app_url
 from metatab import IncludeError
-from metatab import MetatabRowGenerator
-
 from metatab.util import flatten, declaration_path
-from metatab import TermParser, CsvPathRowGenerator
+from metatab import TermParser
 from metatab.terms import Term
 from collections import defaultdict
 
 import json
 from os.path import exists
-from metatab import MetatabDoc
+from metatab import MetatabDoc, WebResolver
+from rowgenerators import get_generator
 
 
 def test_data(*paths):
@@ -132,7 +131,7 @@ class MyTestCase(unittest.TestCase):
         # Use the Declare term
 
         fn = test_data('example1.csv')
-        doc = MetatabDoc(CsvPathRowGenerator(fn))
+        doc = MetatabDoc(CsvPathRowGenerator(fn), resolver=WebResolver)
 
         d = doc._term_parser.declare_dict
 
@@ -189,12 +188,12 @@ class MyTestCase(unittest.TestCase):
         def errs(fn):
             with self.assertRaises(IncludeError):
                 doc = MetatabDoc()
-                tp = TermParser(CsvPathRowGenerator(fn), doc=doc)
+                tp = TermParser(get_generator(fn), doc=doc)
                 _ = list(tp)
 
             return tp.errors_as_dict()
 
-        e = errs(test_data('errors/bad_include.csv'))
+        e = errs(parse_app_url(test_data('errors/bad_include.csv')))
 
         print(e)
 
@@ -211,9 +210,6 @@ class MyTestCase(unittest.TestCase):
 
 
     def test_headers(self):
-
-        from metatab import TermParser, CsvPathRowGenerator
-
         d1 = MetatabDoc(test_data('example1-headers.csv')).root.as_dict()
         d2 = MetatabDoc(test_data('example1.csv')).root.as_dict()
 
@@ -415,9 +411,10 @@ class MyTestCase(unittest.TestCase):
 
     def test_term_subclasses(self):
         from metatab.terms import Term, SectionTerm
+        from metatab import WebResolver
 
         doc = MetatabDoc()
-        tp = TermParser(test_data('example1.csv'), doc=doc)
+        tp = TermParser(test_data('example1.csv'), resolver=WebResolver, doc=doc)
 
         terms = list(tp)
 
