@@ -24,7 +24,7 @@ class Resolver(WebResolver):
 
 class MetapackDoc(MetatabDoc):
 
-    def __init__(self, ref=None, decl=None,  cache=None, resolver=None, clean_cache=False):
+    def __init__(self, ref=None, decl=None,  cache=None, resolver=None, package_url=None, clean_cache=False):
 
         #assert isinstance(ref, (MetapackDocumentUrl, MetapackResourceUrl)), (type(ref), ref)
 
@@ -35,13 +35,16 @@ class MetapackDoc(MetatabDoc):
 
         assert resolver is not None
 
-        try:
-            # For MetapackDocumentUrl, MetapackResourceUrl
-            super().__init__(ref, decl,
-                         str(ref.package_url.inner), cache, resolver, clean_cache)
-        except AttributeError:
-            # For iterators, generators
-            super().__init__(ref, decl,None, cache, resolver, clean_cache)
+        if package_url is None:
+            try:
+                package_url = ref.package_url
+            except AttributeError:
+                # For iterators, generators
+                package_url = None
+
+
+        super().__init__(ref, decl, package_url, cache, resolver, clean_cache)
+
 
     @property
     def path(self):

@@ -7,7 +7,7 @@ Record objects for the Simple Data Package format.
 from .exc import *
 from .doc import MetapackDoc
 from .package import open_package
-from .appurl import MetapackUrl, MetapackDocumentUrl, MetapackResourceUrl
+from .appurl import MetapackUrl, MetapackDocumentUrl, MetapackResourceUrl, MetapackPackageUrl
 
 
 from metapack.jupyter.magic import load_ipython_extension, unload_ipython_extension

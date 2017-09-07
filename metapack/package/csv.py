@@ -23,9 +23,15 @@ class CsvPackageBuilder(PackageBuilder):
             # Only works for file system packages.
             pass
 
-    def _load_resource(self, r, gen, headers):
+    def _load_resource(self, source_r):
         """The CSV package has no reseources, so we just need to resolve the URLs to them. Usually, the
-        CSV package is built from a file system ackage on a publically acessible server. """
+            CSV package is built from a file system ackage on a publically acessible server. """
+
+        r = self.doc.resource(source_r.name)
+
+        from itertools import islice
+        gen = islice(r, 1, None)
+        headers = r.headers
 
         r.url = r.resolved_url
 

@@ -98,7 +98,14 @@ class FileSystemPackageBuilder(PackageBuilder):
         with open(join(self.package_path.path, 'index.html'), 'w') as f:
             f.write(self._doc.html)
 
-    def _load_resource(self, source_r, gen, headers):
+
+    def _load_resource(self, source_r):
+        """The CSV package has no reseources, so we just need to resolve the URLs to them. Usually, the
+            CSV package is built from a file system ackage on a publically acessible server. """
+
+        from itertools import islice
+        gen = islice(source_r, 1, None)
+        headers = source_r.headers
 
         r = self.datafile(source_r.name)
 

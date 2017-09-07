@@ -18,6 +18,7 @@ from metapack.cli.core import prt, err, metatab_info, get_lib_module_dict, write
     cli_init
 from metapack.package import *
 from metapack.package.s3 import S3Bucket
+from metapack import MetapackPackageUrl
 from metatab import _meta, DEFAULT_METATAB_FILE
 from metapack.exc import  PackageError
 from rowgenerators.util import clean_cache
@@ -97,7 +98,8 @@ def metasync():
                 self.args.csv = True
                 self.args.fs = True
 
-
+            if not self.args.s3:
+                err("Must specify either -S or -s")
 
             self.mtfile_arg = self.args.metatabfile if self.args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
 
@@ -108,7 +110,16 @@ def metasync():
             self.package_url = self.mtfile_url.package_url
             self.mt_file = self.mtfile_url.metadata_url
 
-            self.package_root = self.package_url.join(PACKAGE_PREFIX).inner
+            self.package_root = self.package_url.join(PACKAGE_PREFIX)
+
+            if not self.args.s3:
+                doc = MetapackDoc(self.mt_file)
+                self.args.s3 = doc['Root'].find_first_value('Root.S3')
+
+            self.s3_url = parse_app_url(self.args.s3)
+
+            if not self.s3_url.scheme == 's3':
+                self.s3_url = parse_app_url("s3://{}".format(self.args.s3))
 
             assert self.package_root._downloader
 
@@ -127,18 +138,16 @@ def metasync():
         metatab_info(m.cache)
         exit(0)
 
-    if not m.args.s3:
-        doc = MetapackDoc(m.mt_file)
-        m.args.s3 = doc['Root'].find_first_value('Root.S3')
 
-    if not m.args.s3:
-        err("Must specify either -S or -s")
+
+
+
 
     if m.args.excel is not False or m.args.zip is not False or m.args.fs is not False:
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
 
     doc = MetapackDoc(m.mt_file)
-    doc['Root'].get_or_new_term('Root.S3', m.args.s3)
+    doc['Root'].get_or_new_term('Root.S3', str(m.s3_url))
 
 
     write_doc(doc, m.mt_file)
@@ -253,7 +262,7 @@ def update_distributions(m):
 
     acl = 'private' if access_value == 'private' else 'public'
 
-    b = S3Bucket(m.args.s3, acl=acl)
+    b = S3Bucket(m.s3_url, acl=acl)
 
     updated = False
 
@@ -335,7 +344,7 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
     # are building from processed files.
     env = {}
 
-    s3 = S3Bucket(m.args.s3, acl=acl, profile=m.args.profile)
+    s3 = S3Bucket(m.s3_url, acl=acl, profile=m.args.profile)
 
     urls = []
 
@@ -369,7 +378,8 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
         # Note! This is a FileSystem package on the remote S3 bucket, not locally
         if m.args.fs is not False:
             try:
-                fs_p, fs_url, created = make_s3_package(third_stage_mtfile, m.args.s3, m.cache, env, acl, skip_if_exists)
+                s3_package_root = MetapackPackageUrl(str(m.s3_url), downloader=third_stage_mtfile.downloader)
+                fs_p, fs_url, created = make_s3_package(third_stage_mtfile, s3_package_root, m.cache, env, acl, skip_if_exists)
             except NoCredentialsError:
                 print(getenv('AWS_SECRET_ACCESS_KEY'))
                 err("Failed to find boto credentials for S3. "
@@ -386,6 +396,7 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
         if m.args.csv is not False:
 
             # Using the signed url in case the bucket is private
+
 
             u = MetapackUrl(fs_p.access_url, downloader=m.downloader)
 

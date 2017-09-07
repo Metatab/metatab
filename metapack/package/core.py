@@ -14,7 +14,7 @@ from six import text_type
 
 from appurl import Url, parse_app_url
 from metapack import MetapackDoc
-from metapack.appurl import MetapackUrl
+from metapack.appurl import MetapackUrl, MetapackPackageUrl
 from metapack.exc import PackageError
 from metapack.terms import Resource
 from metapack.util import Bunch, get_cache
@@ -25,6 +25,8 @@ from tableintuit import RowIntuiter
 class PackageBuilder(object):
 
     def __init__(self, source_ref=None, package_root = None,  callback=None, env=None):
+
+        assert isinstance(package_root, (type(None), MetapackPackageUrl)), type(package_root)
 
         self._downloader = source_ref._downloader
         self._cache = self._downloader.cache
@@ -366,25 +368,10 @@ class PackageBuilder(object):
                                    .format(r.url, type(r)))
 
 
-            if True:
-                # Skipping the first line because we'll insert the headers manually
-                self._load_resource(r, islice(r, 1, None), r.headers)
+            self._load_resource(r)
 
-            else:
-
-                # Old code; no longer sure why the code is faking the start line and removing
-                # the format, headerlines, etc.
-
-                start_line = int(r.get_value('startline')) if r.get_value('startline') is not None  else 1
-
-                gen = islice(r, start_line, None)
-
-                r.encoding = None
-                r.startline = None
-                r.headerlines = None
-                r.format = None
-
-                self._load_resource(r, gen, r.headers)
+    def _load_resource(self, source_r):
+        raise NotImplementedError()
 
     def _get_ref_contents(self, t):
 

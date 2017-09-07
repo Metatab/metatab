@@ -6,6 +6,7 @@ from appurl import parse_app_url
 from metapack import open_package, MetapackDoc
 from metatab.util import flatten
 from metatab.generate import TextRowGenerator
+from itertools import islice
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
@@ -106,16 +107,37 @@ class TestIPython(unittest.TestCase):
         with open(test_data('line-oriented-doc.txt')) as f:
             text = f.read()
 
-
         doc = MetapackDoc(TextRowGenerator("Declare: metatab-latest\n" + text))
 
         process_schemas(doc)
 
-        r = doc.find_first('Root.Reference', name='incv')
+        # Test Dataframes
+        if False:
+            r = doc.reference('tracts')
 
-        assert r
+            self.assertEqual(628, len(list(r)))
+
+            tracts  = r.dataframe()
+
+            self.assertEqual(-73427, tracts.lon.sum().astype(int))
+
+        r = doc.reference('incv')
+
+        ru = r.resolved_url
+
+        # Upstream metatab resource
+        doc = ru.doc
+        ur = doc.resource('income_homeval')
+
+        print(ur.resolved_url)
+
+        return
+
+
+        incv = r.dataframe()
 
         # Test loading a Python Library from a package.
+        r = doc.reference('incv')
         u = parse_app_url(r.url).inner.clear_fragment()
 
         r = u.get_resource()
@@ -132,9 +154,6 @@ class TestIPython(unittest.TestCase):
 
         from lib.incomedist import sum_densities
 
-        # Test Dataframes
-
-        incv = doc.reference('incv').dataframe()
 
     def x_test_pandas(self):
 

@@ -11,6 +11,7 @@ import unicodecsv as csv
 
 from appurl import parse_app_url
 from metatab import DEFAULT_METATAB_FILE
+
 from .core import PackageBuilder
 
 
@@ -23,7 +24,7 @@ class S3PackageBuilder(PackageBuilder):
 
         super().__init__(source_ref, package_root, callback, env)
 
-        self.package_path = join(self.package_root, self.package_name)
+        self.package_path = self.package_root.join(self.package_name)
 
         self.force = force
 
@@ -33,15 +34,23 @@ class S3PackageBuilder(PackageBuilder):
 
     @property
     def access_url(self):
-        return self.bucket.access_url(DEFAULT_METATAB_FILE)
+        from metapack import MetapackPackageUrl
+        return MetapackPackageUrl(self.bucket.access_url(DEFAULT_METATAB_FILE),
+                                  downloader=self._source_ref.downloader)
+
 
     @property
     def private_access_url(self):
-        return self.bucket.private_access_url(DEFAULT_METATAB_FILE)
+        from metapack import MetapackPackageUrl
+        return MetapackPackageUrl(self.bucket.access_url(DEFAULT_METATAB_FILE),
+                                  downloader=self._source_ref.downloader)
 
     @property
     def public_access_url(self):
-        return self.bucket.public_access_url(DEFAULT_METATAB_FILE)
+        from metapack import MetapackPackageUrl
+
+        return MetapackPackageUrl(self.bucket.public_access_url(DEFAULT_METATAB_FILE),
+                                  downloader=self._source_ref.downloader)
 
     @property
     def signed_url(self):
@@ -112,7 +121,10 @@ class S3PackageBuilder(PackageBuilder):
         self.write_to_s3('index.html', self._doc.html)
         self._doc._ref = old_ref
 
-    def _load_resource(self, r, gen, headers):
+    def _load_resource(self, r):
+        from itertools import islice
+        gen = islice(r, 1, None)
+        headers = r.headers
 
         r.url = 'data/' + r.name + '.csv'
 
@@ -149,6 +161,12 @@ class S3Bucket(object):
 
     def __init__(self, url, acl='public', profile=None):
 
+
+        if url.scheme != 's3':
+            raise ReferenceError("Must be an S3 url; got: {}".format(url))
+
+        self.url = url
+
         session = boto3.Session(profile_name=profile)
 
         self._s3 = session.resource('s3')
@@ -158,42 +176,15 @@ class S3Bucket(object):
 
         self._acl = acl
 
-        p = parse_app_url(url)
-
-        if p.netloc:  # The URL didn't have the '//'
-            self._prefix = p.path
-            bucket_name = p.netloc
-
-            if p.scheme != 's3':
-                raise ReferenceError("Must be an S3 url; got: {}".format(url))
-
-        else:
-            try:
-                proto, netpath = url.split(':')
-            except ValueError:
-                # Assume it's just the bucket name
-                proto = 's3'
-                netpath = url
-
-            if proto != 's3':
-                raise ReferenceError("Must be an S3 url; got: {}".format(url))
-
-            try:
-                bucket_name, self._prefix = netpath.split('/', 1)
-            except ValueError:
-                bucket_name, self._prefix = netpath, ''
-
-
-        self._bucket_name = bucket_name
-        self._bucket = self._s3.Bucket(bucket_name)
+        self._bucket = self._s3.Bucket(self.bucket_name)
 
     @property
     def prefix(self):
-        return self._prefix
+        return self.url.path
 
     @property
     def bucket_name(self):
-        return self._bucket_name
+        return self.url.netloc
 
     def access_url(self, *paths):
 
@@ -204,37 +195,37 @@ class S3Bucket(object):
 
     def private_access_url(self, *paths):
 
-        key = join(self._prefix, *paths).strip('/')
+        key = join(self.prefix, *paths).strip('/')
 
         s3 = boto3.client('s3')
 
-        return "s3://{}/{}".format(self._bucket_name, key)
+        return "s3://{}/{}".format(self.bucket_name, key)
 
     def public_access_url(self, *paths):
 
-        key = join(self._prefix, *paths).strip('/')
+        key = join(self.prefix, *paths).strip('/')
 
         s3 = boto3.client('s3')
 
-        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self._bucket_name, key)
+        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self.bucket_name, key)
 
     def signed_access_url(self, *paths):
 
         import pdb;
         pdb.set_trace()
 
-        key = join(self._prefix, *paths).strip('/')
+        key = join(self.prefix, *paths).strip('/')
 
         s3 = boto3.client('s3')
 
-        return s3.generate_presigned_url('get_object', Params={'Bucket': self._bucket_name, 'Key': key})
+        return s3.generate_presigned_url('get_object', Params={'Bucket': self.bucket_name, 'Key': key})
 
 
     def exists(self, *paths):
         import botocore
 
         # index.html is the last file written
-        key = join(self._prefix, *paths).strip('/')
+        key = join(self.prefix, *paths).strip('/')
 
         exists = False
 
@@ -258,7 +249,7 @@ class S3Bucket(object):
         paginator = s3.get_paginator('list_objects')
 
         # Create a PageIterator from the Paginator
-        page_iterator = paginator.paginate(Bucket=self._bucket_name)
+        page_iterator = paginator.paginate(Bucket=self.bucket_name)
 
         for page in page_iterator:
             for c in page['Contents']:
@@ -271,7 +262,7 @@ class S3Bucket(object):
 
         acl = acl if acl is not None else self._acl
 
-        key = join(self._prefix, path).strip('/')
+        key = join(self.prefix, path).strip('/')
 
         try:
             file_size = getsize(body.name) # Maybe it's an open file
@@ -293,9 +284,9 @@ class S3Bucket(object):
         except ClientError as e:
             if int(e.response['Error']['Code']) in (403, 405):
                 err("S3 Access failed for '{}:{}': {}\nNOTE: With Docker, this error is often the result of container clock drift. Check your container clock. "
-                    .format(self._bucket_name, key, e))
+                    .format(self.bucket_name, key, e))
             elif int(e.response['Error']['Code']) != 404:
-                err("S3 Access failed for '{}:{}': {}".format(self._bucket_name, key, e))
+                err("S3 Access failed for '{}:{}': {}".format(self.bucket_name, key, e))
 
         ct = mimetypes.guess_type(key)[0]
 

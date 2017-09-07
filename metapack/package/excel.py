@@ -7,6 +7,7 @@ from os.path import join, dirname
 from .core import PackageBuilder
 from metapack.exc import PackageError
 from metapack.util import  ensure_dir, slugify
+from itertools import islice
 
 
 class ExcelPackageBuilder(PackageBuilder):
@@ -83,15 +84,20 @@ class ExcelPackageBuilder(PackageBuilder):
 
         return super()._load_resources()
 
-    def _load_resource(self, r, gen, headers):
+    def _load_resource(self, source_r):
+
+        r = self._doc.resource(source_r.name)
+
+        from itertools import islice
 
         self.prt("Loading data for sheet '{}' ".format(r.name))
 
         ws = self.wb.create_sheet(r.name)
 
-        ws.append(headers)
+        ws.append(r.headers)
 
-        for row in gen:
+
+        for row in islice(r, 1, None):
             ws.append(row)
 
         r.url = r.name

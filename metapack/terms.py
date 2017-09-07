@@ -1,9 +1,10 @@
 from itertools import islice
 
-from appurl import parse_app_url
+from appurl import parse_app_url, WebUrl
 from metapack import MetapackError
 from metapack.doc import EMPTY_SOURCE_HEADER
 from metapack.exc import PackageError
+from metapack.appurl import MetapackPackageUrl
 from metatab import Term
 from rowgenerators import DownloadError, get_generator
 from rowpipe import RowProcessor
@@ -24,6 +25,7 @@ class Resource(Term):
 
             self.errors = {}  # Typecasting errors
 
+
             super().__init__(term, value, term_args, row, col, file_name, file_type, parent, doc, section)
 
 
@@ -31,14 +33,16 @@ class Resource(Term):
         def base_url(self):
             """Base URL for resolving resource URLs"""
 
-            return self.doc.package_url if self.doc.package_url else self.doc._ref
+            if self.doc.package_url:
+                return self.doc.package_url
+
+            return self.doc._ref
 
         @property
         def env(self):
             """The execution context for rowprocessors and row-generating notebooks and functions. """
 
             return self.doc.env
-
 
 
         @property
@@ -58,36 +62,28 @@ class Resource(Term):
         def _self_url(self):
             """Return the URl value, which might just be the value, and not self.url, if the document
             declartion is broken"""
-            try:
-                if self.url:
-                    return self.url
-            finally:  # WTF? No idea, probably wrong.
-                return self.value
-
+            return self.url
 
         @property
         def resolved_url(self):
             """Return a URL that properly combines the base_url and a possibly relative
             resource url"""
 
-
-            if self.base_url:
-                u = parse_app_url(self.base_url)
-
-            else:
-                u = parse_app_url(self.doc.package_url)
+            assert isinstance(self.doc.package_url, MetapackPackageUrl)
 
             if not self._self_url:
                 return None
 
-            if u.resource_format in ('zip', 'xlsx'):
-                nu = u.clone(fragment=self._self_url)
-            else:
-                nu = u.join_dir(self._self_url)
+            u = parse_app_url(self._self_url)
 
-            # The manipulations of component_url can result in the .inner sub-url being very different from the
-            # .resource_url sub-url. Reparsing should fix all of that.
-            return parse_app_url(str(nu))
+            if u.proto != 'file':
+                return u
+            else:
+
+                t = self.doc.package_url.resolve_url(self._self_url)
+
+                return t
+
 
         def _name_for_col_term(self, c, i):
 
@@ -227,11 +223,9 @@ class Resource(Term):
                 return None
 
         @property
-        def row_generator(self):
+        def generator_env(self):
 
             d = self.all_props
-
-            d['source'] = self.resolved_url.get_resource().get_target()
 
             d['target_format'] = d.get('format')
             d['target_segment'] = d.get('segment')
@@ -253,9 +247,32 @@ class Resource(Term):
             d['working_dir'] = self._doc.doc_dir
             d['generator_args'] = generator_args
 
-            g = get_generator(**d)
+            return d
+
+        @property
+        def row_generator(self):
+
+            ru = self.resolved_url
+
+            try:
+                # Probably a reference to a Metapack package
+                r = ru.generator
+                assert r is not None, ru
+                return r
+
+            except AttributeError:
+                pass
+
+            ut = ru.inner.get_resource().get_target()
+
+            assert ut.proto == 'file'
+
+            g =  get_generator(ut, **self.generator_env)
+
+            assert g,ut
 
             return g
+
 
         def _get_header(self):
             """Get the header from the deinfed header rows, for use  on references or resources where the schema
@@ -289,7 +306,11 @@ class Resource(Term):
             if headers:  # There are headers, so use them, and create a RowProcess to set data types
                 yield headers
 
-                rg = RowProcessor(islice(self.row_generator, start, None),
+                base_row_gen = self.row_generator
+
+                assert base_row_gen is not None
+
+                rg = RowProcessor(islice(base_row_gen, start, None),
                                   self.row_processor_table(),
                                   source_headers=self.source_headers,
                                   env=self.env,

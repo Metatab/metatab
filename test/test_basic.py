@@ -68,46 +68,7 @@ class MetatabTestCase(unittest.TestCase):
                           [c.name for c in p['Bibliography']])
 
 
-    def test_build_package(self):
 
-        from metapack.cli.core import make_filesystem_package, make_excel_package, \
-            make_zip_package, make_csv_package, make_s3_package, PACKAGE_PREFIX, cli_init
-        from metapack.util import get_cache
-        from metapack import MetapackUrl
-        from appurl import Downloader, get_cache
-        from os import getcwd
-        from os.path import dirname, join
-
-        cli_init()
-
-        downloader = Downloader(get_cache())
-
-        m = MetapackUrl(test_data('packages/example.com/example-package/metadata.csv'), downloader=downloader)
-
-        package_dir = m.join_dir(PACKAGE_PREFIX).inner
-
-        _, fs_url, created = make_filesystem_package(m,package_dir,get_cache(), {}, False)
-
-        print (created)
-
-        return
-
-        fs_url=MetapackUrl('/Volumes/Storage/proj/virt-proj/metapack/metapack/test-data/packages/example.com/'\
-               'example-package/_packages/example.com-example_data_package-2017-us-1/metadata.csv',
-                downloader=downloader)
-
-        #_, url, created =  make_excel_package(fs_url,package_dir,get_cache(), {}, False)
-
-        #_, url, created = make_zip_package(fs_url, package_dir, get_cache(), {}, False)
-
-        #_, url, created = make_csv_package(fs_url, package_dir, get_cache(), {}, False)
-
-        package_dir = parse_app_url('s3://test.library.civicknowledge.com/metatab', downloader=downloader)
-
-        _, url, created = make_s3_package(fs_url, package_dir, get_cache(), {}, False)
-
-        print(url)
-        print(created)
 
 
 if __name__ == '__main__':

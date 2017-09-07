@@ -183,7 +183,7 @@ def metapack():
             self.package_url = self.mtfile_url.package_url
             self.mt_file = self.mtfile_url.metadata_url
 
-            assert self.package_url.proto == 'file'
+            assert self.package_url.scheme == 'file'
             self.package_root = self.package_url.join(PACKAGE_PREFIX).inner
 
             assert self.package_root._downloader

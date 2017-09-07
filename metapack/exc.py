@@ -13,3 +13,7 @@ class MetapackError(MetatabError):
 class PackageError(MetapackError):
     pass
 
+class ResourceError(MetapackError):
+    pass
+
+
