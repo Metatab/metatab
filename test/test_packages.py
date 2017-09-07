@@ -78,33 +78,31 @@ class TestPackages(unittest.TestCase):
 
     def test_package_resolve_resource_urls(self):
 
-
-
         m = MetapackUrl(test_data('packages/example.com/example-package/metadata.csv'), downloader=downloader)
 
         for r in m.doc.resources():
 
-            if r.name != "random-names-xlsx":
-                continue
+            #if r.name != "renter_cost_excel07":
+            #    continue
 
-            print("=====")
-            print(r.name)
-            ru = r.resolved_url
-            print(ru)
-            rur = ru.get_resource()
-            print(rur)
-            t = rur.get_target()
-            print(t)
-            g = get_generator(r.resolved_url.get_resource().get_target())
-            print(len(list(g)))
+            if False:
+                print("=====")
+                print(r.name)
+                ru = r.resolved_url
+                print(ru)
+                rur = ru.get_resource()
+                print(rur)
+                t = rur.get_target()
+                print(t)
+                g = get_generator(r.resolved_url.get_resource().get_target())
 
+            self.assertEqual(int(r.nrows), len(list(r)))
 
+    
 
     def test_build_package(self):
 
         cli_init()
-
-
 
         m = MetapackUrl(test_data('packages/example.com/example-package/metadata.csv'), downloader=downloader)
 
@@ -195,13 +193,18 @@ class TestPackages(unittest.TestCase):
 
         t = u.get_resource().get_target()
 
-        p = CsvPackageBuilder(u, package_root, None)
+        p = CsvPackageBuilder(u, package_root, resource_root = u.dirname().as_type(MetapackPackageUrl))
 
-        csv_url = p.save(PACKAGE_PREFIX)
+        csv_url = p.save()
 
-        with open(csv_url.path, mode='rb') as f:
-            print (f.read())
-            #urls.append(('csv', s3.write(f.read(), csv_url.target_file, acl)))
+        doc = csv_url.metadata_url.doc
+
+        for r in doc.resources():
+            print(r.name, r.url)
+
+        #with open(csv_url.path, mode='rb') as f:
+        #    print (f.read())
+        #    #urls.append(('csv', s3.write(f.read(), csv_url.target_file, acl)))
 
 
 if __name__ == '__main__':

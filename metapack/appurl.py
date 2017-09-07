@@ -165,7 +165,7 @@ class MetapackDocumentUrl(Url, _MetapackUrl):
             return MetapackDocumentUrl(str(r), downloader=self._downloader)
 
     def get_target(self):
-        return self.inner.get_target().clear_fragment()
+        return self.inner.get_target()
 
     def join_target(self, tf):
         if self.target_file == DEFAULT_METATAB_FILE:
@@ -336,7 +336,8 @@ class MetapackResourceUrl(FileUrl, _MetapackUrl):
     @property
     def resource(self):
 
-        r =  self.metadata_url.doc.resource(self.target_file)
+        doc = self.metadata_url.doc
+        r =  doc.resource(self.target_file)
         return r
 
 

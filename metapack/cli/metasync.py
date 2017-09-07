@@ -138,11 +138,6 @@ def metasync():
         metatab_info(m.cache)
         exit(0)
 
-
-
-
-
-
     if m.args.excel is not False or m.args.zip is not False or m.args.fs is not False:
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
 
@@ -387,9 +382,9 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
 
             # A crappy hack. make_s3_package should return the correct url
             if access_value == 'private':
-                urls.append(('fs', fs_p.private_access_url))
+                urls.append(('fs', fs_p.private_access_url.inner))
             else:
-                urls.append(('fs', fs_p.public_access_url))
+                urls.append(('fs', fs_p.public_access_url.inner))
 
         # Make the CSV package from the filesystem package on S3; this will ensure that the
         # package's resource URLs point to the S3 objects
@@ -397,12 +392,13 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
 
             # Using the signed url in case the bucket is private
 
-
             u = MetapackUrl(fs_p.access_url, downloader=m.downloader)
 
-            p = CsvPackageBuilder(u, m.package_root, None)
+            resource_root = u.dirname().as_type(MetapackPackageUrl)
 
-            csv_url = p.save(PACKAGE_PREFIX)
+            p = CsvPackageBuilder(u, m.package_root, resource_root)
+
+            csv_url = p.save()
 
             with open(csv_url.path, mode='rb') as f:
                 urls.append(('csv', s3.write(f.read(), csv_url.target_file, acl)))

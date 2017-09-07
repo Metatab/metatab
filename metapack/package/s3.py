@@ -296,6 +296,6 @@ class S3Bucket(object):
                                     ACL=acl,
                                     ContentType=ct if ct else 'binary/octet-stream')
         except Exception as e:
-            self.err("Failed to write '{}': {}".format(key, e))
+            err("Failed to write '{}' to '{}': {}".format(key, self.bucket_name, e))
 
         return self.access_url(path)
