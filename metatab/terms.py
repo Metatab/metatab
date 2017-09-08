@@ -8,6 +8,7 @@ Special term subclasses
 from ._meta import __version__
 from os.path import split
 from deprecation import deprecated
+from metatab.util import slugify
 
 import six
 from metatab.exc import GenerateError
@@ -73,7 +74,10 @@ class Term(object):
         self.section = section
         self.doc = doc
 
-        self.file_name = file_name
+        self.file_name = slugify(file_name)
+
+        assert len(self.file_name) < 100, self.file_name
+
         self.file_type = file_type
         self.row = row
         self.col = col
@@ -144,6 +148,7 @@ class Term(object):
 
     def file_ref(self):
         """Return a string for the file, row and column of the term."""
+        from metatab.util import slugify
 
         assert self.file_name is None or isinstance(self.file_name, six.string_types)
 
@@ -657,12 +662,12 @@ class Term(object):
         sec_name = 'None' if not self.section else self.section.name
 
         if self.parent_term == ELIDED_TERM:
-            return "{}.{}: val={} sec={}".format(
-                self.file_ref(), self.record_term, self.value, sec_name)
+            return "{}{}:.{}={}".format(
+                self.file_ref(), sec_name,self.record_term, self.value)
 
         else:
-            return "{}{}.{}: val={} sec={} ".format(
-                self.file_ref(), self.parent_term, self.record_term, self.value, sec_name)
+            return "{}{}:{}.{}={}".format(
+                self.file_ref(), sec_name, self.parent_term, self.record_term, self.value )
 
 
 class SectionTerm(Term):

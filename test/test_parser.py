@@ -359,9 +359,10 @@ class MyTestCase(unittest.TestCase):
         doc = MetatabDoc(test_data('example1.csv'))
 
         self.assertEqual('201404', doc.find_first_value('Root.Version'))
-        self.assertEqual('201409', doc.as_version('+5').find_first_value('Root.Version'))
-        self.assertEqual('201399', doc.as_version('-5').find_first_value('Root.Version'))
-        self.assertEqual('foobar', doc.as_version('foobar').find_first_value('Root.Version'))
+        self.assertEqual('example.com-voters-2002_2014-ca-county-201409', doc.as_version('+5'))
+        self.assertEqual('example.com-voters-2002_2014-ca-county-201399', doc.as_version('-5'))
+        self.assertEqual('example.com-voters-2002_2014-ca-county-foobar', doc.as_version('foobar'))
+        self.assertEqual('example.com-voters-2002_2014-ca-county', doc.as_version(None))
 
     def test_acessors(self):
 

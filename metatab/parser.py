@@ -288,10 +288,13 @@ class TermParser(object):
 
         last_section = root
 
-        try:
-            ref_path = row_gen.ref.path
-        except AttributeError:
-            ref_path = str(row_gen.ref)
+        if isinstance(row_gen, Source):
+            ref_path = row_gen.__class__.__name__
+        else:
+            try:
+                ref_path = row_gen.ref.path
+            except AttributeError:
+                ref_path = str(row_gen.ref)
 
         try:
             for line_n, row in enumerate(row_gen, 1):
@@ -308,7 +311,7 @@ class TermParser(object):
                          row[2:] if len(row) > 2 else [],
                          row=line_n,
                          col=1,
-                         file_name=str(row_gen.ref), file_type=file_type, doc=self.doc)
+                         file_name=ref_path, file_type=file_type, doc=self.doc)
 
                 if t.value and str(t.value).startswith('#'): # Comments are ignored
                     continue
@@ -365,10 +368,12 @@ class TermParser(object):
                                        col=col + 2,  # The 0th argument starts in col 2
                                        file_name=ref_path,
                                        file_type=file_type,
-                                       parent=t)
+                                       parent=t) #,
+                                       #doc=None,
+                                       #section=last_section)
         except IncludeError as e:
             from six import text_type
-            exc = IncludeError(text_type(e) + "; in '{}' ".format(row_gen.ref))
+            exc = IncludeError(text_type(e) + "; in '{}' ".format(ref_path))
             exc.term = e.term if hasattr(e, 'term') else None
             raise exc
 
@@ -396,6 +401,8 @@ class TermParser(object):
         try:
 
             for i, t in enumerate(self.generate_terms(get_generator(t), root)):
+
+
 
                 # Substitute synonyms
                 if t.join_lc in self.synonyms:
@@ -480,6 +487,7 @@ class TermParser(object):
                     self.manage_declare_terms(t)
                     # Declare terms aren't part of document, so they aren't yieled
                 else:
+
                     yield t
 
         except IncludeError as e:

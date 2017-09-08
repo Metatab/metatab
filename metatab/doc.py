@@ -31,6 +31,8 @@ class MetatabDoc(object):
 
     def __init__(self, ref=None, decl=None, package_url=None, cache=None, resolver = None, clean_cache=False):
 
+        self._input_ref = ref
+
         self._cache = cache if cache else get_cache()
 
         self.decl_terms = {}
@@ -113,7 +115,7 @@ class MetatabDoc(object):
         return self._mtime
 
     def as_version(self, ver):
-        """Return a copy of the document, with a different version
+        """Return an edited name, with a different version number or no version
 
         :param ver: A Version number for the returned document. May also be an integer prefixed with '+'
         ( '+1' ) to set the version ahead of this document's version. Prefix with a '-' to set a version behind.
@@ -124,39 +126,7 @@ class MetatabDoc(object):
 
         """
 
-        doc = self.__class__(self.ref)
-
-        name_t = doc.find_first('Root.Name', section='Root')
-
-        if not name_t:
-            raise MetatabError("Document must have a Root.Name Term")
-
-        verterm = name_t.find_first('Name.Version')
-
-        if not verterm:
-            verterm = doc.find_first('Root.Version')
-
-        if not verterm:
-            verterm = doc['Root'].new_term('Root.Version', 1)
-
-        if isinstance(ver, six.string_types) and (ver[0] == '+' or ver[0] == '-'):
-            try:
-                int(verterm.value)
-            except ValueError:
-                raise MetatabError(
-                    "When specifying version math, version value in {} term must be an integer".format(verterm.term))
-
-            if ver[0] == '+':
-                verterm.value = six.text_type(int(verterm.value) + int(ver[1:]))
-            else:
-                verterm.value = six.text_type(int(verterm.value) - int(ver[1:]))
-
-        else:
-            verterm.value = ver
-
-        doc.update_name(force=True)
-
-        return doc
+        return self._generate_identity_name(ver)
 
     @property
     def doc_dir(self):
@@ -181,7 +151,6 @@ class MetatabDoc(object):
         """
 
         return TermParser.register_term_class(term_name, class_or_name)
-
 
     def load_declarations(self, decls):
 
@@ -335,6 +304,7 @@ class MetatabDoc(object):
 
         import itertools
 
+
         if kwargs:  # Look for terms with particular property values
 
             terms = self.find(term, value, section)
@@ -373,7 +343,7 @@ class MetatabDoc(object):
                         terms.append(term)
                         for dt in self.derived_terms[t.lower()]:
                             terms.append(dt)
-            except KeyError:
+            except KeyError as e:
                 pass
 
 
@@ -390,10 +360,10 @@ class MetatabDoc(object):
             if not '.' in term:
                 term = 'root.' + term
 
-            if term.startswith('Root.'):
-                term_gen = self.terms
+            if term.startswith('root.'):
+                term_gen = self.terms # Just the root level terms
             else:
-                term_gen = self.all_terms
+                term_gen = self.all_terms # All terms, root level and children.
 
             for t in term_gen:
 
@@ -436,10 +406,9 @@ class MetatabDoc(object):
         else:
             return v
 
-
-    def get_value(self, term, default=None):
+    def get_value(self, term, default=None, section=None):
         """Return the first value, returning the default if no term is found"""
-        term = self.find_first(term, value=False)
+        term = self.find_first(term, value=False, section=section)
 
         if term is None:
             return default
@@ -503,9 +472,6 @@ class MetatabDoc(object):
         return self.load_terms(term_interp)
 
 
-
-
-
     def cleanse(self):
         """Clean up some terms, like ensuring that the name is a slug"""
         from .util import slugify
@@ -544,8 +510,6 @@ class MetatabDoc(object):
         updates = []
 
         self.ensure_identifier()
-
-
 
         if not self.find_first('Root.Name'):
             if create_term:
@@ -591,16 +555,18 @@ class MetatabDoc(object):
 
         return updates
 
-    def _generate_identity_name(self):
+    def _generate_identity_name(self, mod_version=False):
 
-        name_t = self.find_first('Root.Name', section='Root')
+        datasetname = self.find_first_value('Root.Dataset', section='Root')
+        origin = self.find_first_value('Root.Origin', section='Root')
+        time = self.find_first_value('Root.Time', section='Root')
+        space = self.find_first_value('Root.Space', section='Root')
+        grain = self.find_first_value('Root.Grain', section='Root')
+        variant = self.find_first_value('Root.Variant', section='Root')
 
-        name = name_t.value
+        ver_value =  self.find_first_value('Root.Version', section='Root')
 
-        datasetname = name_t.get_value('Name.Dataset', self.get_value('Root.Dataset'))
-
-        ver_value = name_t.get_value('Name.Version', self.get_value('Root.Version'))
-        # Excel like to make integers into floats
+        # Excel likes to make integers into floats
         try:
             if int(ver_value) == float(ver_value):
                 version = int(ver_value)
@@ -608,13 +574,22 @@ class MetatabDoc(object):
         except (ValueError, TypeError):
             version = ver_value
 
-        # The Name.* version is deprecated, but still exists in some older
-        # files. It should be change to a deprecation warning
-        origin = name_t.get_value('Name.Origin', self.get_value('Root.Origin'))
-        time = name_t.get_value('Name.Time', self.get_value('Root.Time'))
-        space = name_t.get_value('Name.Space', self.get_value('Root.Space'))
-        grain = name_t.get_value('Name.Grain', self.get_value('Root.Grain'))
-        variant = name_t.get_value('Name.Variant', self.get_value('Root.Variant'))
+        if mod_version is not False and isinstance(mod_version, str) and (mod_version[0] == '+' or mod_version[0] == '-'):
+            # Increment the version up or down
+            try:
+                int(version)
+            except ValueError:
+                raise MetatabError(
+                    "When specifying version math, version value in Root.Version term must be an integer")
+
+            if mod_version[0] == '+':
+                version = str(int(version) + int(mod_version[1:]))
+            else:
+                version = str(int(version) - int(mod_version[1:]))
+
+        elif mod_version is not False:
+            # Set it to a particular version
+            version = mod_version
 
         parts = [slugify(str(e).replace('-', '_')) for e in (
             origin, datasetname, time, space, grain, variant, version)

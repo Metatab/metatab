@@ -87,6 +87,8 @@ class TextRowGenerator(MetatabRowGenerator):
         for row in self._text_lines:
             if re.match(r'^\s*#', row):  # Skip comments
                 continue
-            yield [e.strip() for e in row.split(':', 1)]
+            row = [e.strip() for e in row.split(':', 1)]
+
+            yield row
 
 
