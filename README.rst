@@ -40,9 +40,3 @@ Run ``metatab -h`` to get other program options.
 
 The ``test-data`` directory has test files that also serve as examples to parse. You can either clone the repo and parse them from the files, or from the Github page for the file, click on the ``raw`` button to get raw view of the flie, then copy the URL.
 
-Getting Started
----------------
-
-See `Getting Started <https://github.com/CivicKnowledge/metatab-py/blob/master/docs/GettingStarted.rst>`_ for an initial tutorial, or the other guides in the 
-`docs directory on Github <https://github.com/CivicKnowledge/metatab-py/tree/master/docs>`_
-

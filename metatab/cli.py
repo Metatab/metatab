@@ -11,25 +11,32 @@ import six
 from uuid import uuid4
 from genericpath import exists
 
-
 from metatab._meta import __version__
 from metatab import  DEFAULT_METATAB_FILE, MetatabDoc
-from metatab.util import prt, err, cli_init, make_metatab_file, get_cache, clean_cache
+from appurl import parse_app_url
+from appurl.util import get_cache, clean_cache
+from os.path import dirname
+from rowgenerators.util import fs_join as join
 
+import logging
+
+logger = logging.getLogger('user')
+logger_err = logging.getLogger('cli-errors')
+debug_logger = logging.getLogger('debug')
+
+cache = get_cache()
 
 def metatab():
     import argparse
     parser = argparse.ArgumentParser(
         prog='metatab',
-        description='Matatab file parser, version {}'.format(__version__))
+        description='Matatab file parser, version {}.'.format(__version__),
+        epilog='Cache dir: {}\n'.format(str(cache.getsyspath('/') ) ))
 
     parser.add_argument('-C', '--clean-cache', default=False, action='store_true',
                         help="Clean the download cache")
 
     g = parser.add_mutually_exclusive_group(required=True)
-
-    g.add_argument('-i', '--info', default=False, action='store_true',
-                   help="Show configuration information")
 
     g.add_argument('-c', '--create', action='store', nargs='?', default=False,
                    help="Create a new metatab file, from named template. With no argument, uses the 'metatab' template ")
@@ -37,31 +44,21 @@ def metatab():
     g.add_argument('-t', '--terms', default=False, action='store_true',
                    help='Parse a file and print out the stream of terms, before interpretation')
 
-    g.add_argument('-I', '--interp', default=False, action='store_true',
-                   help='Parse a file and print out the stream of terms, after interpretation')
-
     g.add_argument('-j', '--json', default=False, action='store_true',
                    help='Parse a file and print out a JSON representation')
 
     g.add_argument('-y', '--yaml', default=False, action='store_true',
                    help='Parse a file and print out a YAML representation')
 
-    g.add_argument('-R', '--resource', default=False, action='store_true',
-                   help='If the URL has no fragment, dump the resources listed in the metatab file. With a fragment, dump a resource as a CSV')
+    #parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
+    #                    help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
 
-    g.add_argument('-H', '--head', default=False, action='store_true',
-                   help="Dump the first 20 lines of a resoruce ")
-
-    g.add_argument('-S', '--schema',
-                   help='Dump the schema for one named resource')
-
-    parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
-                        help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
-
-    parser.add_argument('-D', '--declare', help='Parse and incorporate a declaration before parsing the file.' +
-                                                ' (Adds the declaration to the start of the file as the first term. )')
+    #parser.add_argument('-D', '--declare', help='Parse and incorporate a declaration before parsing the file.' +
+    #                                            ' (Adds the declaration to the start of the file as the first term. )')
 
     parser.add_argument('file', nargs='?', default=DEFAULT_METATAB_FILE, help='Path to a Metatab file')
+
+    cli_init()
 
     args = parser.parse_args(sys.argv[1:])
 
@@ -69,61 +66,24 @@ def metatab():
     if args.file.startswith('#'):
         args.file = DEFAULT_METATAB_FILE + args.file
 
-    cache = get_cache('metatab')
-
-    if args.info:
-        prt('Version  : {}'.format(_meta.__version__))
-        prt('Cache dir: {}'.format(str(cache.getsyspath('/'))))
-        exit(0)
-
     if args.clean_cache:
         clean_cache(cache)
 
     if args.create is not False:
-        new_metatab_file(args.file, args.create)
-        exit(0)
-
-    if args.resource or args.head:
-
-        limit = 20 if args.head else None
-
-        u = Url(args.file)
-        resource = u.parts.fragment
-        metadata_url = u.rebuild_url(False, False)
-
-        package_url, metadata_url = resolve_package_metadata_url(metadata_url)
-
-        try:
-            doc = MetatabDoc(metadata_url, cache=cache)
-        except OSError as e:
-            err("Failed to open Metatab doc: {}".format(e))
-            return  # Never reached
-
-        if resource:
-            dump_resource(doc, resource, limit)
+        if new_metatab_file(args.file, args.create):
+            prt("Created ", args.file)
         else:
-            dump_resources(doc)
+            warn("File",args.file,'already exists.')
 
         exit(0)
 
-    if args.show_declaration:
 
-        doc = MetatabDoc()
-        doc.load_declarations([args.file])
+    metadata_url = parse_app_url(args.file)
+    try:
+        doc = MetatabDoc(metadata_url, cache=cache)
+    except IOError as e:
 
-        print(json.dumps({
-            'terms': doc.decl_terms,
-            'sections': doc.decl_sections
-        }, indent=4))
-        exit(0)
-    else:
-
-        package_url, metadata_url = resolve_package_metadata_url(args.file)
-        try:
-            doc = MetatabDoc(metadata_url, cache=cache)
-        except IOError as e:
-
-            err("Failed to open '{}': {}".format(metadata_url, e))
+        err("Failed to open '{}': {}".format(metadata_url, e))
 
     if args.terms:
         for t in doc._term_parser:
@@ -138,82 +98,43 @@ def metatab():
         print(yaml.safe_dump(doc.as_dict(), default_flow_style=False, indent=4))
 
 
-    elif args.schema:
-        dump_schema(doc, args.schema)
 
     exit(0)
 
+def cli_init(log_level=logging.INFO):
 
-def dump_resources(doc):
-    for r in doc.resources():
-        prt(r.name, r.resolved_url)
+    out_hdlr = logging.StreamHandler(sys.stdout)
+    out_hdlr.setFormatter(logging.Formatter('%(message)s'))
+    out_hdlr.setLevel(log_level)
+    logger.addHandler(out_hdlr)
+    logger.setLevel(log_level)
 
+    out_hdlr = logging.StreamHandler(sys.stderr)
+    out_hdlr.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+    out_hdlr.setLevel(logging.WARN)
+    logger_err.addHandler(out_hdlr)
+    logger_err.setLevel(logging.WARN)
 
-def dump_resource(doc, name, lines=None):
-    import unicodecsv as csv
-    import sys
-    from itertools import islice
-    from tabulate import tabulate
-    from rowpipe.exceptions import CasterExceptionError, TooManyCastingErrors
+def prt(*args, **kwargs):
+    logger.info(' '.join(str(e) for e in args),**kwargs)
 
-    r = doc.resource(name=name)
+def warn(*args, **kwargs):
+    logger_err.warn(' '.join(str(e) for e in args),**kwargs)
 
-    if not r:
-        err("Did not get resource for name '{}'".format(name))
-
-    # WARNING! This code will not generate errors if line is set ( as for the -H
-    # option because the errors are tansfered from the row pipe to the resource after the
-    # iterator is exhausted
-
-    gen = islice(r, 1, lines)
-
-    def dump_errors(error_set):
-        for col, errors in error_set.items():
-            warn("Errors in casting column '{}' in resource '{}' ".format(col, r.name))
-            for error in errors:
-                warn("    ", error)
-
-    try:
-        if lines and lines <= 20:
-            try:
-                prt(tabulate(list(gen), list(r.headers)))
-            except TooManyCastingErrors as e:
-                dump_errors(e.errors)
-                err(e)
-
-        else:
-
-            w = csv.writer(sys.stdout if six.PY2 else sys.stdout.buffer)
-
-            if r.headers:
-                w.writerow(r.headers)
-            else:
-                warn("No headers for resource '{}'; have schemas been generated? ".format(name))
-
-            for row in gen:
-                w.writerow(row)
-
-    except CasterExceptionError as e:  # Really bad errors, not just casting problems.
-        err(e)
-    except TooManyCastingErrors as e:
-        dump_errors(e.errors)
-        err(e)
-
-    dump_errors(r.errors)
+def err(*args, **kwargs):
+    logger_err.critical(' '.join(str(e) for e in args),**kwargs)
+    sys.exit(1)
 
 
-def dump_schema(doc, name):
-    from tabulate import tabulate
+def make_metatab_file(template='metatab'):
+    import metatab.templates as tmpl
 
-    t = get_table(doc, name)
+    template_path = join(dirname(tmpl.__file__),template+'.csv')
 
-    rows = []
-    header = 'name altname datatype description'.split()
-    for c in t.children:
-        cp = c.arg_props
-        rows.append([cp.get(h) for h in header])
+    doc = MetatabDoc(template_path)
 
-    prt(tabulate(rows, header))
+    return doc
+
 
 
 def new_metatab_file(mt_file, template):
@@ -222,9 +143,13 @@ def new_metatab_file(mt_file, template):
     if not exists(mt_file):
         doc = make_metatab_file(template)
 
-        doc['Root']['Identifier'] = str(uuid4())
-
         doc.write_csv(mt_file)
+
+        return True
+
+    else:
+
+        return False
 
 
 def get_table(doc, name):

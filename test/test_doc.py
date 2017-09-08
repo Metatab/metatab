@@ -1,6 +1,10 @@
 from __future__ import print_function
 
 import unittest
+from os.path import join, dirname
+
+import metatab
+
 
 from metatab import MetatabDoc
 
@@ -28,7 +32,16 @@ class TestUtil(unittest.TestCase):
         self.assertEquals('9FC11204-B291-4E0E-A841-5372090ADEC0', doc['Root'].find_first_value('Root.Identifier'))
 
 
+    def test_new(self):
 
+        import metatab.templates as tmpl
+
+        template_path = join(dirname(tmpl.__file__), 'metatab.csv')
+
+        doc = MetatabDoc(template_path)
+        doc.cleanse()
+
+        print(doc.as_csv().decode('utf8')[:200])
 
 
 if __name__ == '__main__':

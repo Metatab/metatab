@@ -8,5 +8,6 @@ DEFAULT_METATAB_FILE = 'metadata.csv'
 
 from .parser import *
 from .exc import *
-from .doc import *
+from .doc import MetatabDoc
+from .resolver import WebResolver
 

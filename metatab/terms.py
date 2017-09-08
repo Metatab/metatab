@@ -76,8 +76,6 @@ class Term(object):
 
         self.file_name = slugify(file_name)
 
-        assert len(self.file_name) < 100, self.file_name
-
         self.file_type = file_type
         self.row = row
         self.col = col
