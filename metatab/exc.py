@@ -38,3 +38,4 @@ class GenerateError(MetatabError):
 
 class ConversionError(MetatabError):
     pass
+

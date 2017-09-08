@@ -188,7 +188,7 @@ class MyTestCase(unittest.TestCase):
         def errs(fn):
             with self.assertRaises(IncludeError):
                 doc = MetatabDoc()
-                tp = TermParser(get_generator(fn), doc=doc)
+                tp = TermParser(fn, resolver=WebResolver, doc=doc)
                 _ = list(tp)
 
             return tp.errors_as_dict()
@@ -352,7 +352,7 @@ class MyTestCase(unittest.TestCase):
 
         doc = MetatabDoc(test_data('example1.csv'))
 
-        self.assertEquals(144, (len(list(doc.all_terms))))
+        self.assertEquals(146, (len(list(doc.all_terms))))
 
     def test_versions(self):
 
@@ -436,7 +436,7 @@ class MyTestCase(unittest.TestCase):
 
         self.assertEqual(Term, type(doc.find_first('root.description')))
         self.assertEqual(TestTermClass, type(doc.find_first('root.name')))
-        self.assertEqual(SectionTerm, type(doc.find_first('root.section')))
+        
         #self.assertEqual(Resource, type(doc.find_first('root.datafile')))
         #self.assertEqual(Resource, type(doc.find_first('root.homepage')))
 

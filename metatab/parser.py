@@ -200,6 +200,7 @@ class TermParser(object):
         errors = []
 
         for e in self.errors:
+
             errors.append({
                 'file': e.term.file_name,
                 'row': e.term.row if e.term else '<unknown>',
@@ -267,7 +268,6 @@ class TermParser(object):
         if include_ref.startswith('http'):
             path = include_ref
         else:
-
             if not d:
                 raise IncludeError("Can't include '{}' because don't know current path "
                                    .format(name))
@@ -276,7 +276,7 @@ class TermParser(object):
 
         return parse_app_url(path)
 
-    def generate_terms(self, row_gen, root, file_type=None):
+    def generate_terms(self, ref, root, file_type=None):
         """An generator that yields term objects, handling includes and argument
         children.
         :param file_type:
@@ -287,14 +287,15 @@ class TermParser(object):
         """
 
         last_section = root
+        t = None
 
-        if isinstance(row_gen, Source):
+        if isinstance(ref, Source):
+            row_gen = ref
             ref_path = row_gen.__class__.__name__
         else:
-            try:
-                ref_path = row_gen.ref.path
-            except AttributeError:
-                ref_path = str(row_gen.ref)
+            row_gen = get_generator(ref)
+            ref_path = ref.path
+
 
         try:
             for line_n, row in enumerate(row_gen, 1):
@@ -342,7 +343,7 @@ class TermParser(object):
                         e.term = t
                         raise
 
-                    except (OSError, FileNotFoundError, GenerateError, DownloadError) as e:
+                    except (OSError,  FileNotFoundError, GenerateError, DownloadError) as e:
                         e = IncludeError("Failed to Include; {}".format(e))
                         e.term = t
                         raise e
@@ -394,15 +395,13 @@ class TermParser(object):
         yield self.root
 
         try:
-            t = self._ref.get_resource().get_target() # An AppUrl
+            target = self._ref.get_resource().get_target() # An AppUrl
         except AttributeError as e:
-            t = self._ref # Hopefully a generator
+            target = self._ref # Hopefully a generator
 
         try:
 
-            for i, t in enumerate(self.generate_terms(get_generator(t), root)):
-
-
+            for i, t in enumerate(self.generate_terms(target, root)):
 
                 # Substitute synonyms
                 if t.join_lc in self.synonyms:
