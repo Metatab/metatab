@@ -2,20 +2,18 @@ from __future__ import print_function
 
 import json
 import unittest
-
+from appurl import parse_app_url
 from metatab import IncludeError
-from metatab import MetatabRowGenerator, TermParser, CsvPathRowGenerator, parse_file
-from metatab.doc import MetatabDoc
 from metatab.util import flatten, declaration_path
-from metatab import TermParser, CsvPathRowGenerator, Serializer, Term
+from metatab import TermParser
+from metatab.terms import Term
 from collections import defaultdict
-from metatab.doc import Resource
-import csv
-from os.path import dirname
-from metatab.doc import open_package
+
 import json
 from os.path import exists
-from metatab import parse_file, MetatabDoc
+from metatab import MetatabDoc, WebResolver
+from rowgenerators import get_generator
+
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
@@ -91,15 +89,13 @@ class MyTestCase(unittest.TestCase):
                 with open(json_path) as f:
                     d2 = json.load(f)
 
-                #import json
-                #print(json.dumps(d, indent=4))
+                # import json
+                # print(json.dumps(d, indent=4))
 
                 self.compare_dict(d, d2)
 
-
     @unittest.skip('broken')
     def test_declarations(self):
-
 
         doc = MetatabDoc(test_data('example1.csv'))
 
@@ -118,7 +114,7 @@ class MyTestCase(unittest.TestCase):
 
         fn = test_data('example1.csv')  # Not acutally used. Sets base directory
 
-        doc =  MetatabDoc(MetatabRowGenerator([['Declare', 'metatab-latest']], fn))
+        doc = MetatabDoc(MetatabRowGenerator([['Declare', 'metatab-latest']], fn))
 
         terms = doc.decl_terms
 
@@ -129,13 +125,13 @@ class MyTestCase(unittest.TestCase):
         sections = doc.decl_sections
 
         self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
-                           'sources','documentation','data'},
+                           'sources', 'documentation', 'data'},
                           set(sections.keys()))
 
         # Use the Declare term
 
         fn = test_data('example1.csv')
-        doc = MetatabDoc(CsvPathRowGenerator(fn))
+        doc = MetatabDoc(CsvPathRowGenerator(fn), resolver=WebResolver)
 
         d = doc._term_parser.declare_dict
 
@@ -172,8 +168,6 @@ class MyTestCase(unittest.TestCase):
         for t in doc.as_dict()['parent']:
             self.assertEquals({'prop1': 'prop1', 'prop2': 'prop2', '@value': 'parent'}, t)
 
-
-
     def test_includes(self):
 
         doc = MetatabDoc(test_data('include1.csv'))
@@ -189,20 +183,17 @@ class MyTestCase(unittest.TestCase):
         self.assertTrue(any('include2.csv' in e for e in d['include']))
         self.assertTrue(any('include3.csv' in e for e in d['include']))
 
-
-
     def test_errors(self):
 
         def errs(fn):
-
             with self.assertRaises(IncludeError):
                 doc = MetatabDoc()
-                tp = TermParser(CsvPathRowGenerator(fn), doc=doc)
+                tp = TermParser(fn, resolver=WebResolver, doc=doc)
                 _ = list(tp)
 
             return tp.errors_as_dict()
 
-        e = errs(test_data('errors/bad_include.csv'))
+        e = errs(parse_app_url(test_data('errors/bad_include.csv')))
 
         print(e)
 
@@ -218,44 +209,7 @@ class MyTestCase(unittest.TestCase):
 
 
 
-    def test_serializer(self):
-
-        return
-
-        doc = MetatabDoc(test_data('schema.csv'))
-        d = doc.as_dict()
-
-        s = Serializer()
-        s.load_declarations(d)
-
-        sections = defaultdict(list)
-
-        for e in s.semiflatten(d):
-            print(e)
-
-        return
-
-        for e in sorted(s.serialize(d)):
-            has_int = any(isinstance(ki, int) for ki in e[0])
-            key_no_int = tuple(ki for ki in e[0] if not isinstance(ki, int))
-            print(key_no_int)
-            pr = '.'.join(key_no_int[-2:])
-            t = Term(pr, e[1], row=0, col=0, file_name=None)
-            section = s.decl['terms'].get(t.join(), {}).get('section', 'Root')
-
-            sections[section].append(t)
-
-        return
-
-        for k, v in sections.items():
-            print("=====", k)
-            for t in v:
-                print(t)
-
     def test_headers(self):
-
-        from metatab import TermParser, CsvPathRowGenerator
-
         d1 = MetatabDoc(test_data('example1-headers.csv')).root.as_dict()
         d2 = MetatabDoc(test_data('example1.csv')).root.as_dict()
 
@@ -267,9 +221,19 @@ class MyTestCase(unittest.TestCase):
 
         self.assertEquals('cdph.ca.gov-hci-registered_voters-county', doc.find_first('Root.Identifier').value)
 
+        doc = MetatabDoc(test_data('resources.csv'))
+
+        self.assertEqual({'root.downloadpage', 'root.supplementarydata', 'root.api', 'root.citation',
+                          'root.datafile', 'root.datadictionary', 'root.image', 'root.reference',
+                          'root.documentation', 'root.homepage'},
+                         doc.derived_terms['root.resource'])
+
+        self.assertEqual(['example1', 'example10', 'example2', 'example3', 'example4', 'example5', 'example6',
+                'example7', 'example8', 'example9'], sorted([t.name for t in doc.find('root.resource')]))
+
+        self.assertEquals(['example1', 'example2'], [t.name for t in doc.find('root.datafile')])
+
     def test_sections(self):
-
-
 
         doc = MetatabDoc(test_data('example1.csv'))
 
@@ -286,21 +250,6 @@ class MyTestCase(unittest.TestCase):
 
         for sname, s in doc.sections.items():
             print(sname, s.value)
-
-    def test_generic_row_generation(self):
-        from metatab import GenericRowGenerator
-
-        url = 'gs://14_nfiTtSiMSjDes6BSiLU-Gsqy8DIdUxpMaH6DswcVQ'
-
-        doc = MetatabDoc(url)
-
-        self.assertEquals('Registered Voters, By County',doc.find_first('root.title').value)
-
-        url = 'http://assets.metatab.org/examples/example-package.xls#meta'
-
-        doc = MetatabDoc(url)
-
-        self.assertEquals('17289303-73fa-437b-97da-2e1ed2cd01fd', doc.find_first('root.identifier').value)
 
     @unittest.skip('datapackage-1.0.0a2 seems to be missing a file')
     def test_datapackage_declare(self):
@@ -353,7 +302,7 @@ class MyTestCase(unittest.TestCase):
 
         t = Term('Parent.Child', 'value', parent=p)
 
-        print( t.term, t.qualified_term, t.join)
+        print(t.term, t.qualified_term, t.join)
 
         self.assertEquals('Parent.Child', t.term)
         self.assertEquals('parent.child', t.qualified_term)
@@ -377,10 +326,8 @@ class MyTestCase(unittest.TestCase):
         self.assertEquals('root.parent3', t.join)
 
     def test_update_name(self):
-        import datapackage
-        from metatab.datapackage import convert_to_datapackage
 
-        for fn in ('name.csv','name2.csv'):
+        for fn in ('name.csv', 'name2.csv'):
 
             doc = MetatabDoc(test_data(fn))
 
@@ -401,69 +348,97 @@ class MyTestCase(unittest.TestCase):
 
             self.assertIn("No Root.Dataset, so can't update the name", updates)
 
-
     def test_descendents(self):
 
         doc = MetatabDoc(test_data('example1.csv'))
 
-        self.assertEquals(144, (len(list(doc.all_terms))))
-
-    def test_resolved_url(self):
-
-
-        with open(test_data('resolve_urls.csv')) as f:
-            for row in csv.DictReader(f):
-                doc = open_package(test_data(row['doc']))
-
-                base = dirname(doc._ref)
-                rs = doc['Resources']
-
-                t = rs.new_term('Root.Datafile', row['resource_url'])
-                t.term_value_name = 'url'
-
-                if row['base_url']:
-                    r = Resource(t, row['base_url'])
-                else:
-                    r = Resource(t, doc.package_url if doc.package_url else doc._ref)
-
-                #print(r.resolved_url.replace(base, '<base>'), row['url'].replace("file:",''))
-                self.assertEquals(r.resolved_url.replace(base, '<base>').replace('file:',''),
-                                  row['url'].replace('file:',''))
+        self.assertEquals(146, (len(list(doc.all_terms))))
 
     def test_versions(self):
 
         doc = MetatabDoc(test_data('example1.csv'))
 
-        self.assertEqual('201404',doc.find_first_value('Root.Version'))
-        self.assertEqual('201409',doc.as_version('+5').find_first_value('Root.Version'))
-        self.assertEqual('201399',doc.as_version('-5').find_first_value('Root.Version'))
-        self.assertEqual('foobar',doc.as_version('foobar').find_first_value('Root.Version'))
-
+        self.assertEqual('201404', doc.find_first_value('Root.Version'))
+        self.assertEqual('example.com-voters-2002_2014-ca-county-201409', doc.as_version('+5'))
+        self.assertEqual('example.com-voters-2002_2014-ca-county-201399', doc.as_version('-5'))
+        self.assertEqual('example.com-voters-2002_2014-ca-county-foobar', doc.as_version('foobar'))
+        self.assertEqual('example.com-voters-2002_2014-ca-county', doc.as_version(None))
 
     def test_acessors(self):
 
-        doc = MetatabDoc(test_data('civicknowledge.com-rcfe_affordability-2015.csv'))
+        doc = MetatabDoc(test_data('properties.csv'))
 
-        t = doc.find_first('Root.Reference')
+        c = doc.find_first('Root.Citation', name='ipums')
 
-        self.assertIn('name', t.properties)
-        self.assertIn('url', t.properties)
+        # Arg_props not include Author, Title or Year, which are children, but not arg props
+        self.assertEquals(['type', 'month', 'publisher', 'journal', 'version', 'volume',
+                           'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name'],
+                          list(c.arg_props.keys()))
 
-        print([name for name, value in vars(t.__class__).items() if isinstance(value, property)])
+        # Props includes just the children that actually have values
+        self.assertEquals(['type', 'publisher', 'version', 'accessdate', 'url', 'doi', 'author', 'title', 'year'],
+                          list(c.props.keys()))
 
-        self.assertEqual(t.name,'B09020')
-        self.assertEqual(t.url,'censusreporter:B09020/140/05000US06073')
+        # All props includes values for all of the children and all of the property args
+        self.assertEquals(['type', 'month', 'publisher', 'journal', 'version', 'volume',
+                           'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name', 'author', 'title',
+                           'year'],
+                          list(c.all_props.keys()))
 
-        self.assertEqual(t.join,'root.reference')
+        # Attribute acessors
+        self.assertEqual('dataset', c.type)
+        self.assertEqual('2017', c.year)
+        self.assertEqual('Integrated Public Use Microdata Series', c.title)
+        self.assertEqual('University of Minnesota', c.publisher)
 
-        r = doc.reference(t.name)
+        # These are properties of Term
+        self.assertEqual(c.join, 'root.citation')
+        self.assertTrue(c.term_is('Root.Citation'))
 
-        self.assertIn('name', r.properties)
-        self.assertIn('url', r.properties)
+        # Item style acessors
+        self.assertEqual('dataset', c['type'].value)
+        self.assertTrue(c['type'].term_is('Citation.Type'))
+        self.assertEqual('2017', c['year'].value)
+        self.assertEqual('Integrated Public Use Microdata Series', c['title'].value)
+        self.assertEqual('University of Minnesota', c['publisher'].value)
+        self.assertTrue(c['publisher'].term_is('Citation.Publisher'))
 
-        self.assertEqual(r.name,'B09020')
-        self.assertEqual(r.url,'censusreporter:B09020/140/05000US06073')
+        c.foo = 'bar'
 
+        c.type = 'foobar'
+        self.assertEqual('foobar', c.type)
+        self.assertEqual('foobar', c['type'].value)
+
+
+    def test_term_subclasses(self):
+        from metatab.terms import Term, SectionTerm
+        from metatab import WebResolver
+
+        doc = MetatabDoc()
+        tp = TermParser(test_data('example1.csv'), resolver=WebResolver, doc=doc)
+
+        terms = list(tp)
+
+        self.assertEqual(Term, tp.get_term_class('root.summary'))
+        self.assertEqual(Term, tp.get_term_class('root.name'))
+        self.assertEqual(SectionTerm, tp.get_term_class('root.section'))
+        #self.assertEqual(Resource, tp.get_term_class('root.resource'))
+        #self.assertEqual(Resource, tp.get_term_class('root.homepage'))
+
+        class TestTermClass(Term):
+            pass
+
+        TermParser.register_term_class('root.name', TestTermClass)
+
+        self.assertEqual(TestTermClass, tp.get_term_class('root.name'))
+
+        doc = MetatabDoc(test_data('example1.csv'))
+
+        self.assertEqual(Term, type(doc.find_first('root.description')))
+        self.assertEqual(TestTermClass, type(doc.find_first('root.name')))
+        
+        #self.assertEqual(Resource, type(doc.find_first('root.datafile')))
+        #self.assertEqual(Resource, type(doc.find_first('root.homepage')))
 
 if __name__ == '__main__':
     unittest.main()

@@ -5,18 +5,16 @@
 
 """
 
+
 class MetatabError(Exception):
     pass
 
 
-class MetapackError(MetatabError):
-    pass
+
 
 class ReferenceError(MetatabError):
     pass
 
-class PackageError(MetapackError):
-    pass
 
 class ParserError(MetatabError):
     def __init__(self, *args, **kwargs):
@@ -29,14 +27,15 @@ class IncludeError(MetatabError):
         self.message = ''
         super(IncludeError, self).__init__(*args, **kwargs)
 
+
 class DeclarationError(ParserError):
     pass
+
 
 class GenerateError(MetatabError):
     pass
 
+
 class ConversionError(MetatabError):
     pass
 
-class NotebookError(MetatabError):
-    pass

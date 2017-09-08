@@ -1,0 +1,18 @@
+"Declare","metatab-latest",,,,
+"Title","Resource test",,,,
+"Name","resource-test",,,,
+"Description","Percent of the eligible population registered to vote and the percent who voted in statewide elections.",,,,
+"Identifier","cdph.ca.gov-hci-registered_voters-county",,,,
+,,,,,
+"Section","Resources",,,,
+"Header","url","name",,,"Title"
+"Datafile","http://example.com/example1.csv","example1",,,"The First Example Data File"
+"Datafile","http://example.com/example3.csv","example2",,,"The Second Example Data File"
+"Reference","http://example.com/example3.csv","example3",,,
+"Reference","http://example.com/example4.csv","example4",,,
+"Documentation","http://example.com/example5.csv","example5",,,
+"Documentation","http://example.com/example6.csv","example6",,,
+"Homepage","http://example.com/example7.csv","example7",,,
+"Homepage","http://example.com/example8.csv","example8",,,
+"Citation","example9",,,,
+"Citation","example10",,,,
