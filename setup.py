@@ -42,18 +42,9 @@ setup(
     packages=['metatab'],
 
     install_requires=[
-        'six',
-        'unicodecsv',
-        #'pyyaml',
-        #'datapackage',
-        #'bs4',
-        #'markdown',
-        #'ckanapi',
-        #'boto3',
-        'rowgenerators>=0.3.2',
-        #'rowpipe>=0.1.2',
-        #'tableintuit>=0.0.6',
-        #'geoid>=1.0.4'
+        'appurl',
+        'six', # Should be removed. Not supporting python 2.7 anymore.
+        'rowgenerators>=0.4.3',
         'metatabdecl',
         'deprecation'
 
