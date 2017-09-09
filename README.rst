@@ -28,13 +28,13 @@ Or, install the master branch from github with:
 
 .. code-block:: bash
 
-    $ pip install https://github.com/CivicKnowledge/metatab-py.git
+    $ pip install https://github.com/CivicKnowledge/metatab.git
 
 Then test parsing using a remote file with:
 
 .. code-block:: bash
 
-    $ metatab -j https://raw.githubusercontent.com/CivicKnowledge/metatab-py/master/test-data/example1.csv
+    $ metatab -j https://raw.githubusercontent.com/CivicKnowledge/metatab/master/test-data/example1.csv
 
 Run ``metatab -h`` to get other program options.
 
