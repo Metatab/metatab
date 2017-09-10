@@ -81,21 +81,21 @@ class DocumentationExporter(MetatabExporter):
         c.TemplateExporter.template_path = [dirname(metapack.jupyter.__file__)]
 
         c.HTMLExporter.preprocessors = [
-            'metatab.jupyter.preprocessors.NoShowInput',
-            'metatab.jupyter.preprocessors.RemoveMetatab',
-            'metatab.jupyter.preprocessors.HtmlBib'
+            'metapack.jupyter.preprocessors.NoShowInput',
+            'metapack.jupyter.preprocessors.RemoveMetatab',
+            'metapack.jupyter.preprocessors.HtmlBib'
         ]
 
         c.HTMLExporter.exclude_input_prompt = True
         c.HTMLExporter.exclude_output_prompt = True
 
-        c.MarkdownExporter.preprocessors = ['metatab.jupyter.preprocessors.RemoveMagics']
+        c.MarkdownExporter.preprocessors = ['metapack.jupyter.preprocessors.RemoveMagics']
 
         c.PDFExporter.preprocessors = [
-            'metatab.jupyter.preprocessors.NoShowInput',
-            'metatab.jupyter.preprocessors.RemoveMetatab',
-            'metatab.jupyter.preprocessors.LatexBib',
-            'metatab.jupyter.preprocessors.MoveTitleDescription'
+            'metapack.jupyter.preprocessors.NoShowInput',
+            'metapack.jupyter.preprocessors.RemoveMetatab',
+            'metapack.jupyter.preprocessors.LatexBib',
+            'metapack.jupyter.preprocessors.MoveTitleDescription'
         ]
         c.PDFExporter.exclude_input_prompt = True
         c.PDFExporter.exclude_output_prompt = True

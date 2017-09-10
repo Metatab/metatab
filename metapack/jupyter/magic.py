@@ -216,18 +216,19 @@ class MetatabMagic(Magics):
 
     def _materialize(self, doc, df_name, ref, package_dir):
         """Write a dataframe into the package as a CSV file"""
-        from rowgenerators import Url, PandasDataframeSource, SourceSpec
+        from metapack.rowgenerator import PandasDataframeSource
         import csv
 
-        u = Url(Url(ref).prefix_path(package_dir))
-        path = u.parts.path
+        u = parse_app_url(package_dir).join(ref)
+
+        path = u.path
 
         if not exists(dirname(path)):
             makedirs(dirname(path))
 
         df = self.shell.user_ns[df_name].fillna('')
 
-        gen = PandasDataframeSource(SourceSpec(str(u)), df, cache=doc._cache)
+        gen = PandasDataframeSource(u, df, cache=doc._cache)
 
         with open(path, 'w') as f:
             w = csv.writer(f)
