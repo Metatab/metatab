@@ -228,7 +228,9 @@ class PackageExporter(MetatabExporter):
         if not package_name:
             doc = ExtractInlineMetatabDoc().run(nb)
 
-            package_name = doc.as_version(None).find_first_value('Root.Name')
+            t = doc.find_first('Root.Name', section='Root')
+
+            package_name = doc.as_version(None)
 
         package_dir = self.package_dir
 

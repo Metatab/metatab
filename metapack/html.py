@@ -279,6 +279,8 @@ def make_citation_dict(td):
     :return:
     """
 
+    from datetime import datetime
+
     if isinstance(td, dict):
         d = td
         name = d['name']

@@ -6,7 +6,7 @@ Functions for converting Jupyter notebooks
 """
 from metatab import DEFAULT_METATAB_FILE
 from metapack import MetapackDoc
-from metapack.cli.core import prt
+from metapack.cli.core import prt, err
 from metapack.util import ensure_dir, copytree
 from os.path import abspath
 from os import getcwd
@@ -33,7 +33,7 @@ def convert_documentation(m):
 
     doc = ExtractInlineMetatabDoc().run(nb)
 
-    package_name = doc.as_version(None).find_first_value('Root.Name')
+    package_name = doc.as_version(None)
 
     output_dir = join(getcwd(), package_name)
 
@@ -55,10 +55,16 @@ def convert_notebook(m):
     from metapack.jupyter.exporters import PackageExporter, DocumentationExporter
     from appurl import parse_app_url
     from nbconvert.writers import FilesWriter
-    from os.path import normpath
+    from os.path import normpath, exists
 
     prt('Convert notebook to Metatab source package')
-    nb_path = m.mt_file.path
+
+    u = parse_app_url(m.mtfile_arg)
+
+    nb_path = u.path
+
+    if not exists(nb_path):
+        err("Notebook path does not exist: '{}' ".format(nb_path))
 
     c = Config()
 

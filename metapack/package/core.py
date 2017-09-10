@@ -18,7 +18,8 @@ from metapack.appurl import MetapackUrl, MetapackPackageUrl
 from metapack.exc import PackageError
 from metapack.terms import Resource
 from metapack.util import Bunch, get_cache
-from metatab import slugify, DEFAULT_METATAB_FILE
+from appurl.util import slugify
+from metatab import DEFAULT_METATAB_FILE
 from rowgenerators import get_generator
 from tableintuit import RowIntuiter
 
@@ -26,7 +27,7 @@ class PackageBuilder(object):
 
     def __init__(self, source_ref=None, package_root = None,  callback=None, env=None):
 
-        assert isinstance(package_root, (type(None), MetapackPackageUrl)), type(package_root)
+        assert isinstance(package_root, (type(None), MetapackPackageUrl)), (type(package_root), package_root)
 
         self._downloader = source_ref._downloader
         self._cache = self._downloader.cache

@@ -13,6 +13,8 @@ import unicodecsv as csv
 
 from appurl import get_cache
 
+from appurl.util import slugify
+
 def declaration_path(name):
     """Return the path to an included declaration"""
     from os.path import dirname, join, exists
@@ -32,20 +34,7 @@ def declaration_path(name):
     return path
 
 
-# From http://stackoverflow.com/a/295466
-def slugify(value):
-    """
-    Normalizes string, converts to lowercase, removes non-alpha characters,
-    and converts spaces to hyphens.type(
-    """
-    import re
-    import unicodedata
-    from six import text_type
-    value = text_type(value)
-    value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('utf8').strip().lower()
-    value = re.sub(r'[^\w\s\-\.]', '', value)
-    value = re.sub(r'[-\s]+', '-', value)
-    return value
+
 
 
 def linkify(v, description = None, cwd_url=None):

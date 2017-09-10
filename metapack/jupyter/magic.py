@@ -272,7 +272,7 @@ class MetatabMagic(Magics):
         if not '_material_dataframes' in self.shell.user_ns:
             self.shell.user_ns['_material_dataframes'] = []
 
-        notebook_name = doc.as_version(None).get_value('Root.Name', 'notebook')
+        notebook_name = doc.as_version(None)
 
         df = self.shell.user_ns[args['<dataframe_name>']]
 

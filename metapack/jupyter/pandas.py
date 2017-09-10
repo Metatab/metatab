@@ -48,6 +48,15 @@ class MetatabDataFrame(DataFrame):
 
         super(MetatabDataFrame, self).__init__(data, index, columns, dtype, copy)
 
+    @property
+    def geo(self):
+        """Return a geopandas dataframe"""
+        import geopandas as gpd
+        gdf = gpd.GeoDataFrame(self)
+        shapes = [row['geometry'].shape for i, row in gdf.iterrows()]
+        gdf['geometry'] = gpd.GeoSeries(shapes)
+        gdf.set_geometry('geometry')
+        return gdf
 
     @property
     def _constructor(self):
@@ -64,7 +73,7 @@ class MetatabDataFrame(DataFrame):
         return c
 
     def copy(self, deep=True):
-        df =  super().copy(deep)
+        df = super().copy(deep)
 
         for c in df.columns:
             df[c].__class__ = MetatabSeries

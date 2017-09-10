@@ -5,7 +5,7 @@ Record objects for the Simple Data Package format.
 """
 
 from .exc import *
-from .doc import MetapackDoc
+from .doc import MetapackDoc, Resolver
 from .package import open_package
 from .appurl import MetapackUrl, MetapackDocumentUrl, MetapackResourceUrl, MetapackPackageUrl
 

@@ -130,8 +130,7 @@ def send_to_ckan(m):
 
     ckanid = doc.find_first_value('Root.Ckanid')
 
-    name = doc.as_version(None).find_first('Root.Name')
-
+    name = doc.as_version(None)
     ckan_name = name.value.replace('.','-')
 
     id_name = ckanid or ckan_name

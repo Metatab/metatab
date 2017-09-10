@@ -1,5 +1,6 @@
 import unittest
 from csv import DictReader
+from metapack import MetapackDoc
 from os.path import isfile, isdir
 from appurl import Downloader, get_cache
 from appurl import parse_app_url
@@ -7,6 +8,7 @@ from metapack import MetapackPackageUrl, MetapackDocumentUrl, MetapackResourceUr
 from metapack.cli.core import (make_filesystem_package, make_s3_package, make_excel_package, make_zip_package, make_csv_package,
                                 make_metatab_file, PACKAGE_PREFIX, cli_init )
 from rowgenerators import get_generator, RowGeneratorError
+from metatab.generate import TextRowGenerator
 
 downloader = Downloader(get_cache())
 
@@ -98,7 +100,6 @@ class TestPackages(unittest.TestCase):
 
             self.assertEqual(int(r.nrows), len(list(r)))
 
-    
 
     def test_build_package(self):
 
@@ -133,11 +134,7 @@ class TestPackages(unittest.TestCase):
 
     def test_build_simple_package(self):
 
-        from metapack import MetapackDoc
-
         cli_init()
-
-
 
         m = MetapackUrl(test_data('packages/example.com/simple_example-2017-us/metadata.csv'), downloader=downloader)
 
@@ -206,6 +203,57 @@ class TestPackages(unittest.TestCase):
         #    print (f.read())
         #    #urls.append(('csv', s3.write(f.read(), csv_url.target_file, acl)))
 
+    def test_build_geo_package(self):
+
+        from rowpipe.valuetype.geo import ShapeValue
+
+        m = MetapackUrl(test_data('packages/sangis.org/sangis.org-census_regions/metadata.csv'), downloader=downloader)
+
+        package_dir = m.package_url.join_dir(PACKAGE_PREFIX)
+
+        _, fs_url, created = make_filesystem_package(m, package_dir, get_cache(), {}, True)
+
+        print(fs_url)
+
+        doc = MetapackDoc(fs_url)
+
+        r = doc.resource('sra')
+
+        rows =  list(r.iterdict)
+
+        self.assertEqual(41,len(rows))
+
+        self.assertIsInstance(rows[1]['geometry'], ShapeValue)
+
+    def test_read_geo_packages(self):
+        from pandasreporter.dataframe import CensusDataFrame
+        from metapack.jupyter.pandas import MetatabDataFrame
+        from metapack.jupyter.pandas import MetatabSeries
+        from geopandas.geoseries import GeoSeries
+        from rowpipe.valuetype.geo import ShapeValue
+
+        with open(test_data('line-oriented-doc.txt')) as f:
+            text = f.read()
+
+        doc = MetapackDoc(TextRowGenerator("Declare: metatab-latest\n" + text))
+
+        r = doc.reference('B09020')
+        df = r.dataframe()
+
+        self.assertIsInstance(df, CensusDataFrame)
+
+        r = doc.reference('sra_geo')
+        df = r.dataframe()
+
+        self.assertIsInstance(df, MetatabDataFrame)
+
+        self.assertIsInstance(df.geometry, MetatabSeries)
+
+        self.assertIsInstance(df.geo.geometry, GeoSeries)
+
+        row = next(r.iterdict)
+
+        self.assertIsInstance(row['geometry'], ShapeValue)
 
 if __name__ == '__main__':
     unittest.main()

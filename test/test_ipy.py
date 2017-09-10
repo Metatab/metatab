@@ -117,42 +117,38 @@ class TestIPython(unittest.TestCase):
 
             self.assertEqual(628, len(list(r)))
 
-            tracts  = r.dataframe()
+            tracts = r.dataframe()
 
             self.assertEqual(-73427, tracts.lon.sum().astype(int))
 
-        r = doc.reference('incv')
-
-        ru = r.resolved_url
-
-        # Upstream metatab resource
-        doc = ru.doc
-        ur = doc.resource('income_homeval')
-
-        print(ur.resolved_url)
-
-        return
-
-
-        incv = r.dataframe()
 
         # Test loading a Python Library from a package.
-        r = doc.reference('incv')
-        u = parse_app_url(r.url).inner.clear_fragment()
 
-        r = u.get_resource()
+        ref = doc.reference('incv')
+
+        self.assertIsNotNone(ref)
+
+        ref_resource = parse_app_url(ref.url).inner.clear_fragment().get_resource()
 
         # The path has to be a Metatab ZIP archive, and the root directory must be the same as
         # the name of the path
 
-        pkg_name, _ = splitext(basename(r.path))
+        pkg_name, _ = splitext(basename(ref_resource.path))
 
-        lib_path = r.join(pkg_name).path
+        lib_path = ref_resource.join(pkg_name).path
 
         if lib_path not in sys.path:
             sys.path.insert(0, lib_path)
 
         from lib.incomedist import sum_densities
+
+        #
+        #
+        #
+
+        r = doc.reference('B09020')
+        df = r.dataframe()
+        print(type(df))
 
 
     def x_test_pandas(self):

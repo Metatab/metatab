@@ -184,19 +184,19 @@ def metapack():
             self.mt_file = self.mtfile_url.metadata_url
 
             assert self.package_url.scheme == 'file'
-            self.package_root = self.package_url.join(PACKAGE_PREFIX).inner
-
+            self.package_root = self.package_url.join(PACKAGE_PREFIX)
             assert self.package_root._downloader
-
 
     m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
 
     # Maybe need to convert a notebook first
     if m.args.make_package:
 
-        if not m.mtfile_url.inner.target_format == 'ipynb':
-            print (m.mtfile_url.dict)
-            err("Input must be a Jupyter notebook file. Got '{}' ".format(m.mtfile_url.target_format))
+        u = parse_app_url(m.mtfile_arg)
+
+        if u.target_format != 'ipynb':
+            print (u.dict)
+            err("Input must be a Jupyter notebook file. Got '{}' ".format(u.target_format))
 
         if m.args.make_documentation:
             convert_documentation(m)

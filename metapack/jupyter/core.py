@@ -95,9 +95,10 @@ def process_schema(doc, resource, df):
     from rowgenerators import SourceError
     from requests.exceptions import ConnectionError
 
-    from metatab.cli.core import extract_path_name, alt_col_name, type_map
+    from metapack.cli.core import extract_path_name, alt_col_name, type_map
     from tableintuit import TypeIntuiter
-    from rowgenerators import PandasDataframeSource, SourceSpec
+    from metapack.rowgenerator import PandasDataframeSource
+    from appurl import parse_app_url
 
     try:
         doc['Schema']
@@ -116,7 +117,7 @@ def process_schema(doc, resource, df):
 
     logger.info("Processing {}".format(resource.url))
 
-    si = PandasDataframeSource(SourceSpec(resource.url), df, cache=doc._cache, )
+    si = PandasDataframeSource(parse_app_url(resource.url), df, cache=doc._cache, )
 
     try:
         ti = TypeIntuiter().run(si)
