@@ -89,13 +89,13 @@ setup(
         'appurl.urls' : [
             "metapack+ = metapack.appurl:MetapackUrl",
             "metatab+ = metapack.appurl:MetapackUrl",
-            ".ipynb = metapack.appurl:JupyterUrl"
+            ".ipynb = metapack.appurl:JupyterNotebookUrl"
 
         ],
         'rowgenerators': [
 
             "<MetapackUrl> = metapack.rowgenerator:MetapackGenerator",
-            "<JupyterUrl> = metapack.rowgenerator:JupyterGenerator",
+            "<JupyterNotebookUrl> = metapack.rowgenerator:JupyterNotebookSource",
 
         ]
 

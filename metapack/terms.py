@@ -256,7 +256,7 @@ class Resource(Term):
         #ut = ru.inner.get_resource().get_target()
         ut = ru.get_resource().get_target()
 
-        assert ut.scheme == 'file'
+        assert ut.scheme == 'file', ut
 
         g = get_generator(ut, **self.generator_env)
 

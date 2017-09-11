@@ -363,6 +363,16 @@ class MetapackUrl(Url):
         """Return True if this handler can handle the input URL"""
         return url.proto in ('metapack', 'metatab')
 
+class JupyterNotebookUrl(FileUrl):
+    """IPYthon Notebook URL"""
 
-class JupyterUrl(FileUrl):
-    pass
+    def __init__(self, url, **kwargs):
+        kwargs['proto'] = 'ipynb'
+        super().__init__(url, **kwargs)
+
+    @classmethod
+    def match(cls, url, **kwargs):
+        return url.resource_format == 'ipynb'
+
+
+

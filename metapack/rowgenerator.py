@@ -8,7 +8,7 @@
 from rowgenerators import Source
 
 
-class NotebookSource(Source):
+class JupyterNotebookSource(Source):
     """Generate rows from an IPython Notebook. """
 
     def __init__(self, spec,  syspath, cache, working_dir):
