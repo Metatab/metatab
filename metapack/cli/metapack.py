@@ -233,8 +233,6 @@ def metatab_build_handler(m):
 
             doc = make_metatab_file(template)
 
-            doc['Root']['Identifier'] = six.text_type(uuid4())
-
             doc['Root']['Created'] = datetime_now()
 
             write_doc(doc, m.mt_file)

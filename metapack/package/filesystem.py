@@ -104,25 +104,25 @@ class FileSystemPackageBuilder(PackageBuilder):
             CSV package is built from a file system ackage on a publically acessible server. """
 
         from itertools import islice
-        gen = islice(source_r, 1, None)
-        headers = source_r.headers
+
 
         r = self.datafile(source_r.name)
 
         self.prt("Loading data for '{}' ".format(r.name))
 
-        new_url = 'data/' + r.name + '.csv'
+        r.url = 'data/' + r.name + '.csv'
 
-        path = join(self.package_path.path, new_url)
+        path = join(self.package_path.path, r.url)
 
         makedirs(dirname(path), exist_ok=True)
 
         if exists(path):
             remove(path)
 
-        write_csv(path, headers, gen)
 
-        r.url = new_url
+        gen = islice(source_r, 1, None)
+        headers = source_r.headers
+        write_csv(path, headers, gen)
 
         # Writting between resources so row-generating programs and notebooks can
         # access previously created resources. We have to clean the doc before writing it

@@ -194,54 +194,111 @@ class MetatabMagic(Magics):
 
     @magic_arguments()
     @argument('package_dir', help='Package directory')
+    @argument('--feather', help='Use feather for serialization', action='store_true' )
     @line_magic
-    def mt_materialize(self, line):
-        """Write a metatab files to the package directory
+    def mt_materialize_all(self, line):
+        """Materialize all of the dataframes that has been previoulsly added with mt_add_dataframe
         """
 
         from json import dumps
-
-        materialized = []
-
-        args = parse_argstring(self.mt_materialize, line)
-
-        for df_name, ref in self.shell.user_ns.get('_material_dataframes',{}):
-            self._materialize(self.mt_doc, df_name, ref, args.package_dir)
-            materialized.append({
-                'df_name': df_name,
-                'ref':ref
-            })
-
-        print(dumps(materialized, indent=4))
-
-    def _materialize(self, doc, df_name, ref, package_dir):
-        """Write a dataframe into the package as a CSV file"""
+        from appurl import get_cache
         from metapack.rowgenerator import PandasDataframeSource
         import csv
 
-        u = parse_app_url(package_dir).join(ref)
+        materialized = []
 
-        path = u.path
+        args = parse_argstring(self.mt_materialize_all, line)
 
-        if not exists(dirname(path)):
-            makedirs(dirname(path))
+        try:
+            cache = self.mt_doc._cache
+        except KeyError:
+            cache = get_cache()
 
-        df = self.shell.user_ns[df_name].fillna('')
+        for df_name, ref in self.shell.user_ns.get('_material_dataframes',{}).items():
 
-        gen = PandasDataframeSource(u, df, cache=doc._cache)
+            u = parse_app_url(args.package_dir).join(ref)
 
-        with open(path, 'w') as f:
-            w = csv.writer(f)
-            w.writerows(gen)
+            path = u.path
+
+            if not exists(dirname(path)):
+                makedirs(dirname(path))
+
+            df = self.shell.user_ns[df_name].fillna('')
+
+            if args.feather:
+                path = path.replace('.csv','.feather')
+                df.to_feather(path)
+            else:
+                gen = PandasDataframeSource(u, df, cache=cache)
+                with open(path, 'w') as f:
+                    w = csv.writer(f)
+                    w.writerows(gen)
+
+            materialized.append({
+                'df_name': df_name,
+                'path': path,
+                'ref':ref
+            })
+
+        # Show information about the dataframes that were materialized, so it can be harvested later
+        print(dumps(materialized, indent=4))
+
+    @magic_arguments()
+    @argument('df_name', help='Dataframe name')
+    @argument('dir', help='Path to output directory. Created if it does not exist')
+    @argument('--feather', help='Materialize with feather', action="store_true")
+    @line_magic
+    def mt_materialize(self, line):
+        """Materialize all of the dataframes that has been previoulsly added with mt_add_dataframe
+        """
+
+        from json import dumps
+        from appurl import get_cache
+        from metapack.rowgenerator import PandasDataframeSource
+        import csv
+        from os.path import join
+
+        args = parse_argstring(self.mt_materialize, line)
+
+        try:
+            cache = self.mt_doc._cache
+        except KeyError:
+            cache = get_cache()
+
+        if not exists(args.dir):
+            makedirs(args.dir)
+
+        if args.feather:
+            path = join(args.dir, args.df_name+".feather")
+            df = self.shell.user_ns[args.df_name]
+            df.to_feather(path)
+        else:
+            path = join(args.dir, args.df_name + ".csv")
+            df = self.shell.user_ns[args.df_name].fillna('')
+            gen = PandasDataframeSource(parse_app_url(path), df, cache=cache)
+
+            with open(path, 'w') as f:
+                w = csv.writer(f)
+                w.writerows(gen)
+
+        print(dumps({
+            'df_name': args.df_name,
+            'path': path,
+
+        }, indent=4))
+
 
     @line_magic
     def mt_show_metatab(self, line):
         """Dump the metatab file to the output, so it can be harvested after the notebook is executed"""
 
-        for line in self.mt_doc.lines:
+        try:
+            for line in self.mt_doc.lines:
 
-            if  line[1]: # Don't display "None"
-               print(': '.join(line))
+                if  line[1]: # Don't display "None"
+                    print(': '.join(line))
+        except KeyError:
+            pass
 
 
     @line_magic
@@ -265,37 +322,55 @@ class MetatabMagic(Magics):
             args = docopt.docopt(self.mt_add_dataframe.__doc__, argv=shlex.split(line))
         except docopt.DocoptExit as e:
             warn(str(e))
+            return
         except SystemExit:
             return
 
-        doc = self.mt_doc
 
         if not '_material_dataframes' in self.shell.user_ns:
-            self.shell.user_ns['_material_dataframes'] = []
-
-        notebook_name = doc.as_version(None)
+            self.shell.user_ns['_material_dataframes'] = {}
 
         df = self.shell.user_ns[args['<dataframe_name>']]
 
-        name = args['--name'] or df.name
-        title = args['--title'] or df.title or df.desc
+        if hasattr(df, 'name'):
+            # It's a Metatab dataframe, with special properties
+
+            name = args['--name'] or df.name or args['<dataframe_name>']
+            title = args['--title'] or df.title or df.desc or ''
+
+        else:
+            name = args['--name'] or args['<dataframe_name>']
+            title = args['--title'] or ''
+
+        if not name:
+            warn("Failed to materialize '{}'; name must be set with .name property, or --name option".format(args['<dataframe_name>']))
+            return
+
+        try:
+            doc = self.mt_doc
+        except KeyError:
+            doc = None
 
         if args['--materialize']:
             ref = 'file:data/{}.csv'.format(name)
-            self.shell.user_ns['_material_dataframes'].append((args['<dataframe_name>'], ref))
+            self.shell.user_ns['_material_dataframes'][args['<dataframe_name>']] = ref
+
+        elif doc is not None:
+            ref = 'ipynb:notebooks/{}.ipynb#{}'.format( doc.as_version(None), args['<dataframe_name>'])
 
         else:
-            ref = 'ipynb:notebooks/{}.ipynb#{}'.format(notebook_name, args['<dataframe_name>'])
+            ref = None
 
-        if not 'Resources' in doc:
-            doc.new_section('Resources')
+        if doc and ref:
+            if not 'Resources' in doc:
+                doc.new_section('Resources')
 
-        t = doc['Resources'].get_or_new_term("Root.Datafile", ref)
+            t = doc['Resources'].get_or_new_term("Root.Datafile", ref)
 
-        t['name'] = name
-        t['title'] = title
+            t['name'] = name
+            t['title'] = title
 
-        process_schema(doc, doc.resource(name), df)
+            process_schema(doc, doc.resource(name), df)
 
     @line_magic
     def mt_notebook_path(self, line):

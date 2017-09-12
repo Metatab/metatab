@@ -239,13 +239,26 @@ class MetapackPackageUrl(FileUrl, _MetapackUrl):
             t = u
 
         elif self.target_format == 'csv' and self.target_file != DEFAULT_METATAB_FILE:
-            # For CSV packages, need to get the package and open it to get the resource URL, becuase
+            # Thre are two forms for CSV package URLS:
+            # - A CSV package, which can only have absolute URLs
+            # - A Filesystem package, which can have relative URLs.
+
+            # The complication is that the filsystem package usually has a metadata file named
+            # DEFAULT_METATAB_FILE, which can distinguish it from a CSV package, but it's also possible
+            # to have a filesystem package with a non standard package name.
+
+            # So, this clause can happed for two cases: A CSV package or a Filesystem package with a nonstandard
+            # metadata file name.
+
+            # For CSV packages, need to get the package and open it to get the resource URL, because
             # they are always absolute web URLs and may not be related to the location of the metadata.
             s = self.get_resource()
             rs = s.metadata_url.doc.resource(resource_name)
-            if rs is None:
+            if rs is not None:
+                t = parse_app_url(rs.url)
+            else:
                 raise ResourceError("No resource for '{}' in '{}' ".format(resource_name, self))
-            t = parse_app_url(rs.url)
+
 
         else:
             jt = self.join_target(resource_name)
@@ -366,13 +379,16 @@ class MetapackUrl(Url):
 class JupyterNotebookUrl(FileUrl):
     """IPYthon Notebook URL"""
 
-    def __init__(self, url, **kwargs):
+    def __init__(self, url=None, **kwargs):
         kwargs['proto'] = 'ipynb'
         super().__init__(url, **kwargs)
 
     @classmethod
     def match(cls, url, **kwargs):
         return url.resource_format == 'ipynb'
+
+    def get_target(self, mode=None):
+        return self
 
 
 

@@ -4,14 +4,24 @@
 """
 Functions for converting Jupyter notebooks
 """
+from os import getcwd
+from os.path import abspath
+from os.path import normpath, exists
+
+import nbformat
+from nbconvert.writers import FilesWriter
+from traitlets.config import Config
+
+from appurl import parse_app_url
 from metatab import DEFAULT_METATAB_FILE
 from metapack import MetapackDoc
 from metapack.cli.core import prt, err
 from metapack.util import ensure_dir, copytree
-from os.path import abspath
-from os import getcwd
-from appurl import parse_app_url
+from metapack.jupyter.core import logger
+from metapack.jupyter.exporters import NotebookExecutor, DocumentationExporter
+from metapack.jupyter.preprocessors import ExtractInlineMetatabDoc
 from rowgenerators.util import fs_join as join
+
 
 
 def convert_documentation(m):
@@ -19,12 +29,7 @@ def convert_documentation(m):
 
       The final document will not be completel
     """
-    from .exporters import PackageExporter, DocumentationExporter
-    from .preprocessors import ExtractInlineMetatabDoc
-    from traitlets.config import Config
-    from .core import logger
-    from nbconvert.writers import FilesWriter
-    import nbformat
+
 
     nb_path = parse_app_url(m.mt_file).path
 
@@ -48,14 +53,9 @@ def convert_documentation(m):
     prt("Wrote documentation to {}".format(fw.build_directory))
 
 
+
 def convert_notebook(m):
 
-    from .core import logger
-    from traitlets.config import Config
-    from metapack.jupyter.exporters import PackageExporter, DocumentationExporter
-    from appurl import parse_app_url
-    from nbconvert.writers import FilesWriter
-    from os.path import normpath, exists
 
     prt('Convert notebook to Metatab source package')
 
@@ -68,9 +68,9 @@ def convert_notebook(m):
 
     c = Config()
 
-    pe = PackageExporter(config=c, log=logger)
+    pe = NotebookExecutor(config=c, log=logger)
 
-    prt('Runing the notebook')
+    prt('Running the notebook')
     output, resources = pe.from_filename(nb_path)
 
     fw = FilesWriter()

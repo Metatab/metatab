@@ -5,7 +5,7 @@
 NBConvert preprocessors
 """
 
-from traitlets import Integer, Unicode
+from traitlets import Integer, Unicode, List
 from nbconvert.preprocessors import Preprocessor
 from textwrap import dedent
 from .magic import MetatabMagic
@@ -234,7 +234,9 @@ class ExtractLibDirs(Preprocessor):
             if cell['outputs']:
                 o = ''.join(e['text'] for e in cell['outputs'])
 
-                self.lib_dirs = loads(o)
+
+                if o:
+                    self.lib_dirs = loads(o)
 
         return cell, resources
 
@@ -343,12 +345,38 @@ class NoShowInput(Preprocessor):
 
 
 class AddEpilog(Preprocessor):
-    """Add a final cell that writes the Metatab file, materializes datasets, etc.  """
+    """Add final cells that writes the Metatab file, materializes datasets, etc.  """
+
 
     pkg_dir = Unicode(help='Metatab package Directory').tag(config=True)
 
+    dataframes = List(help='Names of dataframes to materialize',trait=Unicode)
+
+
     def preprocess(self, nb, resources):
-        import re
+        from datetime import datetime
+
+        # Well, wre adding prolog in the epilog ...
+        nb.cells = [
+               from_dict({
+                   'cell_type': 'code',
+                   'outputs': [],
+                   'metadata': {'': True, 'prolog': True},
+                   'execution_count': None,
+                   'source': ("#{}\n".format(datetime.now()))+
+                       "%load_ext metapack.jupyter.magic"
+               })
+           ] + nb.cells
+
+
+        if len(self.dataframes) > 0:
+            nb.cells.append(from_dict({
+                'cell_type': 'code',
+                'outputs': [],
+                'metadata': {'mt_dataframes': True, 'epilog': True},
+                'execution_count': None,
+                'source': '\n'.join("%mt_materialize {} {} ".format(df, self.pkg_dir) for df in self.dataframes)
+            }))
 
         nb.cells.append(from_dict({
             'cell_type': 'code',
@@ -356,7 +384,7 @@ class AddEpilog(Preprocessor):
             'metadata': {'mt_materialize': True, 'epilog': True},
             'execution_count': None,
             'source': dedent("""
-            %mt_materialize {pkg_dir}
+            %mt_materialize_all {pkg_dir}
             """.format(pkg_dir=self.pkg_dir))
         }))
 

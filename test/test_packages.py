@@ -1,16 +1,18 @@
 import unittest
 from csv import DictReader
 from metapack import MetapackDoc
-from os.path import isfile, isdir
+
 from appurl import Downloader, get_cache
 from appurl import parse_app_url
-from metapack import MetapackPackageUrl, MetapackDocumentUrl, MetapackResourceUrl,  MetapackUrl, ResourceError
+from metapack import MetapackPackageUrl,  MetapackUrl, ResourceError
 from metapack.cli.core import (make_filesystem_package, make_s3_package, make_excel_package, make_zip_package, make_csv_package,
-                                make_metatab_file, PACKAGE_PREFIX, cli_init )
+                                PACKAGE_PREFIX, cli_init )
 from rowgenerators import get_generator, RowGeneratorError
 from metatab.generate import TextRowGenerator
 
 downloader = Downloader(get_cache())
+
+
 
 def test_data(*paths):
     from os.path import dirname, join, abspath

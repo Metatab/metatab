@@ -9,23 +9,15 @@ from rowgenerators import Source
 
 
 class JupyterNotebookSource(Source):
-    """Generate rows from an IPython Notebook. """
+    """Generate rows from an IPython Notebook.
 
-    def __init__(self, spec,  syspath, cache, working_dir):
+     This generator will execute a Jupyter notebook. Before execution, it adds an "%mt_materalize"
+     magic to the notebook, which will cause the target dataframe to be written to a temporary file, and
+     the temporary file is yielded to the caller. Not most efficient, but it fits the model.
+     """
 
-        super(NotebookSource, self).__init__(spec, cache)
-
-        self.sys_path = syspath
-        if not exists(self.sys_path):
-            raise SourceError("Notebook '{}' does not exist".format(self.sys_path))
-
-        self.env = dict(
-            (list(self.spec.generator_args.items()) if self.spec.generator_args else [])  +
-            (list(self.spec.kwargs.items()) if self.spec.kwargs else [] )
-            )
-
-        assert 'METATAB_DOC' in self.env
-
+    def __init__(self, ref, cache=None, working_dir=None, **kwargs):
+        super().__init__(ref, cache, working_dir, **kwargs)
 
     def start(self):
         pass
@@ -33,46 +25,46 @@ class JupyterNotebookSource(Source):
     def finish(self):
         pass
 
-    def open(self):
-        pass
-
 
     def __iter__(self):
 
         import pandas as pd
+        from metapack.jupyter.exec import execute_notebook
+        from tempfile import mkdtemp
+        from os import remove, makedirs
+        from os.path import join, isdir
+        from csv import reader
+        from shutil import rmtree
 
-        env = self.execute()
+        dr_name = None
 
-        o = env[self.spec.target_segment]
+        try:
+            self.start()
 
-        if isinstance(o, pd.DataFrame):
-            r = PandasDataframeSource(self.spec,o,self.cache)
+            dr_name = mkdtemp()
 
-        else:
-            raise Exception("NotebookSource can't handle type: '{}' ".format(type(o)))
+            if not isdir(dr_name):
+                makedirs(dr_name)
 
+            # The execute_motebook() function will add a cell with the '%mt_materialize' magic,
+            # with a path that will case the file to be written to the same location as
+            # path, below.
+            nb = execute_notebook(self.ref.path, dr_name, [self.ref.target_file], True)
 
-        for row in r:
-            yield row
+            path = join(dr_name, self.ref.target_file + ".csv")
 
+            with open(path) as f:
+                yield from reader(f)
 
-    def execute(self):
-        """Convert the notebook to a python script and execute it, returning the local context
-        as a dict"""
+            self.finish()
 
-        from nbconvert.exporters import get_exporter
+        finally:
 
-        preprocessors = ['metatab.jupyter.preprocessors.PrepareScript']
-
-        exporter = get_exporter('python')(preprocessors=preprocessors)
-
-        (script, notebook) = exporter.from_filename(filename=self.sys_path)
-
-        exec(compile(script.replace('# coding: utf-8', ''), 'script', 'exec'), self.env)
-
-
-        return self.env
-
+            if dr_name:
+                try:
+                    rmtree(dr_name)
+                except FileNotFoundError:
+                    pass
 
 
 

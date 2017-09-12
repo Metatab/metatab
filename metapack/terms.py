@@ -3,7 +3,7 @@ from itertools import islice
 from appurl import parse_app_url, WebUrl
 from metapack import MetapackError
 from metapack.doc import EMPTY_SOURCE_HEADER
-from metapack.exc import PackageError
+from metapack.exc import MetapackError, ResourceError
 from metapack.appurl import MetapackPackageUrl
 from metatab import Term
 from rowgenerators import DownloadError, get_generator
@@ -71,15 +71,28 @@ class Resource(Term):
 
         u = parse_app_url(self._self_url)
 
-        if u.proto != 'file':
+        if u.scheme != 'file':
+            # Hopefully means the URL is http, https, ftp, etc.
             return u
+        elif u.resource_format == 'ipynb':
+
+            # This shouldn't be a special case, but ...
+            t = self.doc.package_url.inner.join_dir(self._self_url)
+            t = t.as_type(type(u))
+            t.fragment = u.fragment
+
         else:
             assert isinstance(self.doc.package_url, MetapackPackageUrl), (
                 type(self.doc.package_url), self.doc.package_url)
 
-            t = self.doc.package_url.resolve_url(self._self_url)
+            try:
+                t = self.doc.package_url.resolve_url(self._self_url)
+            except ResourceError as e:
+                # This case happens when a filesystem packages has a non-standard metadata name
+                # Total hack
+                raise
 
-            return t
+        return t
 
     def _name_for_col_term(self, c, i):
 

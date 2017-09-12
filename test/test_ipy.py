@@ -7,6 +7,8 @@ from metapack import open_package, MetapackDoc
 from metatab.util import flatten
 from metatab.generate import TextRowGenerator
 from itertools import islice
+from rowgenerators import get_generator
+from appurl import Downloader, get_cache
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
@@ -20,6 +22,9 @@ from metapack.cli.core import cli_init
 logger = logging.getLogger('user')
 logger_err = logging.getLogger('cli-errors')
 debug_logger = logging.getLogger('debug')
+
+downloader = Downloader(get_cache())
+from appurl import Downloader, get_cache
 
 
 class TestIPython(unittest.TestCase):
@@ -143,12 +148,53 @@ class TestIPython(unittest.TestCase):
         from lib.incomedist import sum_densities
 
         #
-        #
-        #
 
         r = doc.reference('B09020')
         df = r.dataframe()
         print(type(df))
+
+
+    def test_notebook_url(self):
+
+        from metapack.appurl import JupyterNotebookUrl
+        from metapack.jupyter.exec import execute_notebook
+        from os.path import exists
+
+        u = parse_app_url(test_data('notebooks','GenerateDataTest.ipynb'))
+
+        self.assertIsInstance(u, JupyterNotebookUrl)
+
+        nb = execute_notebook(u.path, '/tmp/nbtest', ['dfa','dfb'], True)
+
+        self.assertTrue(exists('/tmp/nbtest/dfa.csv'))
+        self.assertTrue(exists('/tmp/nbtest/dfb.csv'))
+
+        g = get_generator(parse_app_url('/tmp/nbtest/dfa.csv'))
+
+        print(list(g))
+
+
+    def test_build_notebook_package(self):
+        from metapack import MetapackUrl, MetapackDocumentUrl
+        from metapack.cli.core import make_filesystem_package, PACKAGE_PREFIX, process_schemas
+
+        m = MetapackDocumentUrl(test_data('packages/example.com/example.com-notebook/metadata.csv'), downloader=downloader)
+
+        #process_schemas(m)
+
+        doc = MetapackDoc(m)
+
+        r = doc.resource('basic_a')
+
+        self.assertEquals(2501, len(list(r)))
+
+
+
+        package_dir = m.package_url.join_dir(PACKAGE_PREFIX)
+
+        _, fs_url, created = make_filesystem_package(m, package_dir, get_cache(), {}, False)
+
+        print(fs_url)
 
 
     def x_test_pandas(self):

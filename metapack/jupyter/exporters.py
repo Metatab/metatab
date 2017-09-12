@@ -12,6 +12,7 @@ import copy
 import io
 import metapack
 from metapack.exc import MetapackError
+from metapack.jupyter.exc import NotebookError
 from metapack.jupyter.markdown import MarkdownExporter
 import nbformat
 from nbconvert.exporters import Exporter
@@ -194,7 +195,7 @@ class DocumentationExporter(MetatabExporter):
                 ds.new_term('Root.Image', 'docs/'+name, title='Image for HTML Documentation')
 
 
-class PackageExporter(MetatabExporter):
+class NotebookExecutor(MetatabExporter):
     """
 
     """
@@ -218,7 +219,7 @@ class PackageExporter(MetatabExporter):
 
         c.ExecutePreprocessor.timeout = 600
 
-        c.merge(super(PackageExporter, self).default_config)
+        c.merge(super(NotebookExecutor, self).default_config)
         return c
 
     def get_package_dir_name(self, nb):
@@ -228,7 +229,13 @@ class PackageExporter(MetatabExporter):
         if not package_name:
             doc = ExtractInlineMetatabDoc().run(nb)
 
+            if not doc:
+                raise NotebookError("Notebook does not have an inline metatab doc")
+
             t = doc.find_first('Root.Name', section='Root')
+
+            if not t:
+                raise NotebookError("Inline Metatab doc doesnt have a Root.Name term")
 
             package_name = doc.as_version(None)
 
@@ -252,6 +259,12 @@ class PackageExporter(MetatabExporter):
 
         return emt.terms
 
+    def write_notebook(self, nb, path='/tmp/executed_notebook.ipynb'):
+        with open(path, 'wt') as f:
+            nbformat.write(nb, f)
+
+        return path
+
     def from_notebook_node(self, nb, resources=None, **kw):
         """Create a Metatab package from a notebook node """
 
@@ -260,7 +273,11 @@ class PackageExporter(MetatabExporter):
         # The the package name and directory, either from the inlined Metatab doc,
         # or from the config
 
-        self.output_dir = self.get_output_dir(nb)
+        try:
+            self.output_dir = self.get_output_dir(nb)
+        except NotebookError as e:
+            # Notebook probably lacks a metatab doc.
+            self.log.warn(e)
 
         resources = self._init_resources(resources)
 
@@ -278,13 +295,9 @@ class PackageExporter(MetatabExporter):
         # Clear the output before executing
         self.clear_output(nb_copy)
 
-        try:
 
-            nb_copy, resources = self.exec_notebook(nb_copy, resources, self.notebook_dir)
-        except CellExecutionError as e:
+        nb_copy, resources = self.exec_notebook(nb_copy, resources, self.notebook_dir)
 
-            raise CellExecutionError("Errors executing noteboook. See output at {} for details.\n{}"
-                                     .format('notebooks/executed-source.ipynb', ''))
 
         eld = ExtractLibDirs()
         eld.preprocess(nb_copy, {})
@@ -316,16 +329,19 @@ class PackageExporter(MetatabExporter):
 
     def exec_notebook(self, nb, resources, nb_dir):
 
-
-        nb, _ = AddEpilog(pkg_dir=self.output_dir).preprocess(nb, resources)
+        nb_copy, _ = AddEpilog(config=self.config, pkg_dir=self.output_dir).preprocess(nb, resources)
 
         resources['outputs']['notebooks/executed-source.ipynb'] = nbformat.writes(nb).encode('utf-8')
 
-        ep = ExecutePreprocessor(config=self.config)
+        exec_nb_path = self.write_notebook(nb_copy)
 
+        try:
+            ep = ExecutePreprocessor(config=self.config)
 
-        nb, _ = ep.preprocess(nb, {'metadata': {'path': nb_dir}})
-
+            nb, _ = ep.preprocess(nb, {'metadata': {'path': nb_dir}})
+        except CellExecutionError as e:
+            raise CellExecutionError("Errors executing noteboook. See output at {} for details.\n{}"
+                                     .format(exec_nb_path, ''))
 
         return nb, resources
 
