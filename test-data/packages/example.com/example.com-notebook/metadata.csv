@@ -1,0 +1,33 @@
+Declare,metatab-latest
+Title,Notebook Package
+Description,A Package that uses notebooks.
+Identifier,052666d0-984c-44c2-b064-d7f9a7e3df79
+Name,example.com-notebooks-1
+Dataset,notebooks
+Origin,example.com
+Time,
+Space,
+Grain,
+Version,1
+Created,2017-09-11T20:51:36
+Modified,2017-09-12T01:31:15
+Giturl,https://github.com/CivicKnowledge/metatab-py.git
+
+Section,Resources,Name,Description,
+Datafile,notebooks/basic.ipynb#dfa,basic_a,A Basic notebook,
+Datafile,notebooks/basic.ipynb#dfb,basic_b,A Basic notebook,
+
+Section,Documentation,Title,Description,
+Note,,,,
+
+Section,Contacts,Email,Organization,Url
+
+Section,Schema,DataType,AltName,Description
+Table,basic_a,,,
+Table.Column,float2,number,,
+Table.Column,int1,integer,,
+Table.Column,str3,text,,
+Table,basic_b,,,
+Table.Column,float2,number,,
+Table.Column,int1,integer,,
+Table.Column,str3,text,,
