@@ -6,31 +6,28 @@ Load a resource into an Sql database.
 """
 
 
-# Copyright (c) 2017 Civic Knowledge. This file is licensed under the terms of the
-# Revised BSD License, included in this distribution as LICENSE
-
-"""
-CLI program for storing pacakges in CKAN
-"""
 
 import sys
 
-from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc
+from appurl import parse_app_url
+from metapack import MetapackDoc, Downloader
+from metatab import DEFAULT_METATAB_FILE
 from metatab.util import slugify
 from os import getcwd
 from os.path import join
-from rowgenerators import Url, get_cache
 from sqlalchemy import String, Integer, Float
 from sqlalchemy import Table, Column
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import create_session
 from .core import prt, err
 
+downloader = Downloader()
+
 class MetapackCliMemo(object):
     def __init__(self, args):
         self.cwd = getcwd()
         self.args = args
-        self.cache = get_cache('metapack')
+        self.cache = downloader.cache
 
         self.urls = args.urls
         print(self.urls)
@@ -38,7 +35,7 @@ class MetapackCliMemo(object):
         sqlalchemy_schemes = ' postgresql mysql oracle sqlite oracle '.split()
 
         for url in args.urls:
-            u = Url(url)
+            u = parse_app_url(url)
 
             if u.proto in sqlalchemy_schemes or u.scheme in sqlalchemy_schemes:
                 self.db_url = url
@@ -52,7 +49,7 @@ class MetapackCliMemo(object):
 
         self.mtfile_arg =  self.metatabfile if self.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
 
-        self.mtfile_url = Url(self.mtfile_arg)
+        self.mtfile_url = parse_app_url(self.mtfile_arg)
 
         self.resource = self.mtfile_url.parts.fragment
 
@@ -124,7 +121,7 @@ def metasql():
     import argparse
     parser = argparse.ArgumentParser(
         prog='metasql',
-        description='Load a metatab resource into a relational database'.format(_meta.__version__),
+        description='Load a metatab resource into a relational database',
     )
 
     parser.add_argument('-i', '--info', default=False, action='store_true',
@@ -144,12 +141,10 @@ def metasql():
 
     parser.add_argument('urls', nargs='*', help='Path to a Metatab file')
 
-    m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
-
+    m = MetapackCliMemo(parser.parse_args(sys.argv[1:]), downloader)
 
     print(m.mt_file)
     print(m.db_url)
-
 
     db = Database(m.db_url)
 
@@ -158,7 +153,7 @@ def metasql():
             prt(t)
         sys.exit(0)
 
-    doc = MetatabDoc(m.mt_file)
+    doc = MetapackDoc(m.mt_file)
 
     if m.resource:
         make_table(m, doc, m.resource, db)

@@ -11,8 +11,8 @@ from os.path import basename, dirname, exists
 
 from tabulate import tabulate
 
-from appurl import get_cache, parse_app_url
-from metapack import MetapackDoc, MetapackUrl
+from appurl import parse_app_url
+from metapack import MetapackDoc, MetapackUrl, Downloader
 from metapack.cli.core import prt, err, metatab_info, get_lib_module_dict, write_doc, datetime_now, \
     make_filesystem_package, make_zip_package, make_s3_package, make_excel_package, update_name, \
     cli_init
@@ -25,7 +25,7 @@ from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
 
 from botocore.exceptions import  NoCredentialsError
-from appurl import get_cache, Downloader
+
 
 def metasync():
     import argparse
@@ -75,13 +75,14 @@ def metasync():
 
     class MetapackCliMemo(object):
         def __init__(self, raw_args):
+            from appurl import get_cache
             self.cwd = getcwd()
 
             self.raw_args = raw_args
 
             self.args = parser.parse_args(self.raw_args[1:])
 
-            self.downloader = Downloader(get_cache())
+            self.downloader = Downloader()
 
             self.cache = self.downloader.cache
 

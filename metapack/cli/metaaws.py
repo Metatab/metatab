@@ -13,7 +13,7 @@ from os.path import join, basename
 
 from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, open_package, MetatabError
 from metatab.cli.core import err, metatab_info
-from rowgenerators import get_cache, Url
+from rowgenerators import  Url
 from .core import prt, warn, err, write_doc
 from .metasync import update_dist
 import json

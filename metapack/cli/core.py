@@ -50,13 +50,6 @@ def err(*args, **kwargs):
     sys.exit(1)
 
 
-def load_plugins(parser):
-    import metatab_plugins._plugins as mtp
-
-    for p in mtp.metatab_plugins_list:
-        p(parser)
-
-
 
 def datetime_now():
     import datetime
@@ -411,7 +404,9 @@ def process_schemas(mt_file, cache=None, clean=False):
 
         prt("Processing {}".format(r.url))
 
-        si = SelectiveRowGenerator(islice(r.row_generator, 100),
+        slice = islice(r.row_generator, 100)
+
+        si = SelectiveRowGenerator(slice,
                                    headers=[int(i) for i in r.get_value('headerlines', '0').split(',')],
                                    start=int(r.get_value('startline', 1)))
 
@@ -443,7 +438,6 @@ def process_schemas(mt_file, cache=None, clean=False):
 
 def extract_path_name(ref):
     from os.path import splitext, basename, abspath
-    from rowgenerators.util import parse_url_to_dict
 
     uparts = parse_app_url(ref)
 
@@ -478,5 +472,49 @@ type_map = {
     six.binary_type.__name__: 'text',
 
 }
+
+
+class MetapackCliMemo(object):
+    def __init__(self, args, downloader):
+        from os import getcwd
+
+        self.cwd = getcwd()
+        self.args = args
+
+        self.downloader = downloader
+
+        self.cache = self.downloader.cache
+
+        frag = ''
+
+        # Just the fragment was provided
+        if args.metatabfile and args.metatabfile.startswith('#'):
+            frag = args.metatabfile
+            mtf = None
+        else:
+            frag = ''
+            mtf = args.metatabfile
+
+        # If could not get it from the args, Set it to the default file name in the current dir
+        if not mtf:
+            mtf = join(self.cwd, DEFAULT_METATAB_FILE)
+
+        self.init_stage2(mtf, frag)
+
+    def init_stage2(self, mtf, frag):
+
+        self.frag = frag
+        self.mtfile_arg = mtf + frag
+
+        self.mtfile_url = MetapackUrl(self.mtfile_arg, downloader=self.downloader)
+
+        self.resource = self.mtfile_url.fragment
+
+        self.package_url = self.mtfile_url.package_url
+        self.mt_file = self.mtfile_url.metadata_url
+
+        assert self.package_url.scheme == 'file'
+        self.package_root = self.package_url.join(PACKAGE_PREFIX)
+        assert self.package_root._downloader
 
 

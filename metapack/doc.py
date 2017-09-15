@@ -9,6 +9,7 @@ EMPTY_SOURCE_HEADER = '_NONE_'  # Marker for a column that is in the destination
 
 
 from metatab import MetatabDoc, WebResolver
+
 from metapack.appurl import MetapackDocumentUrl, MetapackResourceUrl, MetapackUrl
 from appurl import parse_app_url
 from .html import linkify
@@ -28,6 +29,10 @@ class MetapackDoc(MetatabDoc):
 
         #assert isinstance(ref, (MetapackDocumentUrl, MetapackResourceUrl)), (type(ref), ref)
 
+        if not isinstance(ref, (MetapackDocumentUrl, MetapackResourceUrl)):
+            from metapack import Downloader
+            ref = MetapackUrl(str(ref), downloader=Downloader(cache))
+
         self.register_term_class('root.resource', 'metapack.terms.Resource')
         self.register_term_class('root.reference', 'metapack.terms.Resource')
 
@@ -42,9 +47,7 @@ class MetapackDoc(MetatabDoc):
                 # For iterators, generators
                 package_url = None
 
-
         super().__init__(ref, decl, package_url, cache, resolver, clean_cache)
-
 
     @property
     def path(self):
@@ -64,6 +67,7 @@ class MetapackDoc(MetatabDoc):
     @property
     def env(self):
         """Return the module associated with a package's python library"""
+
         try:
             return self.get_lib_module_dict()
         except ImportError:
@@ -79,7 +83,7 @@ class MetapackDoc(MetatabDoc):
 
         u = parse_app_url(self.ref)
 
-        if u.proto == 'file':
+        if u.scheme == 'file':
 
             doc_dir = dirname(abspath(u.path))
 

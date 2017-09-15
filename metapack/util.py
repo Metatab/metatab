@@ -11,9 +11,8 @@ from os.path import join, basename, dirname
 
 import unicodecsv as csv
 
-from appurl import get_cache
 
-from appurl.util import slugify
+from appurl.util import slugify # Unused here, but imported from elsewhere.
 
 def declaration_path(name):
     """Return the path to an included declaration"""
@@ -23,7 +22,7 @@ def declaration_path(name):
 
     d = dirname(metatab.declarations.__file__)
 
-    path = join(d,name)
+    path = join(d, name)
 
     if not exists(path):
         path = join(d, name + '.csv')
@@ -34,10 +33,7 @@ def declaration_path(name):
     return path
 
 
-
-
-
-def linkify(v, description = None, cwd_url=None):
+def linkify(v, description=None, cwd_url=None):
     from rowgenerators import Url
     from os.path import abspath
     if not v:
@@ -47,11 +43,11 @@ def linkify(v, description = None, cwd_url=None):
 
     target = 'target="_blank"'
 
-    if u.scheme in ('http','https','mailto'):
+    if u.scheme in ('http', 'https', 'mailto'):
 
         if description is None:
             description = v
-        return '<a href="{url}" {target} >{desc}</a>'.format(url=v, target=target, desc = description)
+        return '<a href="{url}" {target} >{desc}</a>'.format(url=v, target=target, desc=description)
 
     elif u.scheme == 'file':
 
@@ -60,31 +56,36 @@ def linkify(v, description = None, cwd_url=None):
     else:
         return v
 
+
 def flatten(d, sep='.'):
     """Flatten a data structure into tuples"""
+
     def _flatten(e, parent_key='', sep='.'):
         import collections
 
-        prefix = parent_key+sep if parent_key else ''
+        prefix = parent_key + sep if parent_key else ''
 
         if isinstance(e, collections.MutableMapping):
-            return tuple( (prefix+k2, v2) for k, v in e.items() for k2,v2 in _flatten(v,  k, sep ) )
+            return tuple((prefix + k2, v2) for k, v in e.items() for k2, v2 in _flatten(v, k, sep))
         elif isinstance(e, collections.MutableSequence):
-            return tuple( (prefix+k2, v2) for i, v in enumerate(e) for k2,v2 in _flatten(v,  str(i), sep ) )
+            return tuple((prefix + k2, v2) for i, v in enumerate(e) for k2, v2 in _flatten(v, str(i), sep))
         else:
             return (parent_key, (e,)),
 
-    return tuple( (k, v[0]) for k, v in _flatten(d, '', sep) )
+    return tuple((k, v[0]) for k, v in _flatten(d, '', sep))
+
 
 # From http://stackoverflow.com/a/2597440
 class Bunch(object):
-  def __init__(self, adict):
-    self.__dict__.update(adict)
+    def __init__(self, adict):
+        self.__dict__.update(adict)
+
 
 MP_DIR = '_metapack'
-DOWNLOAD_DIR = join(MP_DIR,'download')
-PACKAGE_DIR = join(MP_DIR,'package')
-OLD_DIR = join(MP_DIR,'old')
+DOWNLOAD_DIR = join(MP_DIR, 'download')
+PACKAGE_DIR = join(MP_DIR, 'package')
+OLD_DIR = join(MP_DIR, 'old')
+
 
 def make_dir_structure(base_dir):
     """Make the build directory structure. """
@@ -103,19 +104,19 @@ def make_dir_structure(base_dir):
     maybe_makedir(PACKAGE_DIR)
     maybe_makedir(OLD_DIR)
 
-def make_metatab_file(template='metatab'):
 
-    from os.path import  dirname
+def make_metatab_file(template='metatab'):
+    from os.path import dirname
     from rowgenerators.util import fs_join as join
     import metatab.templates
-    from metapack import  MetapackDoc
+    from metapack import MetapackDoc
 
-    template_path = join(dirname(metatab.templates.__file__),template+'.csv')
-
+    template_path = join(dirname(metatab.templates.__file__), template + '.csv')
 
     doc = MetapackDoc(template_path)
 
     return doc
+
 
 def scrape_urls_from_web_page(page_url):
     from bs4 import BeautifulSoup
@@ -152,8 +153,6 @@ def scrape_urls_from_web_page(page_url):
         if 'javascript' in url:
             continue
 
-
-
         if url.startswith('http'):
             pass
         elif url.startswith('/'):
@@ -167,8 +166,6 @@ def scrape_urls_from_web_page(page_url):
             url = os.path.join(page_url, url)
 
         base = os.path.basename(url)
-
-
 
         if '#' in base:
             continue
@@ -191,15 +188,17 @@ def scrape_urls_from_web_page(page_url):
         else:
             d['links'][text] = dict(url=url, description=text)
 
-
     return d
 
+
 import mimetypes
+
 mimetypes.init()
 mime_map = {v: k.strip('.') for k, v in mimetypes.types_map.items()}
 mime_map['application/x-zip-compressed'] = 'zip'
 mime_map['application/vnd.ms-excel'] = 'xls'
 mime_map['text/html'] = 'html'
+
 
 def guess_format(url):
     """Try to guess  the format of a resource, possibly with a HEAD request"""
@@ -212,8 +211,8 @@ def guess_format(url):
     # Guess_type fails for root urls like 'http://civicknowledge.com'
     if parts.get('path'):
         type, encoding = mimetypes.guess_type(url)
-    elif parts['scheme'] in ('http','https'):
-        type, encoding = 'text/html', None # Assume it is a root url
+    elif parts['scheme'] in ('http', 'https'):
+        type, encoding = 'text/html', None  # Assume it is a root url
     else:
         type, encoding = None, None
 
@@ -223,12 +222,13 @@ def guess_format(url):
             type = r.headers['Content-Type']
 
             if ';' in type:
-                type, encoding = [ e.strip() for e in type.split(';')]
+                type, encoding = [e.strip() for e in type.split(';')]
 
         except InvalidSchema:
-            pass # It's probably FTP
+            pass  # It's probably FTP
 
     return type, mime_map.get(type)
+
 
 def enumerate_contents(url, cache, callback=None):
     import requests
@@ -238,7 +238,7 @@ def enumerate_contents(url, cache, callback=None):
 
     if mt == 'text/html':
         d = scrape_urls_from_web_page(url)
-        urls = [ v['url'] for k, v in d['sources'].items() ]
+        urls = [v['url'] for k, v in d['sources'].items()]
 
     elif isinstance(url, (list, tuple)):
         urls = url
@@ -262,12 +262,11 @@ def walk_up(bottom):
 
     bottom = path.realpath(bottom)
 
-    #get files in current dir
+    # get files in current dir
     try:
         names = os.listdir(bottom)
     except Exception as e:
         raise e
-
 
     dirs, nondirs = [], []
     for name in names:
@@ -289,9 +288,8 @@ def walk_up(bottom):
 
 
 def ensure_dir(path):
-
     if path and not exists(path):
-            makedirs(path)
+        makedirs(path)
 
 
 def copytree(src, dst, symlinks=False, ignore=None):
@@ -302,9 +300,6 @@ def copytree(src, dst, symlinks=False, ignore=None):
             shutil.copytree(s, d, symlinks, ignore)
         else:
             shutil.copy2(s, d)
-
-
-
 
 
 def write_csv(path_or_flo, headers, gen):

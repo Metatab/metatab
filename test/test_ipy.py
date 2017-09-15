@@ -3,12 +3,12 @@ from __future__ import print_function
 import unittest
 
 from appurl import parse_app_url
-from metapack import open_package, MetapackDoc
+from metapack import open_package, MetapackDoc, Downloader
 from metatab.util import flatten
 from metatab.generate import TextRowGenerator
 from itertools import islice
 from rowgenerators import get_generator
-from appurl import Downloader, get_cache
+
 
 def test_data(*paths):
     from os.path import dirname, join, abspath
@@ -23,8 +23,7 @@ logger = logging.getLogger('user')
 logger_err = logging.getLogger('cli-errors')
 debug_logger = logging.getLogger('debug')
 
-downloader = Downloader(get_cache())
-from appurl import Downloader, get_cache
+downloader = Downloader()
 
 
 class TestIPython(unittest.TestCase):
@@ -75,34 +74,6 @@ class TestIPython(unittest.TestCase):
 
         print (df.describe())
 
-
-    def test_ipy(self):
-        from rowgenerators import SourceSpec, Url, RowGenerator, get_cache
-
-        urls = (
-            'ipynb+file:foobar.ipynb',
-            'ipynb+http://example.com/foobar.ipynb',
-            'ipynb:foobar.ipynb'
-
-        )
-
-        for url in urls:
-            u = Url(url)
-            print(u, u.path, u.resource_url)
-
-            s = SourceSpec(url)
-            print(s, s.proto, s.scheme, s.resource_url, s.target_file, s.target_format)
-            self.assertIn(s.scheme, ('file', 'http'))
-            self.assertEquals('ipynb', s.proto)
-
-        gen = RowGenerator(cache=get_cache(),
-                           url='ipynb:scripts/Py3Notebook.ipynb#lst',
-                           working_dir=test_data(),
-                           generator_args={'mult': lambda x: x * 3})
-
-        rows = gen.generator.execute()
-
-        print(len(rows))
 
     def test_line_doc(self):
         from metapack.cli.core import process_schemas
@@ -277,6 +248,35 @@ class TestIPython(unittest.TestCase):
         self.assertIn('bar', sp.user_ns['foo'])
 
         print(sp.user_ns)
+
+
+    def x_test_ipy(self):
+        from rowgenerators import SourceSpec, Url, RowGenerator, get_cache
+
+        urls = (
+            'ipynb+file:foobar.ipynb',
+            'ipynb+http://example.com/foobar.ipynb',
+            'ipynb:foobar.ipynb'
+
+        )
+
+        for url in urls:
+            u = Url(url)
+            print(u, u.path, u.resource_url)
+
+            s = SourceSpec(url)
+            print(s, s.proto, s.scheme, s.resource_url, s.target_file, s.target_format)
+            self.assertIn(s.scheme, ('file', 'http'))
+            self.assertEquals('ipynb', s.proto)
+
+        gen = RowGenerator(cache=get_cache(),
+                           url='ipynb:scripts/Py3Notebook.ipynb#lst',
+                           working_dir=test_data(),
+                           generator_args={'mult': lambda x: x * 3})
+
+        rows = gen.generator.execute()
+
+        print(len(rows))
 
 
 if __name__ == '__main__':

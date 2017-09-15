@@ -2,15 +2,14 @@ import unittest
 from csv import DictReader
 from metapack import MetapackDoc
 
-from appurl import Downloader, get_cache
 from appurl import parse_app_url
-from metapack import MetapackPackageUrl,  MetapackUrl, ResourceError
+from metapack import MetapackPackageUrl,  MetapackUrl, ResourceError, Downloader
 from metapack.cli.core import (make_filesystem_package, make_s3_package, make_excel_package, make_zip_package, make_csv_package,
                                 PACKAGE_PREFIX, cli_init )
 from rowgenerators import get_generator, RowGeneratorError
 from metatab.generate import TextRowGenerator
 
-downloader = Downloader(get_cache())
+downloader = Downloader()
 
 
 
@@ -51,7 +50,7 @@ class TestPackages(unittest.TestCase):
 
                 print(l['url'], l['target_file'])
 
-                u = MetapackPackageUrl(l['url'], downloader=Downloader(get_cache()))
+                u = MetapackPackageUrl(l['url'], downloader=Downloader())
 
                 if False:
                     jt = u.join_target(l['target_file'])
@@ -109,9 +108,11 @@ class TestPackages(unittest.TestCase):
 
         m = MetapackUrl(test_data('packages/example.com/example-package/metadata.csv'), downloader=downloader)
 
-        package_dir = m.join_dir(PACKAGE_PREFIX).inner
+        package_dir = m.package_url.join_dir(PACKAGE_PREFIX)
 
-        _, fs_url, created = make_filesystem_package(m, package_dir, get_cache(), {}, False)
+        cache = Downloader().cache
+
+        _, fs_url, created = make_filesystem_package(m, package_dir, cache, {}, False)
 
         print(created)
 
@@ -129,7 +130,7 @@ class TestPackages(unittest.TestCase):
 
         package_dir = parse_app_url('s3://test.library.civicknowledge.com/metatab', downloader=downloader)
 
-        _, url, created = make_s3_package(fs_url, package_dir, get_cache(), {}, False)
+        _, url, created = make_s3_package(fs_url, package_dir, cache, {}, False)
 
         print(url)
         print(created)
@@ -138,12 +139,14 @@ class TestPackages(unittest.TestCase):
 
         cli_init()
 
+        cache = Downloader().cache
+
         m = MetapackUrl(test_data('packages/example.com/simple_example-2017-us/metadata.csv'), downloader=downloader)
 
         package_dir = m.package_url.join_dir(PACKAGE_PREFIX)
         package_dir = package_dir
 
-        _, fs_url, created = make_filesystem_package(m, package_dir, get_cache(), {}, True)
+        _, fs_url, created = make_filesystem_package(m, package_dir, cache, {}, True)
 
         fs_doc = MetapackDoc(fs_url, cache=downloader.cache)
 
@@ -151,7 +154,7 @@ class TestPackages(unittest.TestCase):
 
         # Excel
 
-        _, url, created = make_excel_package(fs_url, package_dir, get_cache(), {}, False)
+        _, url, created = make_excel_package(fs_url, package_dir, cache, {}, False)
 
         self.assertEquals(['random-names', 'renter_cost', 'unicode-latin1'], [r.name for r in url.doc.resources()])
 
@@ -159,7 +162,7 @@ class TestPackages(unittest.TestCase):
 
         # ZIP
 
-        _, url, created = make_zip_package(fs_url, package_dir, get_cache(), {}, False)
+        _, url, created = make_zip_package(fs_url, package_dir, cache, {}, False)
 
         self.assertEquals(['random-names', 'renter_cost', 'unicode-latin1'], [r.name for r in url.doc.resources()])
 
@@ -168,7 +171,7 @@ class TestPackages(unittest.TestCase):
 
         #  CSV
 
-        _, url, created = make_csv_package(fs_url, package_dir, get_cache(), {}, False)
+        _, url, created = make_csv_package(fs_url, package_dir, cache, {}, False)
 
         self.assertEquals(['random-names', 'renter_cost', 'unicode-latin1'], [r.name for r in url.doc.resources()])
 
@@ -209,11 +212,12 @@ class TestPackages(unittest.TestCase):
 
         from rowpipe.valuetype.geo import ShapeValue
 
+
         m = MetapackUrl(test_data('packages/sangis.org/sangis.org-census_regions/metadata.csv'), downloader=downloader)
 
         package_dir = m.package_url.join_dir(PACKAGE_PREFIX)
 
-        _, fs_url, created = make_filesystem_package(m, package_dir, get_cache(), {}, True)
+        _, fs_url, created = make_filesystem_package(m, package_dir, downloader.cache, {}, True)
 
         print(fs_url)
 
@@ -226,6 +230,20 @@ class TestPackages(unittest.TestCase):
         self.assertEqual(41,len(rows))
 
         self.assertIsInstance(rows[1]['geometry'], ShapeValue)
+
+    def test_build_transform_package(self):
+
+        from rowpipe.valuetype.geo import ShapeValue
+
+        m = MetapackUrl(test_data('packages/example.com/example.com-transforms/metadata.csv'), downloader=downloader)
+
+        package_dir = m.package_url.join_dir(PACKAGE_PREFIX)
+
+        _, fs_url, created = make_filesystem_package(m, package_dir, downloader.cache, {}, False)
+
+        print(fs_url)
+
+
 
     def test_read_geo_packages(self):
         from pandasreporter.dataframe import CensusDataFrame
@@ -256,6 +274,54 @@ class TestPackages(unittest.TestCase):
         row = next(r.iterdict)
 
         self.assertIsInstance(row['geometry'], ShapeValue)
+
+    def test_program_resource(self):
+
+
+        m = MetapackUrl(test_data('packages/example.com/example-package/metadata.csv'), downloader=downloader)
+
+        doc = MetapackDoc(m)
+
+        r = doc.resource('rowgen')
+
+        self.assertEqual('program+file:scripts/rowgen.py', str(r.url))
+
+        print(r.resolved_url)
+
+        g = r.row_generator
+
+        print(type(g))
+
+        for row in r:
+            print(row)
+
+    def test_fixed_resource(self):
+        from itertools import islice
+        from rowgenerators.generator.fixed import FixedSource
+
+        m = MetapackUrl(test_data('packages/example.com/example-package/metadata.csv'), downloader=downloader)
+
+        doc = MetapackDoc(m)
+
+        r = doc.resource('simple-fixed')
+
+        self.assertEqual('fixed+http://public.source.civicknowledge.com/example.com/sources/simple-example.txt', str(r.url))
+        self.assertEqual('fixed+http://public.source.civicknowledge.com/example.com/sources/simple-example.txt',
+                         str(r.resolved_url))
+
+        g = r.row_generator
+
+        print(r.row_processor_table())
+
+        self.assertIsInstance(g, FixedSource)
+
+        rows = list(islice(r, 10))
+
+        print('----')
+        for row in rows:
+            print (row)
+
+        self.assertEqual('f02d53a3-6bbc-4095-a889-c4dde0ccf5',rows[5][1])
 
 if __name__ == '__main__':
     unittest.main()

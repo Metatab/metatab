@@ -52,7 +52,13 @@ class FileSystemPackageBuilder(PackageBuilder):
         """
 
         try:
-            return getmtime(self.doc_file) > self._doc.mtime
+            path = self.doc_file.path
+        except AttributeError:
+            path = self.doc_file
+
+        try:
+            return getmtime(path) > self._doc.mtime
+
         except (FileNotFoundError, OSError):
             return False
 

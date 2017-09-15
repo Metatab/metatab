@@ -3,7 +3,7 @@
 
 """ """
 
-from .core import open_package
+from .core import open_package, Downloader
 from .filesystem import FileSystemPackageBuilder
 from .zip import ZipPackageBuilder
 from .s3 import S3PackageBuilder

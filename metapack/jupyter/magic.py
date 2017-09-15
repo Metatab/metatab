@@ -19,7 +19,7 @@ from IPython import get_ipython
 from IPython.core.magic import Magics, magics_class, line_magic, cell_magic
 from IPython.display import  display, HTML, Latex
 from collections import OrderedDict
-from metapack import MetapackDoc
+from metapack import MetapackDoc, Downloader
 from metapack.cli.core import process_schemas
 from metatab.generate import TextRowGenerator
 from appurl import parse_app_url
@@ -201,7 +201,7 @@ class MetatabMagic(Magics):
         """
 
         from json import dumps
-        from appurl import get_cache
+
         from metapack.rowgenerator import PandasDataframeSource
         import csv
 
@@ -212,7 +212,7 @@ class MetatabMagic(Magics):
         try:
             cache = self.mt_doc._cache
         except KeyError:
-            cache = get_cache()
+            cache = Downloader().cache
 
         for df_name, ref in self.shell.user_ns.get('_material_dataframes',{}).items():
 

@@ -67,7 +67,6 @@ class JupyterNotebookSource(Source):
                     pass
 
 
-
 class PandasDataframeSource(Source):
     """Iterates a pandas dataframe  """
 

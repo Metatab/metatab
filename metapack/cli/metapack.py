@@ -13,13 +13,13 @@ import re
 import six
 from genericpath import isdir
 from metatab import _meta, DEFAULT_METATAB_FILE, ConversionError
-from metapack import MetapackDoc
+from metapack import MetapackDoc, Downloader
 from metapack.appurl import  MetapackUrl
 from metapack.jupyter.convert import convert_documentation, convert_notebook
 from metapack.cli.core import prt, err, warn, dump_resource, dump_resources, metatab_info, find_files, \
     get_lib_module_dict, write_doc, datetime_now, \
     make_excel_package, make_filesystem_package, make_csv_package, make_zip_package, update_name, \
-    cli_init, process_schemas, extract_path_name, PACKAGE_PREFIX
+    cli_init, process_schemas, extract_path_name, PACKAGE_PREFIX, MetapackCliMemo
 from metapack.util import make_metatab_file
 from os import getcwd
 from os.path import dirname, abspath, exists
@@ -27,7 +27,11 @@ from rowgenerators import SourceError
 from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
 from tableintuit import RowIntuitError
-from appurl import get_cache, parse_app_url, Downloader
+from appurl import parse_app_url
+
+downloader = Downloader()
+
+
 
 def metapack():
     import argparse
@@ -36,7 +40,8 @@ def metapack():
 
     parser = argparse.ArgumentParser(
         prog='metapack',
-        description='Create and manipulate metatab data packages, version {}'.format(_meta.__version__))
+        description='Create and manipulate metatab data packages, version {}'.format(_meta.__version__),
+        epilog='Cache dir: {}\n'.format(str(downloader.cache.getsyspath('/'))))
 
     parser.add_argument('metatabfile', nargs='?',
                         help="Path or URL to a metatab file. If not provided, defaults to 'metadata.csv' ")
@@ -146,48 +151,7 @@ def metapack():
     # cmd = parser.add_subparsers(title='Plugin Commands', help='Additional command supplied by plugins')
     # load_plugins(cmd)
 
-    class MetapackCliMemo(object):
-        def __init__(self, args):
-            self.cwd = getcwd()
-            self.args = args
-
-            self.downloader = Downloader(get_cache())
-
-            self.cache = self.downloader.cache
-
-            frag = ''
-
-            # Just the fragment was provided
-            if args.metatabfile and args.metatabfile.startswith('#'):
-                frag = args.metatabfile
-                mtf = None
-            else:
-                frag = ''
-                mtf = args.metatabfile
-
-            # If could not get it from the args, Set it to the default file name in the current dir
-            if not mtf:
-                mtf = join(self.cwd, DEFAULT_METATAB_FILE)
-
-            self.init_stage2(mtf, frag)
-
-        def init_stage2(self, mtf, frag):
-
-            self.frag = frag
-            self.mtfile_arg = mtf + frag
-
-            self.mtfile_url = MetapackUrl(self.mtfile_arg, downloader=self.downloader)
-
-            self.resource = self.mtfile_url.fragment
-
-            self.package_url = self.mtfile_url.package_url
-            self.mt_file = self.mtfile_url.metadata_url
-
-            assert self.package_url.scheme == 'file'
-            self.package_root = self.package_url.join(PACKAGE_PREFIX)
-            assert self.package_root._downloader
-
-    m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
+    m = MetapackCliMemo(parser.parse_args(sys.argv[1:]), downloader)
 
     # Maybe need to convert a notebook first
     if m.args.make_package:
@@ -339,7 +303,7 @@ def metatab_query_handler(m):
         limit = 20 if m.args.head else None
 
         try:
-            doc = MetatabDoc(m.mt_file, cache=m.cache)
+            doc = MetapackDoc(m.mt_file, cache=m.cache)
 
         except OSError as e:
             err("Failed to open Metatab doc: {}".format(e))
@@ -383,9 +347,8 @@ def metatab_admin_handler(m):
 
 
 def classify_url(url):
-    from rowgenerators import SourceSpec
 
-    ss = SourceSpec(url=url)
+    ss = parse_app_url(url)
 
     if ss.target_format in DATA_FORMATS:
         term_name = 'DataFile'
@@ -400,7 +363,6 @@ def classify_url(url):
 def add_resource(mt_file, ref, cache):
     """Add a resources entry, downloading the intuiting the file, replacing entries with
     the same reference"""
-    from metatab.util import enumerate_contents
 
     if isinstance(mt_file, MetapackDoc):
         doc = mt_file
@@ -415,20 +377,17 @@ def add_resource(mt_file, ref, cache):
 
     seen_names = set()
 
-    if isdir(ref):
-        for f in find_files(ref, DATA_FORMATS):
+    u = parse_app_url(ref)
 
-            if f.endswith(DEFAULT_METATAB_FILE):
-                continue
+    # The web and file URLs don't list the same.
 
-            if doc.find_first('Root.Datafile', value=f):
-                prt("Datafile exists for '{}', ignoring".format(f))
-            else:
-                add_single_resource(doc, f, cache=cache, seen_names=seen_names)
+    if u.proto == 'file':
+        entries = u.list
     else:
+        entries = [ssu for su in u.list() for ssu in su.list()]
 
-        for c in enumerate_contents(ref, cache=cache, callback=prt):
-            add_single_resource(doc, c.rebuild_url(), cache=cache, seen_names=seen_names)
+    for e in entries:
+        add_single_resource(doc, e, cache=cache, seen_names=seen_names)
 
     write_doc(doc, mt_file)
 
@@ -441,6 +400,8 @@ def add_single_resource(doc, ref, cache, seen_names):
     if t:
         prt("Datafile exists for '{}', deleting".format(ref))
         doc.remove_term(t)
+    else:
+        prt("Adding {}".format(ref))
 
     term_name = classify_url(ref)
 
@@ -461,19 +422,20 @@ def add_single_resource(doc, ref, cache, seen_names):
     encoding = start_line = None
     header_lines = []
 
-    try:
-        encoding, ri = run_row_intuit(path, cache)
-        prt("Added resource for '{}', name = '{}' ".format(ref, name))
-        start_line = ri.start_line
-        header_lines = ri.header_lines
-    except RowIntuitError as e:
-        warn("Failed to intuit '{}'; {}".format(path, e))
+    if False:
+        try:
+            encoding, ri = run_row_intuit(path, cache)
+            prt("Added resource for '{}', name = '{}' ".format(ref, name))
+            start_line = ri.start_line
+            header_lines = ri.header_lines
+        except RowIntuitError as e:
+            warn("Failed to intuit '{}'; {}".format(path, e))
 
-    except SourceError as e:
-        warn("Source Error: '{}'; {}".format(path, e))
+        except SourceError as e:
+            warn("Source Error: '{}'; {}".format(path, e))
 
-    except Exception as e:
-        warn("Error: '{}'; {}".format(path, e))
+        except Exception as e:
+            warn("Error: '{}'; {}".format(path, e))
 
     if not name:
         from hashlib import sha1

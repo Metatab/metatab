@@ -17,11 +17,21 @@ from metapack import MetapackDoc
 from metapack.appurl import MetapackUrl, MetapackPackageUrl
 from metapack.exc import PackageError
 from metapack.terms import Resource
-from metapack.util import Bunch, get_cache
+from metapack.util import Bunch
 from appurl.util import slugify
 from metatab import DEFAULT_METATAB_FILE
 from rowgenerators import get_generator
 from tableintuit import RowIntuiter
+from appurl import Downloader as _Downloader
+
+DEFAULT_CACHE_NAME = 'metapack'
+
+class Downloader(_Downloader):
+    """"Local version of the downloader. Also should be used as the source of the cache"""
+
+    def download(self, url):
+        return super().download(url)
+
 
 class PackageBuilder(object):
 
@@ -465,14 +475,17 @@ class PackageBuilder(object):
 TableColumn = namedtuple('TableColumn', 'path name start_line header_lines columns')
 
 
-def open_package(ref, cache=None, clean_cache=False):
+def open_package(ref, cache=None, clean_cache=False, downloader=None):
+
+    if downloader is None:
+        downloader = Downloader()
 
     if isinstance(ref, MetapackUrl):
         u = ref
     else:
-        u = MetapackUrl(str(ref))
+        u = MetapackUrl(str(ref), downloader=downloader)
 
-    cache = cache if cache else get_cache()
+    cache = cache if cache else downloader.cache
 
     return MetapackDoc(u, cache=cache)
 

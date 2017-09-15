@@ -87,6 +87,13 @@ class Resource(Term):
 
             try:
                 t = self.doc.package_url.resolve_url(self._self_url)
+
+                # Also a hack
+                t.scheme_extension = parse_app_url(self._self_url).scheme_extension
+
+                # Yet more hack!
+                t = parse_app_url(str(t))
+
             except ResourceError as e:
                 # This case happens when a filesystem packages has a non-standard metadata name
                 # Total hack
@@ -175,21 +182,14 @@ class Resource(Term):
 
             if c.term_is("Table.Column"):
 
-                # This code originally used c.properties,
-                # but that fails for the line oriented form, where the
-                # sections don't have args, so there are no properties.
-                p = {}
-
-                for cc in c.children:
-                    p[cc.record_term_lc] = cc.value
-
+                p = c.all_props
                 p['name'] = c.value
-
                 p['header'] = self._name_for_col_term(c, i)
+
                 yield p
 
     def row_processor_table(self):
-        """Create a row processor from the schema, to convert the text velus from the
+        """Create a row processor from the schema, to convert the text values from the
         CSV into real types"""
         from rowpipe.table import Table
 
@@ -204,25 +204,19 @@ class Resource(Term):
         def map_type(v):
             return type_map.get(v, v)
 
-        doc = self.doc
-
-        table_term = doc.find_first('Root.Table', value=self.get_value('name'))
-
-        if not table_term:
-            table_term = doc.find_first('Root.Table', value=self.get_value('schema'))
-
-        if table_term:
+        if self.schema_term:
 
             t = Table(self.get_value('name'))
 
             col_n = 0
 
-            for c in table_term.children:
+            for c in self.schema_term.children:
                 if c.term_is('Table.Column'):
                     t.add_column(self._name_for_col_term(c, col_n),
                                  datatype=map_type(c.get_value('datatype')),
                                  valuetype=map_type(c.get_value('valuetype')),
-                                 transform=c.get_value('transform')
+                                 transform=c.get_value('transform'),
+                                 width=c.get_value('width')
                                  )
                     col_n += 1
 
@@ -235,22 +229,23 @@ class Resource(Term):
     def generator_env(self):
 
 
-        return {
-            'term_props': self.all_props,
-            'cache': self._doc._cache,
-            'working_dir': self._doc.doc_dir,
-            'generator_args': {
-                # For ProgramSource generator, These become values in a JSON encoded dict in the PROPERTIE env var
-                'working_dir': self._doc.doc_dir,
-                'metatab_doc': self._doc.ref,
-                'metatab_package': str(self._doc.package_url),
+        d = {
 
-                # These become their own env vars.
-                'METATAB_DOC': self._doc.ref,
-                'METATAB_WORKING_DIR': self._doc.doc_dir,
-                'METATAB_PACKAGE': str(self._doc.package_url)
-            }
+            # These become their own env vars.
+            'CACHE_DIR': self._doc._cache.getsyspath('/'),
+            'RESOURCE_NAME': self.name,
+            'RESOLVED_URL': str(self.resolved_url),
+            'WORKING_DIR': str(self._doc.doc_dir),
+            'METATAB_DOC': str(self._doc.ref),
+            'METATAB_WORKING_DIR': str(self._doc.doc_dir),
+            'METATAB_PACKAGE': str(self._doc.package_url)
+
         }
+
+        d.update(self.all_props)
+
+        return d
+
 
     @property
     def row_generator(self):
@@ -266,12 +261,16 @@ class Resource(Term):
         except AttributeError:
             pass
 
-        #ut = ru.inner.get_resource().get_target()
         ut = ru.get_resource().get_target()
 
-        assert ut.scheme == 'file', ut
+        # Encoding is supposed to be preserved in the URL but isn't
+        source_url = parse_app_url(self.url)
 
-        g = get_generator(ut, **self.generator_env)
+        ut.encoding = source_url.encoding or self.get_value('encoding')
+
+        table = self.row_processor_table()
+
+        g = get_generator(ut, table=table, resource=self, doc=self._doc, working_dir=self._doc.doc_dir, env=self.generator_env)
 
         assert g, ut
 

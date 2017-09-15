@@ -9,6 +9,7 @@ from os import getcwd
 from metapack.util import walk_up
 from os.path import getmtime, join, exists
 from metapack.exc import PackageError
+from rowgenerators import RowGeneratorError
 
 def caller_locals():
     """Get the local variables in the caller's frame."""
@@ -22,7 +23,6 @@ def caller_locals():
 def in_build():
     """Return True if running in a build, rather than interactively in Jupyter"""
     return 'metatab_doc' in caller_locals()
-
 
 
 def open_source_package(dr=None):
@@ -44,15 +44,17 @@ def open_package(locals=None, dr=None):
     """Try to open a package with the metatab_doc variable, which is set when a Notebook is run
     as a resource. If that does not exist, try the local _packages directory"""
 
+
     if locals is None:
         locals = caller_locals()
 
     try:
         # Running in a package build
-        pack = op(locals['metatab_doc'])
+        return op(locals['metatab_doc'])
 
     except KeyError:
         # Running interactively in Jupyter
+
 
         package_name = None
         build_package_dir = None
@@ -81,17 +83,18 @@ def open_package(locals=None, dr=None):
 
         if build_package_dir and package_name and exists(join(build_package_dir, package_name)):
             # Open the previously built package
-            pack = op(join(build_package_dir, package_name))
+            built_package = join(build_package_dir, package_name)
+            try:
+                return op(built_package)
+            except RowGeneratorError as e:
+                pass # Probably could not open the metadata file.
 
-        elif source_package:
+        if source_package:
             # Open the source package
-            pack = op(source_package)
+            return op(source_package)
 
-        else:
-            raise PackageError("Failed to find package, either in locals() or above dir '{}' ".format(dr))
+    raise PackageError("Failed to find package, either in locals() or above dir '{}' ".format(dr))
 
-
-    return pack
 
 def rebuild_schema(doc, r, df):
     """Rebuild the schema for a resource based on a dataframe"""
