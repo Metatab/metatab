@@ -6,7 +6,7 @@ Special term subclasses
 """
 
 from ._meta import __version__
-from os.path import split
+from os.path import split, basename
 from deprecation import deprecated
 from metatab.util import slugify
 
@@ -74,7 +74,10 @@ class Term(object):
         self.section = section
         self.doc = doc
 
-        self.file_name = slugify(file_name)
+        try:
+            self.file_name = slugify(basename(file_name))
+        except TypeError:
+            self.file_name = file_name
 
         self.file_type = file_type
         self.row = row

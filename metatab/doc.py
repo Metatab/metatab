@@ -304,7 +304,6 @@ class MetatabDoc(object):
 
         import itertools
 
-
         if kwargs:  # Look for terms with particular property values
 
             terms = self.find(term, value, section)

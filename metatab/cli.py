@@ -77,7 +77,6 @@ def metatab():
 
         exit(0)
 
-
     metadata_url = parse_app_url(args.file)
     try:
         doc = MetatabDoc(metadata_url, cache=cache)
@@ -92,12 +91,9 @@ def metatab():
     elif args.json:
         print(json.dumps(doc.as_dict(), indent=4))
 
-
     elif args.yaml:
         import yaml
         print(yaml.safe_dump(doc.as_dict(), default_flow_style=False, indent=4))
-
-
 
     exit(0)
 

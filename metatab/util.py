@@ -219,4 +219,4 @@ def import_name_or_class(name):
             mod = getattr(mod, comp)
         return mod
     else:
-        return name # Assume it is alredy the tings we want to import
+        return name # Assume it is already the thing we want to import
