@@ -29,9 +29,12 @@ class FileSystemPackageBuilder(PackageBuilder):
         if not self.package_root.isdir():
             self.package_root.ensure_dir()
 
+        self.cache_path = join(self.package_name, DEFAULT_METATAB_FILE)
+
         self.package_path = self.package_root.join(self.package_name)
 
         self.doc_file = self.package_path.join(DEFAULT_METATAB_FILE)
+
 
 
     def exists(self):

@@ -12,7 +12,9 @@ class ZipPackageBuilder(PackageBuilder):
     def __init__(self, source_ref=None, package_root=None,  callback=None, env=None):
         super().__init__(source_ref, package_root, callback, env)
 
-        self.package_path = self.package_root.join(self.package_name + ".zip")
+        self.cache_path = self.package_name + ".zip"
+
+        self.package_path = self.package_root.join(self.cache_path)
 
 
     def save(self, path=None):

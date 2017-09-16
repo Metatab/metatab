@@ -458,6 +458,28 @@ class Reference(Resource):
 
 
 class Distribution(Term):
+
+
+    @property
+    def type(self):
+        return Distribution.dist_type(parse_app_url(self.value))
+
+
+    def dist_type(url):
+
+        if url.target_file == 'metadata.csv':
+            return 'fs'
+        elif url.target_format == 'xlsx':
+            return 'excel'
+        elif url.resource_format == 'zip':
+            return "zip"
+        elif url.target_format == 'csv':
+            return "csv"
+
+        else:
+
+            return "unk"
+
     def distributions(self, type=False):
         """"Return a dict of distributions, or if type is specified, just the first of that type
 
@@ -466,28 +488,14 @@ class Distribution(Term):
 
         Dist = namedtuple('Dist', 'type url term')
 
-        def dist_type(url):
-
-            if url.target_file == 'metadata.csv':
-                return 'fs'
-            elif url.target_format == 'xlsx':
-                return 'excel'
-            elif url.resource_format == 'zip':
-                return "zip"
-            elif url.target_format == 'csv':
-                return "csv"
-
-            else:
-
-                return "unk"
 
         dists = []
 
         for d in self.find('Root.Distribution'):
 
-            u = Url(d.value)
+            u = parse_app_url(d.value)
 
-            t = dist_type(u)
+            t = Distribution.dist_type(u)
 
             if type == t:
                 return Dist(t, u, d)

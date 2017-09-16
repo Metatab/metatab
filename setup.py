@@ -72,10 +72,10 @@ setup(
 
     ],
 
-
     entry_points={
         'console_scripts': [
-            'metapack=metapack.cli.metapack:metapack',
+            #'metapack=metapack.cli.metapack:metapack',
+            'mt=metapack.cli.mt:mt',
             'metakan=metapack.cli.metakan:metakan',
             'metasync=metapack.cli.metasync:metasync',
             'metaworld=metapack.cli.metaworld:metaworld',
@@ -97,6 +97,11 @@ setup(
             "<MetapackUrl> = metapack.rowgenerator:MetapackGenerator",
             "<JupyterNotebookUrl> = metapack.rowgenerator:JupyterNotebookSource",
 
+        ],
+        'mt.subcommands': [
+            'pack=metapack.cli.metapack:metapack',
+            's3=metapack.cli.metas3:metas3',
+            'ckan=metapack.cli.metakan:metakan'
         ]
 
 

@@ -20,6 +20,7 @@ from metatab.util import make_metatab_file
 from rowgenerators import SelectiveRowGenerator
 from appurl import parse_app_url
 from os.path import dirname
+from os import getenv
 
 logger = logging.getLogger('user')
 logger_err = logging.getLogger('cli-errors')
@@ -501,6 +502,8 @@ class MetapackCliMemo(object):
 
         self.init_stage2(mtf, frag)
 
+
+
     def init_stage2(self, mtf, frag):
 
         self.frag = frag
@@ -518,3 +521,27 @@ class MetapackCliMemo(object):
         assert self.package_root._downloader
 
 
+def update_dist(doc, old_dists, v):
+
+    # This isn't quite correct, because it will try to remove the .csv format
+    # Distributions twice, since both <name>.csv and <name>/metadata.csv have the same format.
+    # (That's why theres a try/except ) But, it is effective
+
+    name = doc.find_first_value("Root.Name")
+
+    for d in old_dists:
+
+        if parse_app_url(d.value).resource_format == parse_app_url(v).resource_format and name not in d.value:
+            try:
+                doc.remove_term(d)
+            except ValueError:
+                pass
+
+    t = doc.find_first('Root.Distribution', v)
+
+    if not t:
+        doc['Root'].new_term('Root.Distribution', v)
+
+        return True
+    else:
+        return False

@@ -3,7 +3,7 @@
 
 """ """
 
-
+from os.path import join
 from metapack import PackageError
 from metapack.package.core import PackageBuilder
 from appurl import parse_app_url
@@ -15,7 +15,9 @@ class CsvPackageBuilder(PackageBuilder):
         super().__init__(source_ref, package_root,  callback, env)
         from metapack import MetapackPackageUrl
 
-        self.package_path = self.package_root.join(self.package_name + ".csv")
+        self.cache_path = self.package_name + ".csv"
+
+        self.package_path = self.package_root.join(self.cache_path)
 
         if self.package_root.proto == 'file':
             self.package_root.ensure_dir()
@@ -24,6 +26,8 @@ class CsvPackageBuilder(PackageBuilder):
             self.resource_root = resource_root
         else:
             self.resource_root = source_ref.dirname().as_type(MetapackPackageUrl)
+
+
 
 
         assert isinstance(self.resource_root, MetapackPackageUrl), (type(self.resource_root), self.resource_root)

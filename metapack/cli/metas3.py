@@ -5,37 +5,86 @@
 CLI program for storing pacakges in CKAN
 """
 
-import sys
 from os import getcwd, makedirs, getenv
 from os.path import basename, dirname, exists
 
+from botocore.exceptions import  NoCredentialsError
 from tabulate import tabulate
 
 from appurl import parse_app_url
-from metapack import MetapackDoc, MetapackUrl, Downloader
+from metapack import MetapackDoc, MetapackUrl
+from metapack import MetapackPackageUrl
 from metapack.cli.core import prt, err, metatab_info, get_lib_module_dict, write_doc, datetime_now, \
     make_filesystem_package, make_zip_package, make_s3_package, make_excel_package, update_name, \
-    cli_init
+    cli_init, update_dist
+from metapack.exc import  PackageError
 from metapack.package import *
 from metapack.package.s3 import S3Bucket
-from metapack import MetapackPackageUrl
 from metatab import _meta, DEFAULT_METATAB_FILE
-from metapack.exc import  PackageError
 from rowgenerators.util import clean_cache
 from rowgenerators.util import fs_join as join
 
-from botocore.exceptions import  NoCredentialsError
 
+class MetapackCliMemo(object):
 
-def metasync():
-    import argparse
+    def __init__(self, args):
+        from appurl import get_cache
+        self.cwd = getcwd()
 
-    cli_init()
+        self.args = args
 
-    parser = argparse.ArgumentParser(
-        prog='metasync',
-        description='Create packages and store them in s3 buckets, version {}'.format(_meta.__version__),
+        self.downloader = Downloader()
+
+        self.cache = self.downloader.cache
+
+        # This one is for loading packages that have just been
+        # written to S3.
+        self.tmp_cache = get_cache('temp')
+        clean_cache(self.tmp_cache)
+
+        if self.args.all_s3:
+            self.args.s3 = self.args.all_s3
+            self.args.excel = True
+            self.args.zip = True
+            self.args.zip = True
+            self.args.csv = True
+            self.args.fs = True
+
+        if not self.args.s3:
+            err("Must specify either -S or -s")
+
+        self.mtfile_arg = self.args.metatabfile if self.args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
+
+        self.mtfile_url = MetapackUrl(self.mtfile_arg, downloader=self.downloader)
+
+        self.resource = self.mtfile_url.fragment
+
+        self.package_url = self.mtfile_url.package_url
+        self.mt_file = self.mtfile_url.metadata_url
+
+        self.package_root = self.package_url.join(PACKAGE_PREFIX)
+
+        if not self.args.s3:
+            doc = MetapackDoc(self.mt_file)
+            self.args.s3 = doc['Root'].find_first_value('Root.S3')
+
+        self.s3_url = parse_app_url(self.args.s3)
+
+        if not self.s3_url.scheme == 's3':
+            self.s3_url = parse_app_url("s3://{}".format(self.args.s3))
+
+        assert self.package_root._downloader
+
+        self.args.fs = self.args.csv or self.args.fs
+
+def metas3(subparsers):
+
+    parser = subparsers.add_parser(
+        's3',
+        help='Create packages and store them in s3 buckets, version {}'.format(_meta.__version__),
     )
+
+    parser.set_defaults(run_command=run_s3)
 
     parser.add_argument('-i', '--info', default=False, action='store_true',
                         help="Show configuration information")
@@ -51,6 +100,9 @@ def metasync():
     parser.add_argument('-s', '--s3', help="URL to S3 where packages will be stored", required=False)
 
     parser.add_argument('-S', '--all-s3', help="Synonym for `metasync -c -e -f -z -s <url>`", required=False)
+
+    parser.add_argument('-d', '--distributions', help="Only update the distributions, don't send to S3",
+                        action='store_true', required=False)
 
     parser.add_argument('-e', '--excel', action='store_true', default=False,
                         help='Create an excel package from a metatab file and copy it to S3. ')
@@ -73,60 +125,10 @@ def metasync():
 
     parser.add_argument('metatabfile', nargs='?', help='Path to a Metatab file')
 
-    class MetapackCliMemo(object):
-        def __init__(self, raw_args):
-            from appurl import get_cache
-            self.cwd = getcwd()
 
-            self.raw_args = raw_args
+def run_s3(args):
 
-            self.args = parser.parse_args(self.raw_args[1:])
-
-            self.downloader = Downloader()
-
-            self.cache = self.downloader.cache
-
-            # This one is for loading packages that have just been
-            # written to S3.
-            self.tmp_cache = get_cache('temp')
-            clean_cache(self.tmp_cache)
-
-            if self.args.all_s3:
-                self.args.s3 = self.args.all_s3
-                self.args.excel = True
-                self.args.zip = True
-                self.args.zip = True
-                self.args.csv = True
-                self.args.fs = True
-
-            if not self.args.s3:
-                err("Must specify either -S or -s")
-
-            self.mtfile_arg = self.args.metatabfile if self.args.metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
-
-            self.mtfile_url = MetapackUrl(self.mtfile_arg, downloader=self.downloader)
-
-            self.resource = self.mtfile_url.fragment
-
-            self.package_url = self.mtfile_url.package_url
-            self.mt_file = self.mtfile_url.metadata_url
-
-            self.package_root = self.package_url.join(PACKAGE_PREFIX)
-
-            if not self.args.s3:
-                doc = MetapackDoc(self.mt_file)
-                self.args.s3 = doc['Root'].find_first_value('Root.S3')
-
-            self.s3_url = parse_app_url(self.args.s3)
-
-            if not self.s3_url.scheme == 's3':
-                self.s3_url = parse_app_url("s3://{}".format(self.args.s3))
-
-            assert self.package_root._downloader
-
-            self.args.fs = self.args.csv or self.args.fs
-
-    m = MetapackCliMemo(sys.argv)
+    m = MetapackCliMemo(args)
 
     if m.args.credentials:
         show_credentials(m.args.profile)
@@ -143,21 +145,22 @@ def metasync():
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
 
     doc = MetapackDoc(m.mt_file)
-    doc['Root'].get_or_new_term('Root.S3', str(m.s3_url))
-
+    doc['Root'].get_or_new_term('Root.S3').value =  str(m.s3_url)
 
     write_doc(doc, m.mt_file)
 
     # Update the Root.Distribution Term in the second stage metatab file.
     second_stage_mtfile, distupdated = update_distributions(m)
 
-    if second_stage_mtfile != m.mt_file:
-        prt("Building packages from: ", second_stage_mtfile)
+    if not m.args.distributions:
 
-    created = create_packages(m, second_stage_mtfile, distupdated=distupdated)
+        if second_stage_mtfile != m.mt_file:
+            prt("Building packages from: ", second_stage_mtfile)
 
-    prt("Synchronized these Package Urls")
-    prt(tabulate(created))
+        created = create_packages(m, second_stage_mtfile, distupdated=distupdated)
+
+        prt("Synchronized these Package Urls")
+        prt(tabulate(created))
 
     exit(0)
 
@@ -182,6 +185,8 @@ def run_docker(m):
 
     import botocore.session
     from subprocess import Popen, PIPE, STDOUT
+
+    raise NotImplementedError("No longer have access to raw_args")
 
     session = botocore.session.get_session()
 
@@ -214,34 +219,6 @@ def run_docker(m):
     exit(exitcode)
 
 
-
-
-def update_dist(doc, old_dists, v):
-
-    # This isn't quite correct, because it will try to remove the .csv format
-    # Distributions twice, since both <name>.csv and <name>/metadata.csv have the same format.
-    # (That's why theres a try/except ) But, it is effective
-
-    name = doc.find_first_value("Root.Name")
-
-    for d in old_dists:
-
-        if parse_app_url(d.value).resource_format == parse_app_url(v).resource_format and name not in d.value:
-            try:
-                doc.remove_term(d)
-            except ValueError:
-                pass
-
-    t = doc.find_first('Root.Distribution', v)
-
-    if not t:
-        doc['Root'].new_term('Root.Distribution', v)
-
-        return True
-    else:
-        return False
-
-
 def update_distributions(m):
     """Add a distribution term for each of the distributions the sync is creating. Also updates the 'Issued' time"""
 
@@ -266,29 +243,31 @@ def update_distributions(m):
 
     if m.args.fs is not False:
         p = FileSystemPackageBuilder(m.mt_file, m.package_root)
-        if update_dist(doc, old_dists, b.access_url(p.doc_file.path)):
-            prt("Added FS distribution to metadata")
+        au = b.access_url(p.cache_path)
+        if update_dist(doc, old_dists,au ):
+            prt("Added FS distribution ", au)
             updated = True
 
     if m.args.excel is not False:
         p = ExcelPackageBuilder(m.mt_file, m.package_root)
-
-        if update_dist(doc, old_dists, b.access_url(p.package_path.path)):
-            prt("Added Excel distribution to metadata")
+        au = b.access_url(p.cache_path)
+        if update_dist(doc, old_dists, au):
+            prt("Added Excel distribution ", au)
             updated = True
 
     if m.args.zip is not False:
         p = ZipPackageBuilder(m.mt_file, m.package_root)
-        if update_dist(doc, old_dists, b.access_url(p.package_path.path)):
-            prt("Added ZIP distribution to metadata")
+        au = b.access_url(p.cache_path)
+        if update_dist(doc, old_dists, au):
+            prt("Added ZIP distribution ", au)
             updated = True
 
     if m.args.csv is not False:
 
         p = CsvPackageBuilder(m.mt_file, m.package_root)
-        url = b.access_url(basename(p.package_path.path))
-        if update_dist(doc, old_dists, url):
-            prt("Added CSV distribution to metadata", url)
+        au = b.access_url(basename(p.cache_path))
+        if update_dist(doc, old_dists, au):
+            prt("Added CSV distribution ", au)
             updated = True
 
 

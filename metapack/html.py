@@ -175,10 +175,12 @@ def documentation_block(doc):
     try:
 
         for t in doc['Documentation'].find('Root.IncludeDocumentation'):
-            raise NotImplemented()
-            #paths = download_and_cache(SourceSpec(t.value), cache_fs=doc._cache)
 
-            with open(paths['sys_path']) as f:
+            u = parse_app_url(t.value)
+
+            t = doc.package_url.join_target(u).get_resource().get_target()
+
+            with open(t.path) as f:
                 inline += f.read()
 
         for t in doc['Documentation'].find('Root.Documentation'):

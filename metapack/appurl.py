@@ -214,6 +214,7 @@ class MetapackPackageUrl(FileUrl, _MetapackUrl):
 
 
     def join_target(self, tf):
+        """Like join(), but returns the inner URL, not a package url class"""
         if self.target_file == DEFAULT_METATAB_FILE:
             return self.inner.join_dir(tf)
         else:

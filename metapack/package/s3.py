@@ -26,6 +26,8 @@ class S3PackageBuilder(PackageBuilder):
 
         self.package_path = self.package_root.join(self.package_name)
 
+        self.cache_path = self.package_name
+
         self.force = force
 
         self._acl = acl if acl else 'public-read'
@@ -207,7 +209,9 @@ class S3Bucket(object):
 
         s3 = boto3.client('s3')
 
-        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http'), self.bucket_name, key)
+        return '{}/{}/{}'.format(s3.meta.endpoint_url.replace('https', 'http')\
+                                 .replace('/s3.amazonaws.com',''), # Assume bucket has a CNAME
+                                 self.bucket_name, key)
 
     def signed_access_url(self, *paths):
 

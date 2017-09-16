@@ -35,6 +35,7 @@ class MetapackDoc(MetatabDoc):
 
         self.register_term_class('root.resource', 'metapack.terms.Resource')
         self.register_term_class('root.reference', 'metapack.terms.Resource')
+        self.register_term_class('root.distribution', 'metapack.terms.Distribution')
 
         resolver = resolver or Resolver()
 

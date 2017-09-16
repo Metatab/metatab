@@ -11,21 +11,52 @@ import traceback
 from os import getenv, getcwd
 from os.path import join, basename
 
-from metatab import _meta, DEFAULT_METATAB_FILE, resolve_package_metadata_url, MetatabDoc, open_package, MetatabError
-from metatab.cli.core import err, metatab_info, cli_init
-from rowgenerators import get_cache, Url
-from .core import prt, warn, write_doc
-from .metasync import update_dist
+from metatab import _meta, DEFAULT_METATAB_FILE, MetatabError
+from metapack import MetapackDoc, Downloader, open_package
+from metapack.cli.core import err, cli_init
+from appurl import get_cache, Url
+from .core import prt, warn, write_doc, update_dist
+import argparse
 
 
-def metakan():
-    import argparse
-    parser = argparse.ArgumentParser(
-        prog='metakan',
-        description='CKAN management of Metatab packages, version {}'.format(_meta.__version__),
-         )
 
-    cli_init()
+from .core import MetapackCliMemo as _MetapackCliMemo
+
+downloader = Downloader()
+
+class MetapackCliMemo(_MetapackCliMemo):
+
+    def __init__(self, args, downloader):
+        super().__init__(args, downloader)
+
+        self.api_key = self.args.api or getenv('METAKAN_API_KEY')
+
+        self.ckan_url = self.args.ckan or getenv('METAKAN_CKAN_URL')
+
+    def set_mt_arg(self, metatabfile):
+
+
+        if not self.ckan_url:
+            err("Set the --ckan option or the METAKAN_CKAN_URL env var to set the URL of a ckan instance")
+
+        if not self.api_key:
+            err("Set the --api option METAKAN_API_KEY env var  with the API key to a CKAN instance")
+
+    def update_mt_arg(self, metatabfile):
+        """Return a new memo with a new metatabfile argument"""
+        o = MetapackCliMemo(self.args)
+        o.set_mt_arg(metatabfile)
+        return o
+
+def metakan(subparsers):
+
+
+    parser = subparsers.add_parser(
+        'ckan',
+        help='CKAN management of Metatab packages, version {}'.format(_meta.__version__)
+    )
+
+    parser.set_defaults(run_command=run_ckan)
 
     parser.add_argument('-i', '--info', default=False, action='store_true',
                    help="Show configuration information")
@@ -43,44 +74,10 @@ def metakan():
     parser.add_argument('metatabfile', nargs='?', default=DEFAULT_METATAB_FILE,
                         help='Path to a Metatab file, or an s3 link to a bucket with Metatab files. ')
 
-    class MetapackCliMemo(object):
-        def __init__(self, args):
-            self.cwd = getcwd()
-            self.args = args
-            self.cache = get_cache('metapack')
 
-            self.set_mt_arg(args.metatabfile)
+def run_ckan(args):
 
-        def set_mt_arg(self, metatabfile):
-
-            self.mtfile_arg = metatabfile if metatabfile else join(self.cwd, DEFAULT_METATAB_FILE)
-
-            self.mtfile_url = Url(self.mtfile_arg)
-            self.resource = self.mtfile_url.parts.fragment
-
-            self.package_url, self.mt_file = resolve_package_metadata_url(self.mtfile_url.rebuild_url(False, False))
-
-            self.api_key = self.args.api or getenv('METAKAN_API_KEY')
-
-            self.ckan_url = self.args.ckan or getenv('METAKAN_CKAN_URL')
-
-            if not self.ckan_url:
-                err("Set the --ckan option or the METAKAN_CKAN_URL env var to set the URL of a ckan instance")
-
-            if not self.api_key:
-                err("Set the --api option METAKAN_API_KEY env var  with the API key to a CKAN instance")
-
-        def update_mt_arg(self, metatabfile):
-            """Return a new memo with a new metatabfile argument"""
-            o = MetapackCliMemo(self.args)
-            o.set_mt_arg(metatabfile)
-            return o
-
-    m = MetapackCliMemo(parser.parse_args(sys.argv[1:]))
-
-    if m.args.info:
-        metatab_info(m.cache)
-        exit(0)
+    m = MetapackCliMemo(args, downloader=downloader)
 
     if m.mtfile_url.scheme == 's3':
         """Find all of the top level CSV files in a bucket and use them to create CKan entries"""
@@ -120,9 +117,10 @@ def metakan():
 
 def send_to_ckan(m):
 
+
     from ckanapi import RemoteCKAN, NotFound
     try:
-        doc = MetatabDoc(m.mt_file, cache=m.cache)
+        doc = MetapackDoc(m.mt_file, cache=m.cache)
     except (IOError, MetatabError) as e:
         err("Failed to open metatab '{}': {}".format(m.mt_file, e))
 
@@ -130,8 +128,8 @@ def send_to_ckan(m):
 
     ckanid = doc.find_first_value('Root.Ckanid')
 
-    name = doc.as_version(None)
-    ckan_name = name.value.replace('.','-')
+    unversioned_name = doc.as_version(None)
+    ckan_name = unversioned_name.replace('.','-')
 
     id_name = ckanid or ckan_name
 
@@ -168,7 +166,7 @@ def send_to_ckan(m):
         pkg['title'] = doc.find_first_value('Root.Description')
 
 
-    pkg['version'] = name.properties.get('version') or doc.find_first_value('Root.Version')
+    pkg['version'] =  doc.find_first_value('Root.Version')
 
     pkg['groups'] = [ {'name': g.value } for g in doc['Root'].find('Root.Group')]
 
@@ -194,9 +192,6 @@ def send_to_ckan(m):
         if not t.term_is('Root.Distribution'):
             extras[t.qualified_term] = t.value
 
-    for t in name.children:
-        extras[t.qualified_term] = t.value
-
     pkg['extras'] = [ {'key':k, 'value':v} for k, v in extras.items() ]
 
     resources = []
@@ -205,16 +200,17 @@ def send_to_ckan(m):
     # correct links.
     markdown = None
 
-    for dist in doc.distributions():
+    for dist in doc.find('Root.Distribution'):
 
-        package_url, metadata_url = resolve_package_metadata_url(dist.term.value)
+        package_url = m.mtfile_url.package_url
+        metadata_url = m.mtfile_url.metadata_url
 
         if dist.type == 'zip':
             d = dict(
-                url=package_url,
-                name=basename(package_url),
+                url=str(package_url.inner),
+                name=basename(package_url.path),
                 format='ZIP',
-                mimetype=mimetypes.guess_type(package_url)[0],
+                mimetype=mimetypes.guess_type(package_url.path)[0],
                 description='ZIP version of package'
             )
             resources.append(d)
@@ -222,10 +218,10 @@ def send_to_ckan(m):
 
         elif dist.type == 'xlsx':
             d = dict(
-                url=package_url,
-                name=basename(package_url),
+                url=str(package_url.inner),
+                name=basename(package_url.path),
                 format='XLSX',
-                mimetype=mimetypes.guess_type(package_url)[0],
+                mimetype=mimetypes.guess_type(package_url.path)[0],
                 description='Excel version of package'
             )
             resources.append(d)
@@ -234,10 +230,10 @@ def send_to_ckan(m):
         elif dist.type == 'csv':
 
             d=dict(
-                url=package_url,
-                name=basename(package_url),
+                url=str(package_url.inner),
+                name=basename(package_url.path),
                 format='csv',
-                mimetype=mimetypes.guess_type(metadata_url)[0],
+                mimetype=mimetypes.guess_type(metadata_url.path)[0],
                 description='CSV Package Metadata in Metatab format'
             )
 
@@ -245,13 +241,13 @@ def send_to_ckan(m):
             prt("Adding {} package {}".format(d['format'], d['name']))
 
             try:
-                p = open_package(package_url)
+                p = open_package(package_url.path)
             except (IOError, MetatabError) as e:
                 err("Failed to open package '{}' from reference '{}': {}".format(package_url, dist.url, e))
 
             for r in p.resources():
 
-                mimetype = mimetypes.guess_type(r.resolved_url)[0]
+                mimetype = mimetypes.guess_type(r.resolved_url.path)[0]
 
                 try:
                     ext = mimetypes.guess_extension(mimetype)[1:]
@@ -261,7 +257,7 @@ def send_to_ckan(m):
                 d = dict(
                     name=r.name,
                     format = ext,
-                    url=r.resolved_url,
+                    url=str(r.resolved_url),
                     mimetype=mimetype,
                     description=r.markdown
                 )
@@ -310,7 +306,7 @@ def configure_ckan(m):
 
     from ckanapi import RemoteCKAN, NotFound
     try:
-        doc = MetatabDoc(m.mt_file, cache=m.cache)
+        doc = MetapackDoc(m.mt_file, cache=m.cache)
     except (IOError, MetatabError) as e:
         err("Failed to open metatab '{}': {}".format(m.mt_file, e))
 

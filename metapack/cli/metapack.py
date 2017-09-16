@@ -1,5 +1,5 @@
 # Copyright (c) 2017 Civic Knowledge. This file is licensed under the terms of the
-# Revised BSD License, included in this distribution as LICENSE
+# MIT License, included in this distribution as LICENSE
 
 """
 CLI program for managing packages
@@ -31,17 +31,14 @@ from appurl import parse_app_url
 
 downloader = Downloader()
 
+def metapack(subparsers):
 
-
-def metapack():
-    import argparse
-
-    cli_init()
-
-    parser = argparse.ArgumentParser(
-        prog='metapack',
-        description='Create and manipulate metatab data packages, version {}'.format(_meta.__version__),
+    parser = subparsers.add_parser(
+        'pack',
+        help='Create and manipulate metatab data packages, version {}'.format(_meta.__version__),
         epilog='Cache dir: {}\n'.format(str(downloader.cache.getsyspath('/'))))
+
+    parser.set_defaults(run_command=run_metapack)
 
     parser.add_argument('metatabfile', nargs='?',
                         help="Path or URL to a metatab file. If not provided, defaults to 'metadata.csv' ")
@@ -148,10 +145,11 @@ def metapack():
     admin_group.add_argument('--markdown', default=False, action='store_true',
                              help='Generate Markdown documentation')
 
-    # cmd = parser.add_subparsers(title='Plugin Commands', help='Additional command supplied by plugins')
-    # load_plugins(cmd)
 
-    m = MetapackCliMemo(parser.parse_args(sys.argv[1:]), downloader)
+def run_metapack(args):
+
+
+    m = MetapackCliMemo(args, downloader)
 
     # Maybe need to convert a notebook first
     if m.args.make_package:
