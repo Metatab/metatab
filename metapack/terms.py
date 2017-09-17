@@ -459,47 +459,28 @@ class Reference(Resource):
 
 class Distribution(Term):
 
-
     @property
     def type(self):
-        return Distribution.dist_type(parse_app_url(self.value))
 
-
-    def dist_type(url):
-
-        if url.target_file == 'metadata.csv':
-            return 'fs'
-        elif url.target_format == 'xlsx':
-            return 'excel'
-        elif url.resource_format == 'zip':
+        # The following order is really important. 
+        if self.package_url.target_format == 'xlsx':
+            return 'xlsx'
+        elif self.package_url.resource_format == 'zip':
             return "zip"
-        elif url.target_format == 'csv':
+        elif self.metadata_url.target_file == 'metadata.csv':
+            return 'fs'
+        elif self.package_url.target_format == 'csv':
             return "csv"
 
         else:
-
             return "unk"
 
-    def distributions(self, type=False):
-        """"Return a dict of distributions, or if type is specified, just the first of that type
+    @property
+    def package_url(self):
+        from metapack import MetapackPackageUrl
+        return MetapackPackageUrl(self.value, downloader=self.doc.downloader)
 
-        """
-        from collections import namedtuple
-
-        Dist = namedtuple('Dist', 'type url term')
-
-
-        dists = []
-
-        for d in self.find('Root.Distribution'):
-
-            u = parse_app_url(d.value)
-
-            t = Distribution.dist_type(u)
-
-            if type == t:
-                return Dist(t, u, d)
-            elif type is False:
-                dists.append(Dist(t, u, d))
-
-        return dists
+    @property
+    def metadata_url(self):
+        from metapack import MetapackDocumentUrl
+        return MetapackDocumentUrl(self.value, downloader=self.doc.downloader)

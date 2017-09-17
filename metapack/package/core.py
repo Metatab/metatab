@@ -13,7 +13,7 @@ from os.path import dirname, abspath, basename, splitext, join, isdir
 from six import text_type
 
 from appurl import Url, parse_app_url
-from metapack import MetapackDoc
+
 from metapack.appurl import MetapackUrl, MetapackPackageUrl
 from metapack.exc import PackageError
 from metapack.terms import Resource
@@ -36,6 +36,7 @@ class Downloader(_Downloader):
 class PackageBuilder(object):
 
     def __init__(self, source_ref=None, package_root = None,  callback=None, env=None):
+        from metapack.doc import MetapackDoc
 
         assert isinstance(package_root, (type(None), MetapackPackageUrl)), (type(package_root), package_root)
 
@@ -350,6 +351,7 @@ class PackageBuilder(object):
 
     def _load_resources(self):
         """Copy all of the Datafile entries into the package"""
+        from metapack.doc import MetapackDoc
 
         assert type(self.doc) == MetapackDoc
 
@@ -476,6 +478,7 @@ TableColumn = namedtuple('TableColumn', 'path name start_line header_lines colum
 
 
 def open_package(ref, cache=None, clean_cache=False, downloader=None):
+    from metapack.doc import MetapackDoc
 
     if downloader is None:
         downloader = Downloader()

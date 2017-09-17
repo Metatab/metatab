@@ -6,21 +6,15 @@ CLI program for storing pacakges in CKAN
 """
 
 import mimetypes
-import sys
 import traceback
-from os import getenv, getcwd
+from os import getenv
 from os.path import join, basename
 
-from metatab import _meta, DEFAULT_METATAB_FILE, MetatabError
 from metapack import MetapackDoc, Downloader, open_package
-from metapack.cli.core import err, cli_init
-from appurl import get_cache, Url
-from .core import prt, warn, write_doc, update_dist
-import argparse
-
-
-
+from metapack.cli.core import err
+from metatab import _meta, DEFAULT_METATAB_FILE, MetatabError
 from .core import MetapackCliMemo as _MetapackCliMemo
+from .core import prt, warn, write_doc, update_dist
 
 downloader = Downloader()
 
@@ -106,17 +100,14 @@ def run_ckan(args):
 
 
     elif m.args.configure:
-
         configure_ckan(m)
 
     else:
-
         send_to_ckan(m)
 
     exit(0)
 
 def send_to_ckan(m):
-
 
     from ckanapi import RemoteCKAN, NotFound
     try:
@@ -165,7 +156,6 @@ def send_to_ckan(m):
     if not pkg['title']:
         pkg['title'] = doc.find_first_value('Root.Description')
 
-
     pkg['version'] =  doc.find_first_value('Root.Version')
 
     pkg['groups'] = [ {'name': g.value } for g in doc['Root'].find('Root.Group')]
@@ -202,8 +192,10 @@ def send_to_ckan(m):
 
     for dist in doc.find('Root.Distribution'):
 
-        package_url = m.mtfile_url.package_url
-        metadata_url = m.mtfile_url.metadata_url
+        print("!!!", dist.type, dist.value)
+
+        package_url = dist.package_url
+        metadata_url = dist.metadata_url
 
         if dist.type == 'zip':
             d = dict(
@@ -241,7 +233,7 @@ def send_to_ckan(m):
             prt("Adding {} package {}".format(d['format'], d['name']))
 
             try:
-                p = open_package(package_url.path)
+                p = open_package(metadata_url)
             except (IOError, MetatabError) as e:
                 err("Failed to open package '{}' from reference '{}': {}".format(package_url, dist.url, e))
 
@@ -267,8 +259,16 @@ def send_to_ckan(m):
 
         elif dist.type == 'fs':
             # Fervently hope that this is a web acessible fs distribution
-            p = open_package(package_url)
-            markdown = p.markdown
+            from requests import HTTPError
+            from appurl import DownloadError
+            try:
+                doc = metadata_url.doc
+                markdown = doc.markdown
+            except (HTTPError, DownloadError):
+                pass
+
+        else:
+            warn("Unknown distribution type '{}' for '{}'  ".format(dist.type, dist.value))
 
 
     try:
@@ -303,8 +303,8 @@ def send_to_ckan(m):
 
 
 def configure_ckan(m):
-
-    from ckanapi import RemoteCKAN, NotFound
+    """Load groups and organizations, from a file in Metatab format"""
+    from ckanapi import RemoteCKAN
     try:
         doc = MetapackDoc(m.mt_file, cache=m.cache)
     except (IOError, MetatabError) as e:
