@@ -462,7 +462,7 @@ class Distribution(Term):
     @property
     def type(self):
 
-        # The following order is really important. 
+        # The following order is really important.
         if self.package_url.target_format == 'xlsx':
             return 'xlsx'
         elif self.package_url.resource_format == 'zip':

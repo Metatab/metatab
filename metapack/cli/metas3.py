@@ -327,7 +327,7 @@ def create_packages(m, second_stage_mtfile, distupdated=None):
             (hasattr(m.args, 'filesystem') and m.args.filesystem is not False)):
         update_name(m.mt_file, fail_on_missing=False, report_unchanged=False)
 
-    if m.args.force or distupdated is True:
+    if m.args.force: # or distupdated is True:
         skip_if_exists = False
     else:
         skip_if_exists = True

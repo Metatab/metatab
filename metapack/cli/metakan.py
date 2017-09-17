@@ -192,7 +192,7 @@ def send_to_ckan(m):
 
     for dist in doc.find('Root.Distribution'):
 
-        print("!!!", dist.type, dist.value)
+        prt("Processing {} package: {}".format(dist.type, dist.value))
 
         package_url = dist.package_url
         metadata_url = dist.metadata_url
@@ -273,7 +273,7 @@ def send_to_ckan(m):
 
     try:
         pkg['notes'] = markdown or doc.markdown #doc.find_first_value('Root.Description')
-    except OSError as e:
+    except (OSError, DownloadError) as e:
         warn(e)
 
     pkg['resources'] = resources

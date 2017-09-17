@@ -68,7 +68,7 @@ class S3PackageBuilder(PackageBuilder):
         self.check_is_ready()
 
         # Resets the ref so that resource.resolved_url link to the resources as written in S3
-        self._doc._ref = self.access_url + '/metatab.csv'
+        self._doc._ref = self.access_url.join('metatab.csv')
 
         self.prt("Preparing S3 package '{}' ".format(self.package_name))
 
@@ -119,7 +119,7 @@ class S3PackageBuilder(PackageBuilder):
 
     def _write_html(self):
         old_ref = self._doc._ref
-        self._doc._ref = self.access_url + '/metatab.csv'
+        self._doc._ref = self.access_url.join('metatab.csv')
         self.write_to_s3('index.html', self._doc.html)
         self._doc._ref = old_ref
 
