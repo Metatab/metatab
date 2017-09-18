@@ -5,7 +5,7 @@
 Special term subclasses
 """
 
-from ._meta import __version__
+
 from os.path import split, basename
 from deprecation import deprecated
 from metatab.util import slugify
@@ -516,13 +516,6 @@ class Term(object):
             return self.section.property_names
         except AttributeError:
             return []
-
-    @property
-    @deprecated(deprecated_in='0.6.0', current_version=__version__,
-                details='Use .arg_props instead')
-    def properties(self):
-        """Return the value and scalar properties as a dictionary"""
-        raise NotImplementedError("Use .props, .arg_props")
 
     @property
     def props(self):
