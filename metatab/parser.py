@@ -58,7 +58,7 @@ class TermParser(object):
 
         assert isinstance(self._ref, (Url, Source)), (type(ref), ref)
 
-        self._path = None # Set after running parse, from row generator
+        self._path = '<none>' # Set after running parse, from row generator
 
         self._doc = doc
 
