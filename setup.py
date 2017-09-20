@@ -27,13 +27,12 @@ classifiers = [
 
 setup(
     name='metatab',
-    version='0.6.6',
+    version='0.6.8',
     description='Data format for storing structured data in spreadsheet tables',
     long_description=readme,
     packages=['metatab','metatab.templates'],
 
     install_requires=[
-        'six',  # Should be removed. Not supporting python 2.7 anymore.
         'metatabdecl',
         'appurl>=0.1.5',
         'rowgenerators>=0.7.0',

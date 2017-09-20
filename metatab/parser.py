@@ -17,8 +17,6 @@ METATAB_ASSETS_URL = 'http://assets.metatab.org/'
 
 from .terms import Term, SectionTerm, RootSectionTerm
 
-import six
-
 from .exc import IncludeError, DeclarationError, ParserError, GenerateError
 from os.path import dirname, join, exists
 from .util import declaration_path, import_name_or_class
@@ -358,13 +356,13 @@ class TermParser(object):
                 # Yield any child terms, from the term row arguments
                 if not t.term_is('section') and not t.term_is('header'):
                     for col, value in enumerate(t.args, 0):
-                        if six.text_type(value).strip():
+                        if str(value).strip():
 
-                            term_name = t.record_term_lc + '.' + six.text_type(col)
+                            term_name = t.record_term_lc + '.' + str(col)
 
                             term_class = self.get_term_class(term_name)
 
-                            yield term_class(term_name, six.text_type(value), [],
+                            yield term_class(term_name, str(value), [],
                                        row=line_n,
                                        col=col + 2,  # The 0th argument starts in col 2
                                        file_name=ref_path,
@@ -373,8 +371,7 @@ class TermParser(object):
                                        #doc=None,
                                        #section=last_section)
         except IncludeError as e:
-            from six import text_type
-            exc = IncludeError(text_type(e) + "; in '{}' ".format(ref_path))
+            exc = IncludeError(str(e) + "; in '{}' ".format(ref_path))
             exc.term = e.term if hasattr(e, 'term') else None
             raise exc
 

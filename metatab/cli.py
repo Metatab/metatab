@@ -7,8 +7,6 @@ CLI program for managing Metatab files
 
 import json
 import sys
-import six
-from uuid import uuid4
 from genericpath import exists
 
 from metatab._meta import __version__

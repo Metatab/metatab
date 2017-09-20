@@ -9,7 +9,6 @@ Special term subclasses
 from os.path import split, basename
 from metatab.util import slugify
 
-import six
 from metatab.exc import GenerateError
 from metatab.parser import ROOT_TERM, ELIDED_TERM
 
@@ -96,7 +95,7 @@ class Term(object):
 
         self.children = []  # When terms are linked, hold term's children.
 
-        assert self.file_name is None or isinstance(self.file_name, six.string_types), self.file_name
+        assert self.file_name is None or isinstance(self.file_name, str), self.file_name
 
         self.__initialised = True
 
@@ -150,7 +149,7 @@ class Term(object):
         """Return a string for the file, row and column of the term."""
         from metatab.util import slugify
 
-        assert self.file_name is None or isinstance(self.file_name, six.string_types)
+        assert self.file_name is None or isinstance(self.file_name, str)
 
         if self.file_name is not None and self.row is not None:
             parts = split(self.file_name);
@@ -439,7 +438,7 @@ class Term(object):
 
         """
 
-        if isinstance(v, six.string_types):
+        if isinstance(v, str):
 
             if '.' not in v:
                 v = 'root.' + v

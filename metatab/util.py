@@ -44,15 +44,11 @@ def slugify(value):
     """
     import re
     import unicodedata
-    from six import text_type
-    value = text_type(value)
+    value = str(value)
     value = unicodedata.normalize('NFKD', value).encode('ascii', 'ignore').decode('utf8').strip().lower()
     value = re.sub(r'[^\w\s\-\.]', '', value)
     value = re.sub(r'[-\s]+', '-', value)
     return value
-
-
-
 
 
 def flatten(d, sep='.'):

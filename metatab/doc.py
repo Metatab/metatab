@@ -9,8 +9,6 @@ import logging
 from collections import OrderedDict, MutableSequence
 from os.path import dirname, getmtime
 from time import time
-
-import six
 import unicodecsv as csv
 
 from appurl import parse_app_url
@@ -265,7 +263,7 @@ class MetatabDoc(object):
         """Dereference a section name"""
 
         # Handle dereferencing a list of sections
-        if isinstance(item, collections.Iterable) and not isinstance(item, six.string_types):
+        if isinstance(item, collections.Iterable) and not isinstance(item, str):
             return [ self.__getitem__(e) for e in item ]
 
         else:
