@@ -72,10 +72,13 @@ class Term(object):
         self.section = section
         self.doc = doc
 
-        try:
+        # Tried this the "pythonic" way, catching exceptions gnerated when file_name is None,
+        # but python3.5 raises AttributeError, and python3.6 raises TypeError, and catching two different exceptions
+        # based on the version of python is *really* not pythonic
+        if file_name:
             self.file_name = slugify(basename(file_name))
-        except TypeError:
-            self.file_name = file_name
+        else:
+            self.file_name = '<none>'
 
         self.file_type = file_type
         self.row = row
