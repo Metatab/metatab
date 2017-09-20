@@ -7,7 +7,6 @@ Special term subclasses
 
 
 from os.path import split, basename
-from deprecation import deprecated
 from metatab.util import slugify
 
 import six
@@ -320,7 +319,13 @@ class Term(object):
         """
         try:
             # Normal child
-            return self.__getitem__(item).value
+            t = self.__getitem__(item)
+
+            if t is not None:
+                return t.value
+            else:
+                raise AttributeError("Term '{}' has no attribue: '{}' ".format(repr(self), item))
+
         except KeyError:
             # We want the common properties to return a value even if they aren't explicitly set
             # with a term
@@ -328,11 +333,12 @@ class Term(object):
                 return None
             else:
                 try:
-                    m = "Term '{}' doesn't have attribute '{}' ".format(repr(self), item)
+                    m = "Term '{}' has no attribute '{}' ".format(repr(self), item)
                 except Exception as e:
                     m = item
 
                 return self.__getattribute__(item) #raise AttributeError(m)
+
 
     def __setattr__(self, item, value):
         """ """
@@ -455,39 +461,6 @@ class Term(object):
 
             return any(self.term_is(e) for e in v)
 
-    def aterm_is(self, v):
-        """Return True if the fully qualified name of the term is the same as the argument. If the
-        argument is a list or tuple, return  True if any of the term names match.
-
-        Either the parent or the record term can be '*' ( 'Table.*' or '*.Name' ) to match any value for
-        either the parent or record term.
-
-        """
-
-        raise Exception("Is this used? SHould probably be deleted")
-
-        if isinstance(v, six.string_types):
-
-            if '.' not in v:
-                v = 'root.' + v
-
-            v_p, v_r = self.split_term_lower(v)
-
-            if self.join_lc == v.lower():
-
-                return True
-            elif v_r == '*' and v_p == self.parent_term_lc:
-                return True
-            elif v_p == '*' and v_r == self.record_term_lc:
-                return True
-            elif v_p == '*' and v_r == '*':
-                return True
-            else:
-                return False
-
-        else:
-
-            return any(self.term_is(e) for e in v)
 
     @property
     def is_terminal(self):
@@ -696,7 +669,6 @@ class SectionTerm(Term):
         self.header_args = []  # Set for each header encoundered
 
         assert self.term_is('Root.Section') or self.term_is('Root.Root')
-
 
 
     @classmethod

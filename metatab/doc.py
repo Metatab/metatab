@@ -498,12 +498,60 @@ class MetatabDoc(object):
         identifier = self.find_first('Root.Identifier', section='Root')
 
         if not identifier:
-            identifier = self['Root'].new_term('Root.Identifier')
+            identifier = self['Root'].new_term('Root.Identifier', None)
 
         if not identifier.value:
             identifier.value =  str(uuid4())
 
         assert identifier is not None and bool(identifier.value)
+
+    def _has_semver(self):
+
+        version = self['Root'].find_first('Root.Version')
+
+        if not version:
+            return False
+
+        return any([
+            version.find_first('Version.Major'),
+            version.find_first('Version.Minor'),
+            version.find_first('Version.Patch')
+        ])
+
+    def update_version(self):
+
+        version = self['Root'].find_first('Root.Version')
+
+        if not version:
+            return None
+
+        major = version.find_first('Version.Major')
+        minor = version.find_first('Version.Minor')
+        patch = version.find_first('Version.Patch')
+
+        if not any([major, minor, patch]):
+            return version.value
+
+        #if one of the exists, they all have to exist
+        for term, term_name in ( (major, 'Version.Major'), (minor,'Version.Minor'), (patch, 'Version.Patch')):
+
+            if not term:
+                term = version.new_child(term_name, 0)
+
+            if term.value is None:
+                term.value = 0
+
+        major = version.find_first('Version.Major')
+        minor = version.find_first('Version.Minor')
+        patch = version.find_first('Version.Patch')
+
+        assert all([major, minor, patch])
+
+        version.value = '{}.{}.{}'.format(major.value, minor.value, patch.value)
+
+        return version.value
+
+
 
     def update_name(self, force=False, create_term=False):
         """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
@@ -565,7 +613,12 @@ class MetatabDoc(object):
         grain = self.find_first_value('Root.Grain', section='Root')
         variant = self.find_first_value('Root.Variant', section='Root')
 
-        ver_value =  self.find_first_value('Root.Version', section='Root')
+        self.update_version()
+
+        if self._has_semver():
+            ver_value = '{}.{}'.format(self['Root'].get_value('Version.Major'), self['Root'].get_value('Version.Minor'))
+        else:
+            ver_value =  self.find_first_value('Root.Version', section='Root')
 
         # Excel likes to make integers into floats
         try:

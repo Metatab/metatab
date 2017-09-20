@@ -4,15 +4,9 @@ import unittest
 from os.path import join, dirname
 
 import metatab
-
+from metatab.generate import TextRowGenerator
 
 from metatab import MetatabDoc
-
-def test_data(*paths):
-    from os.path import dirname, join, abspath
-
-    return abspath(join(dirname(dirname(abspath(__file__))), 'test-data', *paths))
-
 
 
 def test_data(*paths):
@@ -43,6 +37,71 @@ class TestUtil(unittest.TestCase):
 
         print(doc.as_csv().decode('utf8')[:200])
 
+    def test_version(self):
+
+        from textwrap import dedent
+
+
+        doc = MetatabDoc(TextRowGenerator(
+            dedent(
+            """
+            Root.Version:
+            """)))
+
+        # None because there are no Minor, Major, Patch value
+        self.assertIsNone(doc.update_version())
+
+        self.assertFalse(doc._has_semver())
+
+        doc = MetatabDoc(TextRowGenerator(
+            dedent(
+                """
+                Root.Version: 10
+                """)))
+
+        # None because there are no Minor, Major, Patch value
+        self.assertEqual("10", doc.update_version())
+        self.assertFalse(doc._has_semver())
+
+        doc = MetatabDoc(TextRowGenerator(
+            dedent(
+                """
+                Root.Version: 10
+                Version.Patch: 5
+                """)))
+
+        # None because there are no Minor, Major, Patch value
+        self.assertEqual("0.0.5", doc.update_version())
+        self.assertTrue(doc._has_semver())
+
+        doc = MetatabDoc(TextRowGenerator(
+            dedent(
+                """
+                Root.Version: 10
+                Version.Major: 2
+                Version.Patch: 5
+                """)))
+
+        # None because there are no Minor, Major, Patch value
+        self.assertEqual("2.0.5", doc.update_version())
+
+        doc = MetatabDoc(TextRowGenerator(
+            dedent(
+                """
+                Root.Name:
+                Root.Origin: example.com
+                Root.Dataset: foobar
+                Root.Version:
+                Version.Minor: 24
+                Version.Major: 2
+                Version.Patch: 5
+                """)))
+
+        # None because there are no Minor, Major, Patch value
+        self.assertEqual("2.24.5", doc.update_version())
+
+        doc.update_name()
+        self.assertEqual('example.com-foobar-2.24', doc.get_value('Root.Name'))
 
 if __name__ == '__main__':
     unittest.main()
