@@ -27,7 +27,7 @@ classifiers = [
 
 setup(
     name='metatab',
-    version='0.6.8',
+    version='0.6.9',
     description='Data format for storing structured data in spreadsheet tables',
     long_description=readme,
     packages=['metatab','metatab.templates'],
