@@ -9,7 +9,6 @@ import json
 import sys
 from genericpath import exists
 
-from metatab._meta import __version__
 from metatab import  DEFAULT_METATAB_FILE, MetatabDoc
 from appurl import parse_app_url
 from appurl.util import get_cache, clean_cache
@@ -28,7 +27,7 @@ def metatab():
     import argparse
     parser = argparse.ArgumentParser(
         prog='metatab',
-        description='Matatab file parser, version {}.'.format(__version__),
+        description='Matatab file parser',
         epilog='Cache dir: {}\n'.format(str(cache.getsyspath('/') ) ))
 
     parser.add_argument('-C', '--clean-cache', default=False, action='store_true',
