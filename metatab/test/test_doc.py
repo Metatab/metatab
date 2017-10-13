@@ -3,19 +3,12 @@ from __future__ import print_function
 import unittest
 from os.path import join, dirname
 
-import metatab
-from metatab.generate import TextRowGenerator
-
 from metatab import MetatabDoc
+from metatab.generate import TextRowGenerator
+from metatab.test.core import test_data
 
 
-def test_data(*paths):
-    from os.path import dirname, join, abspath
-
-    return abspath(join(dirname(dirname(abspath(__file__))), 'test-data', *paths))
-
-
-class TestUtil(unittest.TestCase):
+class TestDoc(unittest.TestCase):
 
     def test_open(self):
 
@@ -35,7 +28,7 @@ class TestUtil(unittest.TestCase):
         doc = MetatabDoc(template_path)
         doc.cleanse()
 
-        print(doc.as_csv().decode('utf8')[:200])
+        print(doc.as_csv()[:200])
 
     def test_version(self):
 

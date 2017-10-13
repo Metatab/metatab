@@ -42,3 +42,58 @@ Run ``metatab -h`` to get other program options.
 
 The ``test-data`` directory has test files that also serve as examples to parse. You can either clone the repo and parse them from the files, or from the Github page for the file, click on the ``raw`` button to get raw view of the flie, then copy the URL.
 
+
+Running tests
++++++++++++++
+
+Run ``python setup.py tests`` to run normal development tests. You can also run ``tox``, which will
+try to run the tests with python 3.4, 3.5 and 3.6, ignoring non-existent interpreters.
+
+
+Development Testing with Docker
++++++++++++++++++++++++++++++++
+
+Testing during development for other versions of Python is a bit of a pain, since you have
+to install the alternate version, and Tox will run all of the tests, not just the one you want.
+
+One way to deal with this is to install Docker locally, then run the docker test container
+on the source directory. This is done automatically from the Makefile in metatab/test, just run:
+
+.. code-block:: bash
+    $ cd metatab/test
+    $ make build # to create the container image
+    $ make test
+    # or just ..
+    $ make
+
+You can also run the container shell, and run tests from the command line.
+
+.. code-block:: bash
+
+    $ cd metatab/test
+    $ make build # to create the container image
+    $ make shell # to run bash the container
+
+You now have a docker container where the /code directory is the metatab source dir.
+
+Now, run tox to build the tox virtual environments, then enter the specific version you want to
+run tests for and activate the virtual environment.
+
+.. code-block:: bash
+
+    # tox
+    # cd .tox/py34
+    # source bin/activate # Activate the python 3.4 virtual env
+    # cd ../../
+    # python setup.py test # Cause test deps to get installed
+    #
+    # python -munittest metatab.test.test_parser.TestParser.test_parse_everython  # Run one test
+
+Note that your development environment is mounted into the Docker container, so you can edit local
+files and test the changes in Docker.
+
+
+
+
+
+
