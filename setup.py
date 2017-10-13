@@ -48,7 +48,7 @@ setup(
 
     author='Eric Busboom',
     author_email='eric@civicknowledge.com',
-    url='https://github.com/CivicKnowledge/metatab-py.git',
+    url='https://github.com/Metatab/metatab-py.git',
     license='BSD',
     classifiers=classifiers,
     extras_require={
