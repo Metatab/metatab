@@ -9,7 +9,7 @@ import logging
 from collections import OrderedDict, MutableSequence
 from os.path import dirname, getmtime
 from time import time
-import unicodecsv as csv
+import csv
 
 from appurl import parse_app_url
 from rowgenerators.exceptions import SourceError
@@ -735,9 +735,9 @@ class MetatabDoc(object):
     def as_csv(self):
         """Return a CSV representation as a string"""
 
-        from io import BytesIO
+        from io import StringIO
 
-        s = BytesIO()
+        s = StringIO()
         w = csv.writer(s)
         for row in self.rows:
             w.writerow(row)

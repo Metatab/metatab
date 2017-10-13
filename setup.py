@@ -27,10 +27,14 @@ classifiers = [
 
 setup(
     name='metatab',
-    version='0.6.10',
+    version='0.6.11',
     description='Data format for storing structured data in spreadsheet tables',
     long_description=readme,
-    packages=['metatab','metatab.templates'],
+    packages=['metatab','metatab.templates', 'metatab.test', 'metatab.test.test-data'],
+
+    package_data={
+        '': ['*.csv','*.json','*.txt','*.ipynb',''],
+    },
 
     install_requires=[
         'metatabdecl',
@@ -38,17 +42,19 @@ setup(
         'rowgenerators>=0.7.0',
     ],
 
+    # test_suite='appurl.test.test_suite',
+    test_suite='nose.collector',
+    tests_require=['nose', 'tabulate'],
+
     entry_points={
         'console_scripts': [
             'metatab=metatab.cli:metatab'
         ]
     },
 
-    include_package_data=True,
-
     author='Eric Busboom',
     author_email='eric@civicknowledge.com',
-    url='https://github.com/CivicKnowledge/metatab-py.git',
+    url='https://github.com/Metatab/metatab-py.git',
     license='BSD',
     classifiers=classifiers,
     extras_require={

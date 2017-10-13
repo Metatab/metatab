@@ -176,6 +176,21 @@ class TermParser(object):
 
         cls.term_classes[term_name.lower()] = class_or_name
 
+    @classmethod
+    def unregister_term_class(cls, term_name):
+        """
+        Remove a registration previously made with :py:method:`TermParser.register_term_class`
+
+        :param term_name: Fully-qualified term name. Will be converted to lowercase.
+        :return:
+        """
+
+        try:
+            del cls.term_classes[term_name.lower()]
+        except KeyError:
+            pass
+
+
     def get_term_class(self, term_name):
 
         tnl = term_name.lower()
