@@ -47,6 +47,9 @@ def metatab():
     g.add_argument('-y', '--yaml', default=False, action='store_true',
                    help='Parse a file and print out a YAML representation')
 
+    g.add_argument('-l', '--line', default=False, action='store_true',
+                   help='Parse a file and print out a Metatab Line representation')
+
     #parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
     #                    help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
 
@@ -91,6 +94,10 @@ def metatab():
     elif args.yaml:
         import yaml
         print(yaml.safe_dump(doc.as_dict(), default_flow_style=False, indent=4))
+
+    elif args.line:
+        for line in doc.lines:
+            print(': '.join(line))
 
     exit(0)
 

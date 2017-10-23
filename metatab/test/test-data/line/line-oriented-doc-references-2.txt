@@ -1,0 +1,31 @@
+
+Section: References
+
+#
+# Tract crosswalk
+#
+Reference: metatab+http://s3.amazonaws.com/library.metatab.org/sangis.org-census_regions-2010-sandiego-7.csv#tract-sra-msa-xwalk
+Reference.Name: tracts
+Reference.Description: Crosswalk between crosswalks, tracts, zip codes and SRAs in San Diego County
+
+#
+# Tract boundaries
+#
+Reference: metatab+http://s3.amazonaws.com/library.metatab.org/sangis.org-census_regions-2010-sandiego-7.csv#tracts
+Reference.Name: tracts_geo
+Reference.Description: Geographics Boundaries for Tracts
+
+#
+# SRA boundaries
+#
+Reference: metatab+http://s3.amazonaws.com/library.metatab.org/sangis.org-census_regions-2010-sandiego-7.csv#sra
+Reference.Name: sra_geo
+Reference.Description: Geographics Boundaries for SRAs
+
+#
+# IPUMS Housing and Income Data
+#
+# Need to use the ZIP version b/c we need to import the Python Code
+Reference: metatab+http://s3.amazonaws.com/library.metatab.org/ipums.org-income_homevalue-5.zip#income_homeval
+Reference.Name: incv
+Reference.Description: Income and Home value records from IPUMS for San Diego County

@@ -319,6 +319,10 @@ class Term(object):
         """Maps values to attributes.
         Only called if there *isn't* an attribute with this name
         """
+
+        if item == '__setstate__': # Hack to Fake out copy()
+            raise AttributeError()
+
         try:
             # Normal child
             t = self.__getitem__(item)

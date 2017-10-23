@@ -9,7 +9,7 @@ from metatab import IncludeError, MetatabDoc, WebResolver, TermParser
 from metatab.terms import Term
 from metatab.test.core import test_data
 from metatab.util import flatten, declaration_path
-
+from metatab.generate import TextRowGenerator
 
 
 class TestParser(unittest.TestCase):
@@ -84,6 +84,44 @@ class TestParser(unittest.TestCase):
                 # print(json.dumps(d, indent=4))
 
                 self.compare_dict(d, d2)
+
+    def test_line_doc(self):
+
+        doc = MetatabDoc(TextRowGenerator("Declare: metatab-latest"))
+
+        with open(test_data('line/line-oriented-doc.txt')) as f:
+            text = f.read()
+
+        tp = TermParser(TextRowGenerator(text), resolver=doc.resolver, doc=doc)
+
+        doc.load_terms(tp)
+
+        self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
+        self.assertEqual(146, len(doc.terms))
+
+
+
+    def test_line_doc_parts(self):
+
+        doc = MetatabDoc(TextRowGenerator("Declare: metatab-latest"))
+
+        for fn in ('line/line-oriented-doc-root.txt',
+                   'line/line-oriented-doc-contacts.txt',
+                   'line/line-oriented-doc-references-1.txt',
+                   'line/line-oriented-doc-references-2.txt',
+                   'line/line-oriented-doc-bib.txt',
+                  ):
+
+            with open(test_data(fn)) as f:
+                text = f.read()
+
+            tp = TermParser(TextRowGenerator(text), resolver=doc.resolver, doc=doc)
+
+            doc.load_terms(tp)
+
+        self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
+        self.assertEqual(146, len(doc.terms))
+
 
     @unittest.skip('broken')
     def test_declarations(self):

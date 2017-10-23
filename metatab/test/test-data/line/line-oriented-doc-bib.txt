@@ -1,0 +1,12 @@
+Section: Bibliography
+Citation: ipums
+Citation.Type: dataset
+Citation.Author: Steven Ruggles; Katie Genadek; Ronald Goeken; Josiah Grover; Matthew Sobek
+Citation.Title: Integrated Public Use Microdata Series
+Citation.Year: 2017
+Citation.Publisher: University of Minnesota
+Citation.Version: 7.0
+Citation.AccessDate: 20170718
+Citation.Url: https://usa.ipums.org/usa/index.shtml
+Citation.Doi: https://doi.org/10.18128/D010.V7.0
+

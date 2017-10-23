@@ -52,6 +52,9 @@ class MetatabDoc(object):
         else:
             self.decls = decl
 
+        self.root = RootSectionTerm(doc=self)
+        self.add_section(self.root)
+
         self.load_declarations(self.decls)
 
         if ref:
@@ -69,7 +72,6 @@ class MetatabDoc(object):
             except AppUrlError as e:  # ref is probably a generator, not a string or Url
                 self._ref = None
 
-            self.root = None
             self._term_parser = TermParser(ref, resolver=self.resolver, doc=self)
             try:
                 self.load_terms(self._term_parser)
@@ -80,8 +82,6 @@ class MetatabDoc(object):
         else:
             self._ref = None
             self._term_parser = None
-            self.root = RootSectionTerm(doc=self)
-            self.add_section(self.root)
             self._mtime = time()
 
 
@@ -419,21 +419,26 @@ class MetatabDoc(object):
     def load_terms(self, terms):
         """Create a builder from a sequence of terms, usually a TermInterpreter"""
 
-        if self.root and len(self.root.children) > 0:
-            raise MetatabError("Can't run after adding terms to document.")
+        #if self.root and len(self.root.children) > 0:
+        #    raise MetatabError("Can't run after adding terms to document.")
 
         for t in terms:
 
             t.doc = self
 
             if t.term_is('root.root'):
-                self.root = t
+                if not self.root:
+                    self.root = t
+                    self.add_section(t)
+
+                continue
+
+            if t.term_is('root.section'):
                 self.add_section(t)
 
-            elif t.term_is('root.section'):
-                self.add_section(t)
             elif t.parent_term_lc == 'root':
                 self.add_term(t)
+
             else:
                 # These terms aren't added to the doc because they are attached to a
                 # parent term that is added to the doc.
@@ -760,7 +765,7 @@ class MetatabDoc(object):
         if u.scheme != 'file':
             raise MetatabError("Can't write file to URL '{}'".format(path))
 
-        with open(u.path, 'wb') as f:
+        with open(u.path, 'w', encoding='utf-8') as f:
             f.write(self.as_csv())
 
         return u.path

@@ -72,7 +72,10 @@ class TermParser(object):
 
         self.errors = set()
 
-        self.root = RootSectionTerm(file_name=self.path, doc=self._doc)
+        if self.doc:
+            self.root = self.doc.root
+        else:
+            self.root = RootSectionTerm(file_name=self.path, doc=self.doc)
 
         self.install_declare_terms()
 
@@ -364,7 +367,15 @@ class TermParser(object):
                     continue  # Already yielded the include/declare term, and includes can't have children
 
                 elif t.term_is('section'):
-                    last_section = t
+
+                    # If there is already a section in the document, emit the existing section,
+                    # rather than a new one.
+                    try:
+                        last_section = self.doc[t.name]
+                        t = last_section
+
+                    except (KeyError, TypeError): # TypeError -> self.doc is None
+                        last_section = t
 
                 yield t
 
@@ -397,9 +408,6 @@ class TermParser(object):
         default_term_value_name = '@value'
         last_section = None
 
-        root = RootSectionTerm(file_name='<root>', doc=self._doc)
-
-        self.root = root
         last_section = self.root
         last_term_map[ELIDED_TERM] = self.root
         last_term_map[self.root.record_term] = self.root
@@ -413,7 +421,7 @@ class TermParser(object):
 
         try:
 
-            for i, t in enumerate(self.generate_terms(target, root)):
+            for i, t in enumerate(self.generate_terms(target, self.root)):
 
                 # Substitute synonyms
                 if t.join_lc in self.synonyms:
