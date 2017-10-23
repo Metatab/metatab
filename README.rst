@@ -1,6 +1,9 @@
 Metatab
 =======
 
+.. image:: https://travis-ci.org/Metatab/metatab.svg?branch=master
+    :target: https://travis-ci.org/Metatab/metatab
+
 Parse and manipulate structured data and metadata in a tabular format.
 
 `Metatab <http://metatab.org>`_ is a data format that allows structured metadata -- the sort you'd normally store in JSON, YAML or XML -- to be stored and edited in tabular forms like CSV or Excel. Metatab files look exactly like you'd expect, so they
