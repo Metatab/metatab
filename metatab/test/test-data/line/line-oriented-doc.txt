@@ -47,7 +47,7 @@ Reference.Name: incv
 Reference.Description: Income and Home value records from IPUMS for San Diego County
 
 
-Section: Bibliography
+==== Bibliography
 Citation: ipums
 Citation.Type: dataset
 Citation.Author: Steven Ruggles; Katie Genadek; Ronald Goeken; Josiah Grover; Matthew Sobek

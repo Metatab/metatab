@@ -87,6 +87,15 @@ class TextRowGenerator(MetatabRowGenerator):
         for row in self._text_lines:
             if re.match(r'^\s*#', row):  # Skip comments
                 continue
+
+            # Special handling for ===, which implies a section:
+            #   ==== Schema
+            # is also
+            #   Section: Schema
+
+            if row.startswith('===='):
+                row = re.sub(r'^=*','Section:', row)
+
             row = [e.strip() for e in row.split(':', 1)]
 
             yield row

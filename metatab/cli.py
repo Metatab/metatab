@@ -30,25 +30,27 @@ def metatab():
         description='Matatab file parser',
         epilog='Cache dir: {}\n'.format(str(cache.getsyspath('/') ) ))
 
-    parser.add_argument('-C', '--clean-cache', default=False, action='store_true',
-                        help="Clean the download cache")
+    g = parser.add_mutually_exclusive_group()
 
-    g = parser.add_mutually_exclusive_group(required=True)
-
-    g.add_argument('-c', '--create', action='store', nargs='?', default=False,
+    g.add_argument('-C', '--create', action='store', nargs='?', default=False,
                    help="Create a new metatab file, from named template. With no argument, uses the 'metatab' template ")
 
-    g.add_argument('-t', '--terms', default=False, action='store_true',
+    g.add_argument('-t', '--terms', default=False, action='store_const', dest='out_type', const='terms',
                    help='Parse a file and print out the stream of terms, before interpretation')
 
-    g.add_argument('-j', '--json', default=False, action='store_true',
+    g.add_argument('-j', '--json', default=False, action='store_const', dest='out_type', const='json',
                    help='Parse a file and print out a JSON representation')
 
-    g.add_argument('-y', '--yaml', default=False, action='store_true',
+    g.add_argument('-y', '--yaml', default=False, action='store_const', dest='out_type', const='yaml',
                    help='Parse a file and print out a YAML representation')
 
-    g.add_argument('-l', '--line', default=False, action='store_true',
+    g.add_argument('-l', '--line', default=False, action='store_const', dest='out_type', const='line',
                    help='Parse a file and print out a Metatab Line representation')
+
+    g.add_argument('-c', '--csv', default=False, action='store_const', dest='out_type', const='csv',
+                   help='Parse a file and print out a Metatab Line representation')
+
+    parser.set_defaults(out_type='csv')
 
     #parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
     #                    help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
@@ -66,8 +68,6 @@ def metatab():
     if args.file.startswith('#'):
         args.file = DEFAULT_METATAB_FILE + args.file
 
-    if args.clean_cache:
-        clean_cache(cache)
 
     if args.create is not False:
         if new_metatab_file(args.file, args.create):
@@ -84,20 +84,24 @@ def metatab():
 
         err("Failed to open '{}': {}".format(metadata_url, e))
 
-    if args.terms:
+
+    if args.out_type == 'terms':
         for t in doc._term_parser:
             print(t)
 
-    elif args.json:
+    elif args.out_type == 'json':
         print(json.dumps(doc.as_dict(), indent=4))
 
-    elif args.yaml:
+    elif args.out_type == 'yaml':
         import yaml
         print(yaml.safe_dump(doc.as_dict(), default_flow_style=False, indent=4))
 
-    elif args.line:
+    elif args.out_type == 'line':
         for line in doc.lines:
-            print(': '.join(line))
+            print(': '.join(str(e) if e else '' for e in line))
+
+    elif args.out_type == 'csv':
+        print(doc.as_csv())
 
     exit(0)
 

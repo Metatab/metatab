@@ -95,6 +95,7 @@ class Term(object):
         # Can be forced to list, scalar, dict or other types.
         self.child_property_type = 'any'
         self.valid = None
+        self.options =[] # Set from the options defined in the declaration during parsing.
 
         self.children = []  # When terms are linked, hold term's children.
 
@@ -178,7 +179,12 @@ class Term(object):
 
         """
 
-        c = Term(term, str(value), parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
+        tc = self.doc.get_term_class(term.lower())
+
+        c = tc(term, str(value), parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
+
+        c.term_value_name = self.doc.decl_terms.get(c.join, {}).get('termvaluename', c.term_value_name)
+
         assert not c.term_is("*.Section")
         self.children.append(c)
         return c
@@ -255,7 +261,8 @@ class Term(object):
         c = self.find_first(rt)
 
         if c is None:
-            c = Term(term, value, parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
+            tc = self.doc.get_term_class(term.lower())
+            c = tc(term, value, parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
             assert not c.term_is("Datafile.Section"), (self, c)
             self.children.append(c)
 
@@ -305,8 +312,8 @@ class Term(object):
             c = self.get_or_new_child(item, value)
 
             # There is a bug where these two values may be different by a trailing space
-            assert self[item].value == value, "Item value '{}' is different from set value '{}' ".format(
-                self[item].value, value)
+            assert self[item].value == value or (self[item].value is None and value == ''), \
+                "Item value '{}' is different from set value '{}' ".format(self[item].value, value)
 
     def __contains__(self, item):
 
@@ -720,7 +727,10 @@ class SectionTerm(Term):
 
     def new_term(self, term, value, **kwargs):
         """Create a neew root-level term in this section"""
-        t = Term(term, value, doc=self.doc, parent=None, section=self).new_children(**kwargs)
+
+        tc = self.doc.get_term_class(term.lower())
+
+        t = tc(term, value, doc=self.doc, parent=None, section=self).new_children(**kwargs)
 
         self.doc.add_term(t)
         return t

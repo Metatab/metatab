@@ -99,6 +99,15 @@ class TestParser(unittest.TestCase):
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
         self.assertEqual(146, len(doc.terms))
 
+        self.assertEqual(5, len(list(doc['References'])))
+
+        self.assertEqual(5, len(list(doc['References'].find('Root.Reference'))))
+
+        self.assertEqual(5, len(list(doc['References'].find('Root.Resource')))) #References are Resources
+
+        rt = list(doc['References'].find('Root.Resource'))[0]
+
+        print(type(rt))
 
 
     def test_line_doc_parts(self):
@@ -122,6 +131,9 @@ class TestParser(unittest.TestCase):
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
         self.assertEqual(146, len(doc.terms))
 
+        self.assertEqual(5, len(list(doc['References'])))
+
+        self.assertEqual(5,len(list(doc['References'].find('Root.Resource'))))
 
     @unittest.skip('broken')
     def test_declarations(self):

@@ -79,8 +79,6 @@ class TermParser(object):
 
         self.install_declare_terms()
 
-
-
     @property
     def path(self):
         """Return the path from the row generator, if it is avilable"""
@@ -121,6 +119,12 @@ class TermParser(object):
     @lru_cache()
     def super_terms(self):
         """Return a dictionary mapping term names to their super terms"""
+
+        # If the doc already has super terms, we've already parsed something, so
+        # assume we parsed the declaration, and can use re-use the old decls.
+        if self.doc and self.doc.super_terms:
+            return self.doc.super_terms
+
 
         return  {k.lower(): v['inheritsfrom'].lower()
                          for k, v in self._declared_terms.items() if 'inheritsfrom' in v}
@@ -197,7 +201,6 @@ class TermParser(object):
     def get_term_class(self, term_name):
 
         tnl = term_name.lower()
-
 
         try:
             return import_name_or_class(self.term_classes[tnl])
@@ -475,6 +478,9 @@ class TermParser(object):
 
                     t.valid = t.join_lc in self._declared_terms  # advisory.
 
+                    t.options = self._declared_terms \
+                        .get(t.join, {}) \
+                        .get('options', '').split(',')
 
                     # Only terms with the term name in the first column can be parents of
                     # other terms. This rule excludes argument terms and terms with an elided parent

@@ -18,9 +18,10 @@ from metatab.parser import TermParser
 from metatab.resolver import WebResolver
 from metatab.exc import MetatabError
 from metatab.util import slugify, get_cache
-from .terms import SectionTerm, RootSectionTerm
+from .terms import SectionTerm, RootSectionTerm, Term
 from appurl import AppUrlError, Url
 from itertools import groupby
+from .util import import_name_or_class
 
 logger = logging.getLogger('doc')
 
@@ -172,6 +173,8 @@ class MetatabDoc(object):
 
         assert t.section or t.join_lc == 'root.root', t
 
+
+
         # Section terms don't show up in the document as terms
         if isinstance(t, SectionTerm):
             self.add_section(t)
@@ -195,6 +198,22 @@ class MetatabDoc(object):
                     .get('termvaluename', t.section.default_term_value_name)
 
         assert t.section or t.join_lc == 'root.root', t
+
+    def get_term_class(self, term_name):
+
+        tnl = term_name.lower()
+
+        try:
+            return import_name_or_class(TermParser.term_classes[tnl])
+        except KeyError:
+            pass
+
+        try:
+            return import_name_or_class(TermParser.term_classes[self.super_terms[tnl]])
+        except KeyError:
+            pass
+
+        return Term
 
     def remove_term(self, t):
         """Only removes top-level terms. CHild terms can be removed at the parent. """
@@ -258,6 +277,25 @@ class MetatabDoc(object):
                 raise KeyError("No section for '{}'; sections are: '{}' ".format(name.lower(), self.sections.keys()))
             else:
                 return default
+
+    def sort_sections(self, order):
+        """
+        Sort sections according to the section names in the order list. All remaining sections
+         are added to the end in their original order
+
+        :param order: Iterable of section names
+        :return:
+        """
+
+        order_lc = [e.lower() for e in order]
+
+        sections = OrderedDict( (k,self.sections[k]) for k in order_lc if k in self.sections)
+
+        sections.update( (k,self.sections[k]) for k in self.sections.keys() if k not in order_lc)
+
+        assert len(self.sections) == len(sections)
+
+        self.sections = sections
 
     def __getitem__(self, item):
         """Dereference a section name"""
@@ -444,18 +482,18 @@ class MetatabDoc(object):
                 # parent term that is added to the doc.
                 assert t.parent is not None
 
+
         try:
             dd = terms.declare_dict
 
             self.decl_terms.update(dd['terms'])
             self.decl_sections.update(dd['sections'])
 
-            self.super_terms = terms.super_terms()
+            self.super_terms.update(terms.super_terms())
 
             kf = lambda e: e[1]  # Sort on the value
             self.derived_terms ={ k:set( e[0] for e in g)
                                   for k, g in groupby(sorted(self.super_terms.items(), key=kf), kf)}
-
 
         except AttributeError as e:
             pass
@@ -567,7 +605,7 @@ class MetatabDoc(object):
 
         if not name_term:
             if create_term:
-                name_term = self['Root'].new_term('Root.Name')
+                name_term = self['Root'].new_term('Root.Name','')
             else:
                 updates.append("No Root.Name, can't update name")
                 return updates
@@ -673,6 +711,7 @@ class MetatabDoc(object):
     def rows(self):
         """Iterate over all of the rows"""
 
+
         for s_name, s in self.sections.items():
 
             # Yield the section header
@@ -751,14 +790,19 @@ class MetatabDoc(object):
 
     def write_csv(self, path=None):
 
-
         self.cleanse()
 
         if path is None:
-            if isinstance(self.ref, str):
-                path = self.ref
-            else:
-                path = DEFAULT_METATAB_FILE
+
+            try:
+                path = self.ref.path
+            except AttributeError:
+
+                if isinstance(self.ref, str):
+                    path = self.ref
+                else:
+                    path = DEFAULT_METATAB_FILE
+
 
         u = parse_app_url(path)
 
