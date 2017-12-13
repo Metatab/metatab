@@ -1,4 +1,3 @@
 metatabdecl
-appurl>=0.1.5
 rowgenerators>=0.7.0
 tabulate
