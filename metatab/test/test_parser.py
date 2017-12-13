@@ -4,7 +4,7 @@ import json
 import unittest
 from os.path import exists
 
-from appurl import parse_app_url
+from rowgenerators import parse_app_url
 from metatab import IncludeError, MetatabDoc, WebResolver, TermParser
 from metatab.terms import Term
 from metatab.test.core import test_data

@@ -14,7 +14,7 @@ from os.path import join, basename, dirname, isdir, abspath
 #from rowgenerators import reparse_url, parse_url_to_dict, unparse_url_dict, Url
 
 from metatab import DEFAULT_METATAB_FILE
-from appurl import get_cache
+from rowgenerators import get_cache
 
 
 def declaration_path(name):

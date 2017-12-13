@@ -38,8 +38,7 @@ setup(
 
     install_requires=[
         'metatabdecl',
-        'appurl>=0.1.5',
-        'rowgenerators>=0.7.0',
+        'rowgenerators>=0.7.13',
     ],
 
     # test_suite='appurl.test.test_suite',

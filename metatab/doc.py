@@ -11,7 +11,7 @@ from os.path import dirname, getmtime
 from time import time
 import csv
 
-from appurl import parse_app_url
+from rowgenerators import parse_app_url, AppUrlError, Url
 from rowgenerators.exceptions import SourceError
 from metatab import DEFAULT_METATAB_FILE
 from metatab.parser import TermParser
@@ -19,7 +19,7 @@ from metatab.resolver import WebResolver
 from metatab.exc import MetatabError
 from metatab.util import slugify, get_cache
 from .terms import SectionTerm, RootSectionTerm, Term
-from appurl import AppUrlError, Url
+
 from itertools import groupby
 from .util import import_name_or_class
 
