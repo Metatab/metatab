@@ -10,8 +10,8 @@ import sys
 from genericpath import exists
 
 from metatab import  DEFAULT_METATAB_FILE, MetatabDoc
-from appurl import parse_app_url
-from appurl.util import get_cache, clean_cache
+from rowgenerators.appurl import parse_app_url
+from rowgenerators.util import get_cache, clean_cache
 from os.path import dirname
 from rowgenerators.util import fs_join as join
 
@@ -50,10 +50,13 @@ def metatab():
     g.add_argument('-c', '--csv', default=False, action='store_const', dest='out_type', const='csv',
                    help='Parse a file and print out a Metatab Line representation')
 
+    g.add_argument('-p', '--prety', default=False, action='store_const', dest='out_type', const='prety',
+                   help='Pretty print the python Dict representation ')
+
     parser.set_defaults(out_type='csv')
 
-    #parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
-    #                    help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
+    parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
+                        help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
 
     #parser.add_argument('-D', '--declare', help='Parse and incorporate a declaration before parsing the file.' +
     #                                            ' (Adds the declaration to the start of the file as the first term. )')
@@ -85,7 +88,23 @@ def metatab():
         err("Failed to open '{}': {}".format(metadata_url, e))
 
 
-    if args.out_type == 'terms':
+    if args.show_declaration:
+
+        decl_doc = MetatabDoc('', cache=cache, decl=metadata_url.path)
+
+        d = {
+            'terms': decl_doc.decl_terms,
+            'sections': decl_doc.decl_sections
+        }
+
+        if args.out_type == 'json':
+            print(json.dumps(d, indent=4))
+
+        elif args.out_type == 'yaml':
+            import yaml
+            print(yaml.safe_dump(d, default_flow_style=False, indent=4))
+
+    elif args.out_type == 'terms':
         for t in doc._term_parser:
             print(t)
 
@@ -102,6 +121,10 @@ def metatab():
 
     elif args.out_type == 'csv':
         print(doc.as_csv())
+
+    elif args.out_type == 'prety':
+        from pprint import pprint
+        pprint(doc.as_dict())
 
     exit(0)
 
