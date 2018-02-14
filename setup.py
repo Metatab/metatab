@@ -27,7 +27,7 @@ classifiers = [
 
 setup(
     name='metatab',
-    version='0.6.15',
+    version='0.6.16',
     description='Data format for storing structured data in spreadsheet tables',
     long_description=readme,
     packages=['metatab','metatab.templates', 'metatab.test', 'metatab.test.test-data'],
@@ -38,7 +38,7 @@ setup(
 
     install_requires=[
         'metatabdecl',
-        'rowgenerators>=0.7.13',
+        'rowgenerators>=0.7.15',
     ],
 
     # test_suite='appurl.test.test_suite',
