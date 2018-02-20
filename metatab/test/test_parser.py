@@ -4,12 +4,13 @@ import json
 import unittest
 from os.path import exists
 
-from rowgenerators import parse_app_url
+
 from metatab import IncludeError, MetatabDoc, WebResolver, TermParser
 from metatab.terms import Term
 from metatab.test.core import test_data
 from metatab.util import flatten, declaration_path
 from metatab.generate import TextRowGenerator
+from rowgenerators import parse_app_url
 
 
 class TestParser(unittest.TestCase):
@@ -135,66 +136,6 @@ class TestParser(unittest.TestCase):
 
         self.assertEqual(5,len(list(doc['References'].find('Root.Resource'))))
 
-    @unittest.skip('broken')
-    def test_declarations(self):
-
-        doc = MetatabDoc(test_data('example1.csv'))
-
-        d = {k: v for k, v in doc.decl_terms.items() if 'homepage' in k}
-
-        self.assertEqual(17, len(d))
-
-        self.assertIn("homepage.mediatype", d.keys())
-        self.assertIn("homepage.hash", d.keys())
-        self.assertIn("homepage.title", d.keys())
-
-        # Direct use of function
-
-        ti = TermParser(CsvPathRowGenerator(declaration_path('metatab-latest')), False)
-        ti.install_declare_terms()
-
-        fn = test_data('example1.csv')  # Not acutally used. Sets base directory
-
-        doc = MetatabDoc(MetatabRowGenerator([['Declare', 'metatab-latest']], fn))
-
-        terms = doc.decl_terms
-
-        self.assertIn('root.homepage', terms.keys())
-        self.assertIn('documentation.description', terms.keys())
-        self.assertEquals(247, len(terms.keys()))
-
-        sections = doc.decl_sections
-
-        self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
-                           'sources', 'documentation', 'data'},
-                          set(sections.keys()))
-
-        # Use the Declare term
-
-        fn = test_data('example1.csv')
-        doc = MetatabDoc(CsvPathRowGenerator(fn), resolver=WebResolver)
-
-        d = doc._term_parser.declare_dict
-
-        self.assertEqual({'terms', 'synonyms', 'sections'}, set(d.keys()))
-
-        terms = d['terms']
-
-        self.assertIn('root.homepage', terms.keys())
-        self.assertIn('documentation.description', terms.keys())
-        self.assertEquals(247, len(terms.keys()))
-
-        sections = d['sections']
-
-        self.assertEquals({'contacts', 'declaredterms', 'declaredsections', 'root', 'resources', 'schemas',
-                           'sources', 'documentation', 'data'},
-                          set(sections.keys()))
-
-        self.assertEqual(['Email', 'Organization', 'Tel', 'Url'], sections['contacts']['args'])
-        self.assertEqual(['TermValueName', 'ChildPropertyType', 'Section'], sections['declaredterms']['args'])
-        self.assertEqual(['DataType', 'ValueType', 'Description'], sections['schemas']['args'])
-
-        #
 
     def test_children(self):
 

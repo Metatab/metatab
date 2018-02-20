@@ -7,7 +7,8 @@ objects.
 
 """
 from __future__ import print_function
-from rowgenerators import Source, get_generator, Url, parse_app_url, DownloadError
+
+from rowgenerators import Source, get_generator, Url, DownloadError, parse_app_url
 ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
@@ -43,6 +44,7 @@ class TermParser(object):
         :param remove_special: If true ( default ) remove the special terms from the stream
         :return:
         """
+
 
         self.resolver = resolver or doc.resolver
 
@@ -240,7 +242,7 @@ class TermParser(object):
          * The name as a key in the standard_declares dict
          * The name as a path in this module's metatab.declarations package
 
-         """
+        """
 
         path = None
         while True:
@@ -280,6 +282,7 @@ class TermParser(object):
         """Resolve a name or path for an include doc to a an absolute path or url
         :param name:
         """
+        from metatab import parse_app_url
 
         include_ref = name.strip('/')
 

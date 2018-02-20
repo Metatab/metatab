@@ -9,8 +9,7 @@ import json
 import sys
 from genericpath import exists
 
-from metatab import  DEFAULT_METATAB_FILE, MetatabDoc
-from rowgenerators.appurl import parse_app_url
+from metatab import  DEFAULT_METATAB_FILE, MetatabDoc, parse_app_url
 from rowgenerators.util import get_cache, clean_cache
 from os.path import dirname
 from rowgenerators.util import fs_join as join
