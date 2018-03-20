@@ -8,6 +8,7 @@
 "Space",,,,
 "Time",,,,
 "Grain",,,,
+"Variant",,,,
 "Version",1,,,
 ,,,,
 "Section","Resources","Name","Description",
@@ -16,7 +17,7 @@
 "Section ","Documentation","Title","Description",
 "HomePage","# URL to webpage for the data program",,,
 "Documentation","# Url to documentation",,,
-"Note",,,,
+"Note","# Notes",,,
 ,,,,
 "Section","Contacts","Email","Organization","Url"
 "Origin","# Domain name of primary source of data. ",,,

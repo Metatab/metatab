@@ -54,6 +54,9 @@ def metatab():
 
     parser.set_defaults(out_type='csv')
 
+    parser.add_argument('-f', '--find-first',
+                   help='Find and print the first value for a fully qualified term name')
+
     parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
                         help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
 
@@ -70,7 +73,6 @@ def metatab():
     if args.file.startswith('#'):
         args.file = DEFAULT_METATAB_FILE + args.file
 
-
     if args.create is not False:
         if new_metatab_file(args.file, args.create):
             prt("Created ", args.file)
@@ -85,7 +87,6 @@ def metatab():
     except IOError as e:
 
         err("Failed to open '{}': {}".format(metadata_url, e))
-
 
     if args.show_declaration:
 
@@ -102,6 +103,13 @@ def metatab():
         elif args.out_type == 'yaml':
             import yaml
             print(yaml.safe_dump(d, default_flow_style=False, indent=4))
+
+    elif args.find_first:
+
+        t = doc.find_first(args.find_first)
+
+        print(t.value)
+
 
     elif args.out_type == 'terms':
         for t in doc._term_parser:

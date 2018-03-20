@@ -593,7 +593,6 @@ class MetatabDoc(object):
         return version.value
 
 
-
     def update_name(self, force=False, create_term=False):
         """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
 
