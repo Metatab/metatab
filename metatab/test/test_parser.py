@@ -98,7 +98,7 @@ class TestParser(unittest.TestCase):
         doc.load_terms(tp)
 
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
-        self.assertEqual(147, len(doc.terms))
+        self.assertEqual(148, len(doc.terms))
 
         self.assertEqual(5, len(list(doc['References'])))
 
@@ -130,7 +130,7 @@ class TestParser(unittest.TestCase):
             doc.load_terms(tp)
 
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
-        self.assertEqual(147, len(doc.terms))
+        self.assertEqual(148, len(doc.terms))
 
         self.assertEqual(5, len(list(doc['References'])))
 
@@ -208,7 +208,7 @@ class TestParser(unittest.TestCase):
 
         self.assertEqual({'root.downloadpage', 'root.supplementarydata', 'root.api', 'root.citation',
                           'root.datafile', 'root.datadictionary', 'root.image', 'root.reference',
-                          'root.documentation', 'root.homepage', 'root.sql'},
+                          'root.documentation', 'root.homepage', 'root.sql', 'root.dsn'},
                          doc.derived_terms['root.resource'])
 
         self.assertEqual(['example1', 'example10', 'example2', 'example3', 'example4', 'example5', 'example6',
