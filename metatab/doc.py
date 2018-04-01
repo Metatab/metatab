@@ -11,8 +11,8 @@ from os.path import dirname, getmtime
 from time import time
 import csv
 
-from rowgenerators import  AppUrlError, Url, parse_app_url
-from rowgenerators.exceptions import SourceError
+from rowgenerators import  Url, parse_app_url
+from rowgenerators.exceptions import SourceError, AppUrlError
 from metatab import DEFAULT_METATAB_FILE
 from metatab.parser import TermParser
 from metatab.resolver import WebResolver
