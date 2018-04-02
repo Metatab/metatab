@@ -216,7 +216,7 @@ class MetatabDoc(object):
         return Term
 
     def remove_term(self, t):
-        """Only removes top-level terms. CHild terms can be removed at the parent. """
+        """Only removes top-level terms. Child terms can be removed at the parent. """
 
         try:
             self.terms.remove(t)
@@ -230,6 +230,7 @@ class MetatabDoc(object):
         if t.parent:
             try:
                 t.parent.remove_child(t)
+
             except ValueError:
                 pass
 
