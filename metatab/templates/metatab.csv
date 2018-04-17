@@ -12,16 +12,9 @@
 "Version",1,,,
 ,,,,
 "Section","Resources","Name","Description",
-"Datafile","http://example.com/data.csv",,,
 ,,,,
 "Section ","Documentation","Title","Description",
-"HomePage","# URL to webpage for the data program",,,
-"Documentation","# Url to documentation",,,
-"Note","# Notes",,,
 ,,,,
 "Section","Contacts","Email","Organization","Url"
-"Origin","# Domain name of primary source of data. ",,,
-"Creator","# Creator Name",,,
-"Wrangler","# Wrangler Name",,,
 ,,,,
 "Section","Schema","DataType","AltName","Description"
