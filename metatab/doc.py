@@ -11,8 +11,8 @@ from os.path import dirname, getmtime
 from time import time
 import csv
 
-from rowgenerators import  AppUrlError, Url, parse_app_url
-from rowgenerators.exceptions import SourceError
+from rowgenerators import  Url, parse_app_url
+from rowgenerators.exceptions import SourceError, AppUrlError
 from metatab import DEFAULT_METATAB_FILE
 from metatab.parser import TermParser
 from metatab.resolver import WebResolver
@@ -216,7 +216,7 @@ class MetatabDoc(object):
         return Term
 
     def remove_term(self, t):
-        """Only removes top-level terms. CHild terms can be removed at the parent. """
+        """Only removes top-level terms. Child terms can be removed at the parent. """
 
         try:
             self.terms.remove(t)
@@ -230,6 +230,7 @@ class MetatabDoc(object):
         if t.parent:
             try:
                 t.parent.remove_child(t)
+
             except ValueError:
                 pass
 

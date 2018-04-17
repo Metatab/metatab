@@ -8,7 +8,9 @@ objects.
 """
 from __future__ import print_function
 
-from rowgenerators import Source, get_generator, Url, DownloadError, parse_app_url
+from rowgenerators import Source, get_generator, Url, parse_app_url
+from rowgenerators.exceptions import DownloadError
+
 ROOT_TERM = 'root'  # No parent term -- no '.' --  in term cell
 
 ELIDED_TERM = '<elided_term>'  # A '.' in term cell, but no term before it.
