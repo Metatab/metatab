@@ -181,7 +181,8 @@ class Term(object):
 
         tc = self.doc.get_term_class(term.lower())
 
-        c = tc(term, str(value), parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
+        c = tc(term, str(value) if value is not None else None,
+               parent=self, doc=self.doc, section=self.section).new_children(**kwargs)
 
         c.term_value_name = self.doc.decl_terms.get(c.join, {}).get('termvaluename', c.term_value_name)
 

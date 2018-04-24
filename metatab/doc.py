@@ -594,7 +594,7 @@ class MetatabDoc(object):
         return version.value
 
 
-    def update_name(self, force=False, create_term=False):
+    def update_name(self, force=False, create_term=False, report_unchanged=True):
         """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
 
         updates = []
@@ -624,7 +624,8 @@ class MetatabDoc(object):
                 name_term.value = name
                 updates.append("Changed Name")
             else:
-                updates.append("Name did not change")
+                if report_unchanged:
+                    updates.append("Name did not change")
 
         elif not orig_name:
 
@@ -636,7 +637,8 @@ class MetatabDoc(object):
                 name_term.value = identifier
 
         elif orig_name == identifier:
-            updates.append("Name did not change")
+            if report_unchanged:
+                updates.append("Name did not change")
 
         else:
             # There is no DatasetName, so we can't gneerate name, and the Root.Name is not empty, so we should
