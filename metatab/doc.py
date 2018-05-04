@@ -811,8 +811,8 @@ class MetatabDoc(object):
         if u.scheme != 'file':
             raise MetatabError("Can't write file to URL '{}'".format(path))
 
-        with open(u.path, 'w', encoding='utf-8') as f:
-            f.write(self.as_csv())
+        with open(u.fspath, 'wb') as f:
+            f.write(self.as_csv().encode('utf8'))
 
         return u.path
 
