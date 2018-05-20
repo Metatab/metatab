@@ -153,11 +153,19 @@ class MetatabDoc(object):
 
     def load_declarations(self, decls):
 
-        rg = self.resolver.get_row_generator([['Declare', dcl] for dcl in decls], cache=self._cache)
+        if not decls:
+            return
+
+        extant_decls = [ t.value for t in self.find('Root.Declare') ]
+
+        rg = self.resolver.get_row_generator([['Declare', dcl] for dcl in decls if dcl not in extant_decls],
+                                             cache=self._cache)
 
         term_interp = TermParser(rg, resolver=self.resolver, doc=self)
 
         list(term_interp)
+
+
         dd = term_interp.declare_dict
 
         self.decl_terms.update(dd['terms'])
