@@ -181,8 +181,6 @@ class MetatabDoc(object):
 
         assert t.section or t.join_lc == 'root.root', t
 
-
-
         # Section terms don't show up in the document as terms
         if isinstance(t, SectionTerm):
             self.add_section(t)
@@ -797,6 +795,11 @@ class MetatabDoc(object):
             w.writerow(row)
 
         return s.getvalue()
+
+    def as_lines(self):
+        """Return a Lines representation as a string"""
+
+        return '\n'.join('{}: {}'.format(t,v) for t,v in self.lines)
 
     def write_csv(self, path=None):
 

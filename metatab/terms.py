@@ -72,7 +72,7 @@ class Term(object):
         self.section = section
         self.doc = doc
 
-        # Tried this the "pythonic" way, catching exceptions gnerated when file_name is None,
+        # Tried this the "pythonic" way, catching exceptions generated when file_name is None,
         # but python3.5 raises AttributeError, and python3.6 raises TypeError, and catching two different exceptions
         # based on the version of python is *really* not pythonic
         if file_name:
@@ -727,7 +727,7 @@ class SectionTerm(Term):
         return self.add_term(t)
 
     def new_term(self, term, value, **kwargs):
-        """Create a neew root-level term in this section"""
+        """Create a new root-level term in this section"""
 
         tc = self.doc.get_term_class(term.lower())
 
@@ -765,6 +765,35 @@ class SectionTerm(Term):
                 t.get_or_new_child(k, v)
 
         return t
+
+
+    def set_terms(self,*terms, **kw_terms):
+        """
+        Create or set top level terms in the section. After python 3.6.0, the terms entries
+        should maintain the same order as the argument list. The term arguments can have any of these forms:
+
+        * For position argument, a Term object
+        * For kw arguments:
+            - 'TermName=TermValue'
+            - 'TermName=(TermValue, PropertyDict)
+
+        Positional arguments are processed before keyword arguments, and are passed into .add_term()
+
+        :param terms: Term arguments
+        :return:
+        """
+
+        for t in terms:
+            self.add_term(t)
+
+        for k,v in kw_terms.items():
+            try:
+                value, props = v
+            except (ValueError, TypeError) as e:
+                value, props = v,{}
+
+            self.new_term(k,value,**props)
+
 
     def remove_term(self, term, remove_from_doc=True):
         """Remove a term from the terms. Must be the identical term, the same object"""
