@@ -19,7 +19,7 @@ from rowgenerators import parse_app_url
 class TestCreate(unittest.TestCase):
 
 
-    def test_basic(self):
+    def x_test_basic(self):
 
         from metapack.support import metapack_defaults_file
 
