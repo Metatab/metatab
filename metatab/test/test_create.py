@@ -3,17 +3,7 @@
 import warnings
 warnings.simplefilter('ignore')
 
-import json
 import unittest
-from os.path import exists
-
-from metapack import MetapackDoc
-from metatab import IncludeError, MetatabDoc, WebResolver, TermParser
-from metatab.terms import Term
-from metatab.test.core import test_data
-from metatab.util import flatten, declaration_path
-from metatab.generate import TextRowGenerator
-from rowgenerators import parse_app_url
 
 
 class TestCreate(unittest.TestCase):
@@ -22,6 +12,7 @@ class TestCreate(unittest.TestCase):
     def x_test_basic(self):
 
         from metapack.support import metapack_defaults_file
+        from metapack import MetapackDoc
 
         d = MetapackDoc(metapack_defaults_file())
 
