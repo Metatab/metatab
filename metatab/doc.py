@@ -24,7 +24,7 @@ from itertools import groupby
 from .util import import_name_or_class
 
 logger = logging.getLogger('doc')
-
+debug_logger = logging.getLogger('debug')
 
 class MetatabDoc(object):
 
@@ -822,7 +822,7 @@ class MetatabDoc(object):
         if u.scheme != 'file':
             raise MetatabError("Can't write file to URL '{}'".format(path))
 
-        logger.debug("writing doc ", u.fspath)
+        debug_logger.debug("writing doc {}".format(u.fspath))
 
         with open(u.fspath, 'wb') as f:
             f.write(self.as_csv().encode('utf8'))

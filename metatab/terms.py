@@ -652,7 +652,7 @@ class Term(object):
 
 
 class SectionTerm(Term):
-    """A Subclass fo Term specificall for Sections """
+    """A Subclass fo Term specifically for Sections """
 
     def __init__(self, term, value, term_args=False, row=None, col=None, file_name=None, file_type=None, parent=None,
                  doc=None, section=None):
@@ -705,6 +705,17 @@ class SectionTerm(Term):
             return self.header_args
         else:
             return self.args
+
+    def add_arg(self,arg, prepend=False):
+        """Append an arg to the arg list"""
+
+        self.args = [ arg.strip() for arg in self.args if arg.strip() ]
+
+        if prepend:
+            self.args = [arg] + self.args
+        else:
+            self.args.append(arg)
+
 
     def add_term(self, t):
         """Add a term to this section and set it's ownership. Should only be used on root level terms"""
