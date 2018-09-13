@@ -571,6 +571,18 @@ class Term(object):
                         # The c.term property doesn't exist, so add a list
                         d[c.record_term_lc] = [cls._convert_to_dict(c, replace_value_names)]
 
+                elif c.child_property_type == 'sconcat': # Concat with a space
+
+                    if c.record_term_lc in d:
+                        s = d[c.record_term_lc] + ' '
+                    else:
+                        s = ''
+
+                    d[c.record_term_lc] =s+cls._convert_to_dict(c, replace_value_names)
+
+                elif c.child_property_type == 'bconcat':  # Concat with a blank
+                    d[c.record_term_lc] = d.get(c.record_term_lc, '') + cls._convert_to_dict(c, replace_value_names)
+
                 else:
                     try:
                         d[c.record_term_lc].append(cls._convert_to_dict(c, replace_value_names))
