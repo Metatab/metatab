@@ -52,6 +52,8 @@ class TestParser(unittest.TestCase):
 
     def test_parse_everything(self):
 
+        import json
+
         all = ['example1.csv', 'example2.csv', 'example1-web.csv',
                'include1.csv', 'include2.csv', 'include3.csv',
                'children.csv', 'children2.csv',
@@ -81,8 +83,8 @@ class TestParser(unittest.TestCase):
                 with open(json_path) as f:
                     d2 = json.load(f)
 
-                # import json
-                # print(json.dumps(d, indent=4))
+
+                #print(json.dumps(d, indent=4))
 
                 self.compare_dict(d, d2)
 
@@ -98,7 +100,7 @@ class TestParser(unittest.TestCase):
         doc.load_terms(tp)
 
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
-        self.assertEqual(148, len(doc.terms))
+        self.assertEqual(149, len(doc.terms))
 
         self.assertEqual(5, len(list(doc['References'])))
 
@@ -130,7 +132,7 @@ class TestParser(unittest.TestCase):
             doc.load_terms(tp)
 
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
-        self.assertEqual(148, len(doc.terms))
+        self.assertEqual(149, len(doc.terms))
 
         self.assertEqual(5, len(list(doc['References'])))
 
