@@ -578,10 +578,13 @@ class Term(object):
                     else:
                         s = ''
 
-                    d[c.record_term_lc] =s+cls._convert_to_dict(c, replace_value_names)
+                    d[c.record_term_lc] =s + (cls._convert_to_dict(c, replace_value_names) or '')
 
                 elif c.child_property_type == 'bconcat':  # Concat with a blank
-                    d[c.record_term_lc] = d.get(c.record_term_lc, '') + cls._convert_to_dict(c, replace_value_names)
+
+                    d[c.record_term_lc] = d.get(c.record_term_lc, '') +  (cls._convert_to_dict(c,
+                                                                                               replace_value_names)
+                                                                          or '')
 
                 else:
                     try:
