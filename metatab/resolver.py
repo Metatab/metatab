@@ -24,6 +24,7 @@ class WebResolver(object):
             # See if it exists online in the official repo
             r = requests.head(url, allow_redirects=False)
             if r.status_code == requests.codes.ok:
+
                 return url
 
         except InvalidSchema:

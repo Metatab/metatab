@@ -293,7 +293,7 @@ class Term(object):
 
             c = self.find_first(item)
             if c is None:
-                raise KeyError("Failed to find key '{}' in term '{}'".format(item, repr(self)))
+                raise KeyError("Failed to find child term '{}' in term '{}'".format(item, repr(self)))
 
             return c
 
@@ -536,8 +536,6 @@ class Term(object):
 
         return d
 
-
-
     def as_dict(self, replace_value_names=True):
         """Convert the term, and it's children, to a minimal data structure form, which may
         be a scalar for a term with a single value or a dict if it has multiple proerties. """
@@ -552,12 +550,14 @@ class Term(object):
 
         """
 
+        from collections import OrderedDict
+
         if not term:
             return None
 
         if term.children:
 
-            d = {}
+            d = OrderedDict()
 
             for c in term.children:
 

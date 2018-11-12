@@ -1,0 +1,49 @@
+Declare,metatab-latest,,,
+Title,San Diego County Weather,,,
+Description,Daily summaries from a selection of San Diego county weather stations,,,
+Identifier,2dc83efa-e6da-4561-bdf9-63263360ccf0,,,
+Name,noaa.gov-daily_summary-1998e-san-1,,,
+Dataset,daily_summary,,,
+Origin,noaa.gov,,,
+Time,1998e,,,
+Space,san,,,
+Grain,,,,
+Variant,,,,
+Version,1,,,
+Created,2018-08-17T15:44:24,,,
+Modified,2018-08-17T16:18:19,,,
+Giturl,https://github.com/san-diego-water-quality/water-datasets.git,,,
+,,,,
+Section,Contacts,Email,Organization,Url
+Wrangler,Eric Busboom,eric@civicknowledge.com,Civic Knowledge,http://civicknowledge.com
+,,,,
+,,,,
+Section,Documentation,Title,Description,
+Documentation,file:README.md,README,,
+Documentation,https://www1.ncdc.noaa.gov/pub/data/cdo/documentation/GHCND_documentation.pdf,Documentation,Main documentation,
+,,,,
+Section,Resources,Name,Description,
+Datafile,http://ds.civicknowledge.org.s3.amazonaws.com/noaa.gov/daily-summary-1998-2018-san.csv,daily_summary_san,Daily weather summaries,
+Datafile,http://ds.civicknowledge.org.s3.amazonaws.com/noaa.gov/daily-summary-1998-2018-san.csv,daily_summary_la,Daily weather summaries,
+,,,,
+,,,,
+,,,,
+Section,Schema,DataType,AltName,Description
+Table,daily_summary_san,,,
+Table.Column,STATION,string,station,
+Table.Column,NAME,string,name,Station code
+Table.Column,LATITUDE,number,latitude,Station name
+Table.Column,LONGITUDE,number,longitude,Station lattitude
+Table.Column,ELEVATION,number,elevation,Station longitude
+Table.Column,DATE,date,date,Station elevation
+Table.Column,AWND,number,awnd,Measurement date
+Table.Column,DAPR,string,dapr,Average daily wind speed (meters per second or miles per hour as per user preference
+Table.Column,FMTM,integer,fmtm,Number of days included in the multiday precipitation total (MDPR)
+Table.Column,MDPR,string,mdpr,"Time of fastest mile or fastest 1-minute wind (hours and minutes, i.e., HHMM)"
+Table.Column,PGTM,string,pgtm,"Multiday precipitation total (mm or inches as per user preference; use with DAPR and DWPR, if available)"
+Table.Column,PRCP,number,prcp,"Peak gust time (hours and minutes, i.e., HHMM)"
+Table.Column,SNOW,integer,snow,"Precipitation (mm or inches as per user preference, inches to hundredths on Daily Form pdf file)"
+Table.Column,SNWD,integer,snwd,"Snowfall (mm or inches as per user preference, inches to tenths on Daily Form pdf file)"
+Table.Column,TAVG,string,tavg,"Snow depth (mm or inches as per user preference, inches on Daily Form pdf file)"
+Table.Column,TMAX,integer,tmax,Average temerature
+Table.Column,TMIN,integer,tmin,"Maximum temperature (Fahrenheit or Celsius as per user preference, Fahrenheit to tenths on Daily Form pdf file"

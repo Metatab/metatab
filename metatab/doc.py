@@ -165,8 +165,8 @@ class MetatabDoc(object):
 
         list(term_interp)
 
-
         dd = term_interp.declare_dict
+
 
         self.decl_terms.update(dd['terms'])
         self.decl_sections.update(dd['sections'])
@@ -191,17 +191,16 @@ class MetatabDoc(object):
             t.section = self.add_section(t.section)
             t.section.add_term(t)
 
-        if True:
-            # Not quite sure about this ...
-            if not t.child_property_type:
-                t.child_property_type = self.decl_terms \
-                    .get(t.join, {}) \
-                    .get('childpropertytype', 'any')
 
-            if not t.term_value_name or t.term_value_name == t.section.default_term_value_name:
-                t.term_value_name = self.decl_terms \
-                    .get(t.join, {}) \
-                    .get('termvaluename', t.section.default_term_value_name)
+        if  not t.child_property_type or t.child_property_type == 'any':
+            t.child_property_type = self.decl_terms \
+                .get(t.join, {}) \
+                .get('childpropertytype', 'any')
+
+        if not t.term_value_name or t.term_value_name == t.section.default_term_value_name:
+            t.term_value_name = self.decl_terms \
+                .get(t.join, {}) \
+                .get('termvaluename', t.section.default_term_value_name)
 
         assert t.section or t.join_lc == 'root.root', t
 
@@ -387,7 +386,6 @@ class MetatabDoc(object):
                             terms.append(dt)
             except KeyError as e:
                 pass
-
 
         # Find any of a list of terms
         if isinstance(term, (list, tuple)):
