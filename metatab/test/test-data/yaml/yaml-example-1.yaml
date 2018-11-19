@@ -1,0 +1,111 @@
+declare: metatab-latest
+title: San Diego County Weather
+description: Daily summaries from a selection of San Diego county weather stations
+identifier: 2dc83efa-e6da-4561-bdf9-63263360ccf0
+name: noaa.gov-daily_summary-1998e-san-1
+dataset: daily_summary
+origin: noaa.gov
+time: 1998e
+space: san
+grain: null
+variant: null
+version: '1'
+created: '2018-08-17T15:44:24'
+modified: '2018-08-17T16:18:19'
+giturl: https://github.com/san-diego-water-quality/water-datasets.git
+wrangler:
+-   email: eric@civicknowledge.com
+    organization: Civic Knowledge
+    url: http://civicknowledge.com
+    name: Eric Busboom
+documentation:
+-   title: README
+    url: file:README.md
+-   title: Documentation
+    description: Main documentation
+    url: https://www1.ncdc.noaa.gov/pub/data/cdo/documentation/GHCND_documentation.pdf
+datafile:
+-   name: daily_summary_san
+    description: Daily weather summaries
+    url: http://ds.civicknowledge.org.s3.amazonaws.com/noaa.gov/daily-summary-1998-2018-san.csv
+-   name: daily_summary_la
+    description: Daily weather summaries
+    url: http://ds.civicknowledge.org.s3.amazonaws.com/noaa.gov/daily-summary-1998-2018-san.csv
+table:
+-   column:
+    -   datatype: string
+        altname: station
+        name: STATION
+    -   datatype: string
+        altname: name
+        description: Station code
+        name: NAME
+    -   datatype: number
+        altname: latitude
+        description: Station name
+        name: LATITUDE
+    -   datatype: number
+        altname: longitude
+        description: Station lattitude
+        name: LONGITUDE
+    -   datatype: number
+        altname: elevation
+        description: Station longitude
+        name: ELEVATION
+    -   datatype: date
+        altname: date
+        description: Station elevation
+        name: DATE
+    -   datatype: number
+        altname: awnd
+        description: Measurement date
+        name: AWND
+    -   datatype: string
+        altname: dapr
+        description: Average daily wind speed (meters per second or miles per hour
+            as per user preference
+        name: DAPR
+    -   datatype: integer
+        altname: fmtm
+        description: Number of days included in the multiday precipitation total (MDPR)
+        name: FMTM
+    -   datatype: string
+        altname: mdpr
+        description: Time of fastest mile or fastest 1-minute wind (hours and minutes,
+            i.e., HHMM)
+        name: MDPR
+    -   datatype: string
+        altname: pgtm
+        description: Multiday precipitation total (mm or inches as per user preference;
+            use with DAPR and DWPR, if available)
+        name: PGTM
+    -   datatype: number
+        altname: prcp
+        description: Peak gust time (hours and minutes, i.e., HHMM)
+        name: PRCP
+    -   datatype: integer
+        altname: snow
+        description: Precipitation (mm or inches as per user preference, inches to
+            hundredths on Daily Form pdf file)
+        name: SNOW
+    -   datatype: integer
+        altname: snwd
+        description: Snowfall (mm or inches as per user preference, inches to tenths
+            on Daily Form pdf file)
+        name: SNWD
+    -   datatype: string
+        altname: tavg
+        description: Snow depth (mm or inches as per user preference, inches on Daily
+            Form pdf file)
+        name: TAVG
+    -   datatype: integer
+        altname: tmax
+        description: Average temerature
+        name: TMAX
+    -   datatype: integer
+        altname: tmin
+        description: Maximum temperature (Fahrenheit or Celsius as per user preference,
+            Fahrenheit to tenths on Daily Form pdf file
+        name: TMIN
+    name: daily_summary_san
+
