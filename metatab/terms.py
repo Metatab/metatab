@@ -724,13 +724,22 @@ class SectionTerm(Term):
     def add_arg(self,arg, prepend=False):
         """Append an arg to the arg list"""
 
-        self.args = [ arg.strip() for arg in self.args if arg.strip() ]
+        self.args = [arg_.strip() for arg_ in self.args if arg_.strip()]
 
-        if prepend:
-            self.args = [arg] + self.args
-        else:
-            self.args.append(arg)
+        if arg.title() not in self.args:
+            if prepend:
+                self.args = [arg.title()] + self.args
+            else:
+                self.args.append(arg.title())
 
+    def remove_arg(self, arg):
+        """Remove an arg to the arg list"""
+
+        self.args = [arg_.strip() for arg_ in self.args if arg_.strip()]
+
+        for arg_ in list(self.args):
+            if arg_.lower() == arg.lower():
+                self.args.remove(arg_)
 
     def add_term(self, t):
         """Add a term to this section and set it's ownership. Should only be used on root level terms"""

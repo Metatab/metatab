@@ -538,6 +538,38 @@ class MetatabDoc(object):
             else:
                 self['Root'].get_or_new_term('Root.Name').value = slugify(identifier.value)
 
+    def clean_unused_schema_terms(self):
+
+        # Remove unused columns in the schema, and add new ones
+        schema_section = self.get_section('Schema')
+
+        if schema_section:
+            used_args = set()
+            section_args = [e.lower() for e in schema_section.args]
+
+            for table in schema_section.find('Root.Table'):
+                for column in table.find('Table.Column'):
+                    for k,v in column.props.items():
+                        if v and v.strip():
+                            used_args.add(k)
+
+            for arg in set(section_args) - used_args:
+                try:
+                    print("Removing ", arg.title())
+                    schema_section.remove_arg(arg.title())
+                except ValueError as e:
+                    pass
+
+            for arg in used_args - set(section_args):
+                schema_section.add_arg(arg)
+
+            # Remove any empty properties
+            for t in schema_section.find('Root.Table'):
+                for c in t.find('Table.Column'):
+                    for child in list(c.children):
+                        if not child.value or not child.value.strip():
+                            c.remove_child(child)
+
     def ensure_identifier(self):
         from uuid import uuid4
 

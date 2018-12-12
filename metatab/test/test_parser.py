@@ -14,6 +14,11 @@ from rowgenerators import parse_app_url
 
 
 class TestParser(unittest.TestCase):
+
+    def setUp(self):
+        import warnings
+        warnings.simplefilter('ignore')
+
     def compare_dict(self, a, b):
 
         fa = set('{}={}'.format(k, v) for k, v in flatten(a));
@@ -428,6 +433,16 @@ class TestParser(unittest.TestCase):
             # Some test environments seem to run test multipel times in the same interpreter,
             # and if we leave this registration active the test for 'root.name' above will fail.
             TermParser.unregister_term_class('root.name')
+
+    def test_url(self):
+
+        u = parse_app_url('metatab+file:///tmp/foobar.csv')
+
+        self.assertEqual('metatab', u.proto)
+
+        print(u)
+        print(u.get_resource())
+        print(u.get_resource().get_target())
 
 if __name__ == '__main__':
     unittest.main()
