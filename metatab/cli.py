@@ -52,6 +52,10 @@ def metatab():
     g.add_argument('-p', '--prety', default=False, action='store_const', dest='out_type', const='prety',
                    help='Pretty print the python Dict representation ')
 
+    parser.add_argument('-W', '--write-in-place',
+                   help='When outputting as yaml, json, csv or line, write the file instead of printing it, '
+                        'to a file with same base name and appropriate extension ', action='store_true')
+
     parser.set_defaults(out_type='csv')
 
     parser.add_argument('-f', '--find-first',
@@ -59,9 +63,6 @@ def metatab():
 
     parser.add_argument('-d', '--show-declaration', default=False, action='store_true',
                         help='Parse a declaration file and print out declaration dict. Use -j or -y for the format')
-
-    #parser.add_argument('-D', '--declare', help='Parse and incorporate a declaration before parsing the file.' +
-    #                                            ' (Adds the declaration to the start of the file as the first term. )')
 
     parser.add_argument('file', nargs='?', default=DEFAULT_METATAB_FILE, help='Path to a Metatab file')
 
@@ -88,6 +89,23 @@ def metatab():
 
         err("Failed to open '{}': {}".format(metadata_url, e))
 
+    def write_or_print(t):
+        from pathlib import Path
+
+        if metadata_url.scheme != 'file':
+            err("Can only use -w with local files")
+            return
+
+        ext = 'txt' if args.out_type == 'line' else args.out_type
+
+        if args.write_in_place:
+            with metadata_url.fspath.with_suffix('.'+ext).open('w') as f:
+                f.write(t)
+        else:
+            print(t)
+
+
+
     if args.show_declaration:
 
         decl_doc = MetatabDoc('', cache=cache, decl=metadata_url.path)
@@ -107,7 +125,6 @@ def metatab():
     elif args.find_first:
 
         t = doc.find_first(args.find_first)
-
         print(t.value)
 
 
@@ -116,7 +133,7 @@ def metatab():
             print(t)
 
     elif args.out_type == 'json':
-        print(json.dumps(doc.as_dict(), indent=4))
+        write_or_print(json.dumps(doc.as_dict(), indent=4))
 
     elif args.out_type == 'yaml':
         import yaml
@@ -134,15 +151,13 @@ def metatab():
             OrderedDumper.add_representer(OrderedDict, _dict_representer)
             return yaml.dump(data, stream, OrderedDumper, **kwds)
 
-        print(ordered_dump(doc.as_dict(), default_flow_style=False, indent=4, Dumper=yaml.SafeDumper))
-
+        write_or_print(ordered_dump(doc.as_dict(), default_flow_style=False, indent=4, Dumper=yaml.SafeDumper))
 
     elif args.out_type == 'line':
-        for line in doc.lines:
-            print(': '.join(str(e) if e else '' for e in line))
+        write_or_print(doc.as_lines())
 
     elif args.out_type == 'csv':
-        print(doc.as_csv())
+        write_or_print(doc.as_csv())
 
     elif args.out_type == 'prety':
         from pprint import pprint

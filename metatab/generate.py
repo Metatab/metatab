@@ -10,7 +10,7 @@ from rowgenerators import Source
 
 class MetatabRowGenerator(Source):
     """An object that generates rows. The current implementation mostly just a wrapper around
-    csv.reader, but it add a path property so term interperters know where the terms are coming from
+    csv.reader, but it adds a path property so term interperters know where the terms are coming from
     """
 
     def __init__(self, ref, cache=None, working_dir=None, path = None, **kwargs):
@@ -36,14 +36,13 @@ class MetatabRowGenerator(Source):
 
 
 class TextRowGenerator(MetatabRowGenerator):
-    """Return lines of text of a line-oriented metatab file, breaking them to be used as Metatab rows"""
+    """Return lines of text of a line-oriented metatab file, breaking them to be used as Metatab rows.
+    This is the core of the Lines format implementation"""
 
     def __init__(self, ref, cache=None, working_dir=None, path = None, **kwargs):
         super().__init__(ref, cache, working_dir, path, **kwargs)
 
         while True:
-
-            text = None
 
             try:
                 with open(ref) as r:
@@ -68,6 +67,7 @@ class TextRowGenerator(MetatabRowGenerator):
             text = ref
             break
 
+        self._text = text
         self._text_lines = text.splitlines()
         self._path = path or '<none>'
 
@@ -88,7 +88,7 @@ class TextRowGenerator(MetatabRowGenerator):
             if re.match(r'^\s*#', row):  # Skip comments
                 continue
 
-            # Special handling for ===, which implies a section:
+            # Special handling for ====, which implies a section:
             #   ==== Schema
             # is also
             #   Section: Schema
@@ -98,6 +98,8 @@ class TextRowGenerator(MetatabRowGenerator):
 
             row = [e.strip() for e in row.split(':', 1)]
 
+            # Pipe characters seperate columns
+            if len(row) > 1:
+                row = [row[0]] + [ e.replace('\|','|') for e in re.split(r'(?<!\\)\|', row[1]) ]
+
             yield row
-
-

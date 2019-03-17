@@ -62,10 +62,12 @@ class TestParser(unittest.TestCase):
         all = ['example1.csv', 'example2.csv', 'example1-web.csv',
                'include1.csv', 'include2.csv', 'include3.csv',
                'children.csv', 'children2.csv',
-               'datapackage_ex1.csv', 'datapackage_ex1_web.csv', 'datapackage_ex2.csv',
-               'issue1.csv']
+               'issue1.csv'
+               ]
 
-        all = ['example1.csv']
+        # These are currently broken -- as_dict doesn't work properly with the
+        # datapackage-latest decl.
+        datapackages = ['datapackage_ex1.csv', 'datapackage_ex1_web.csv', 'datapackage_ex2.csv']
 
         for fn in all:
 
@@ -75,23 +77,47 @@ class TestParser(unittest.TestCase):
 
             json_path = test_data('json', fn.replace('.csv', '.json'))
 
-            with open(path) as f:
-
-                doc = MetatabDoc(path)
-                d = doc.as_dict()
-
-                if not exists(json_path):
-                    with open(json_path, 'w') as f:
-                        print("Writing", json_path)
-                        json.dump(d, f, indent=4)
-
-                with open(json_path) as f:
-                    d2 = json.load(f)
+            doc = MetatabDoc(path)
+            d = doc.as_dict()
 
 
-                #print(json.dumps(d, indent=4))
+            if not exists(json_path):
+                with open(json_path, 'w') as f:
+                    print("Writing", json_path)
+                    json.dump(d, f, indent=4)
 
-                self.compare_dict(d, d2)
+            with open(json_path) as f:
+                d2 = json.load(f)
+
+            self.compare_dict(d, d2)
+
+
+    def test_write_line_doc(self):
+        """Convert CSV fiels to text lines and back to text lines"""
+
+        all = ['example1.csv', 'example2.csv', 'example1-web.csv',
+               'children.csv', 'children2.csv', 'issue1.csv' ]
+
+        for f in all:
+
+            path = test_data(f)
+
+            doc1 = MetatabDoc(path)
+
+            doc1_lines = doc1.as_lines()
+
+            doc2 = MetatabDoc(TextRowGenerator(doc1_lines))
+
+            doc2_lines = doc2.as_lines()
+
+            self.assertEqual(doc1_lines, doc2_lines)
+
+            self.compare_dict(doc1.as_dict(),doc2.as_dict())
+
+            self.assertEqual(doc1_lines, doc2_lines)
+
+            self.assertEqual(doc1.as_csv(), doc2.as_csv())
+
 
     def test_line_doc(self):
 
@@ -105,7 +131,7 @@ class TestParser(unittest.TestCase):
         doc.load_terms(tp)
 
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
-        self.assertEqual(149, len(doc.terms))
+        self.assertEqual(150, len(doc.terms))
 
         self.assertEqual(5, len(list(doc['References'])))
 
@@ -137,7 +163,7 @@ class TestParser(unittest.TestCase):
             doc.load_terms(tp)
 
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
-        self.assertEqual(149, len(doc.terms))
+        self.assertEqual(150, len(doc.terms))
 
         self.assertEqual(5, len(list(doc['References'])))
 
@@ -215,7 +241,7 @@ class TestParser(unittest.TestCase):
 
         self.assertEqual({'root.downloadpage', 'root.supplementarydata', 'root.api', 'root.citation',
                           'root.datafile', 'root.datadictionary', 'root.image', 'root.reference',
-                          'root.documentation', 'root.homepage', 'root.sql', 'root.dsn'},
+                          'root.documentation', 'root.homepage', 'root.webpage','root.sql', 'root.dsn'},
                          doc.derived_terms['root.resource'])
 
         self.assertEqual(['example1', 'example10', 'example2', 'example3', 'example4', 'example5', 'example6',

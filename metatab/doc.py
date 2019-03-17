@@ -543,6 +543,7 @@ class MetatabDoc(object):
         # Remove unused columns in the schema, and add new ones
         schema_section = self.get_section('Schema')
 
+
         if schema_section:
             used_args = set()
             section_args = [e.lower() for e in schema_section.args]
@@ -735,7 +736,8 @@ class MetatabDoc(object):
 
         # This function is a hack, due to confusion between the root of the document, which
         # should contain all terms, and the root section, which has only terms that are not
-        # in another section.
+        # in another section. So, here we are taking the Root section, and adding all of the other
+        # terms to it, as if it were also the root of the document tree.
 
         r = RootSectionTerm(doc=self)
 
@@ -776,7 +778,7 @@ class MetatabDoc(object):
 
             # Yield the section header
             if s.name != 'Root':
-                yield ('Section', s.value)
+                yield ('Section', '|'.join([s.value] + [e for e in s.property_names if e]))
 
             # Yield all of the rows for terms in the section
             for row in s.rows:
@@ -796,6 +798,8 @@ class MetatabDoc(object):
                     if value and value.strip():
                         child_t = record_term + '.' + (prop.title())
                         yield (child_t, value)
+
+
 
     @property
     def all_terms(self):
@@ -829,7 +833,16 @@ class MetatabDoc(object):
     def as_lines(self):
         """Return a Lines representation as a string"""
 
-        return '\n'.join('{}: {}'.format(t,v) for t,v in self.lines)
+        out_lines = []
+        for t,v in self.lines:
+
+            # Make the output prettier
+            if t == 'Section':
+                out_lines.append('')
+
+            out_lines.append('{}: {}'.format(t,v) )
+
+        return '\n'.join(out_lines)
 
     def write_csv(self, path=None):
 
@@ -858,4 +871,7 @@ class MetatabDoc(object):
             f.write(self.as_csv().encode('utf8'))
 
         return u.path
+
+    def write_line(self):
+        pass
 
