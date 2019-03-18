@@ -22,6 +22,7 @@ from .terms import SectionTerm, RootSectionTerm, Term
 
 from itertools import groupby
 from .util import import_name_or_class
+import pathlib
 
 logger = logging.getLogger('doc')
 debug_logger = logging.getLogger('debug')
@@ -778,7 +779,7 @@ class MetatabDoc(object):
 
             # Yield the section header
             if s.name != 'Root':
-                yield ('Section', '|'.join([s.value] + [e for e in s.property_names if e]))
+                yield ('Section', '|'.join([s.value] + s.property_names))
 
             # Yield all of the rows for terms in the section
             for row in s.rows:
@@ -797,9 +798,7 @@ class MetatabDoc(object):
                 for prop, value in children:
                     if value and value.strip():
                         child_t = record_term + '.' + (prop.title())
-                        yield (child_t, value)
-
-
+                        yield ("    "+child_t, value)
 
     @property
     def all_terms(self):
@@ -844,7 +843,9 @@ class MetatabDoc(object):
 
         return '\n'.join(out_lines)
 
-    def write_csv(self, path=None):
+
+
+    def _write(self, str_f, path=None, ext=None):
 
         self.cleanse()
 
@@ -859,7 +860,6 @@ class MetatabDoc(object):
                 else:
                     path = DEFAULT_METATAB_FILE
 
-
         u = parse_app_url(path)
 
         if u.scheme != 'file':
@@ -868,10 +868,26 @@ class MetatabDoc(object):
         debug_logger.debug("writing doc {}".format(u.fspath))
 
         with open(u.fspath, 'wb') as f:
-            f.write(self.as_csv().encode('utf8'))
+            f.write(str_f().encode('utf8'))
 
         return u.path
 
-    def write_line(self):
-        pass
+    def write_csv(self, path=None):
+        return self._write(self.as_csv, path)
 
+    def write_lines(self, path=None):
+
+        if path is None:
+
+            try:
+                path = self.ref.path
+            except AttributeError:
+
+                if isinstance(self.ref, str):
+                    path = self.ref
+                else:
+                    path = DEFAULT_METATAB_FILE
+
+            path = str(pathlib.Path(path).with_suffix('.txt'))
+
+        return self._write(self.as_lines, path)

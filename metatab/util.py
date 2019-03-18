@@ -224,3 +224,16 @@ def import_name_or_class(name):
         return mod
     else:
         return name # Assume it is already the thing we want to import
+
+
+def md5_file(filePath):
+    import hashlib
+
+    with open(filePath, 'rb') as fh:
+        m = hashlib.md5()
+        while True:
+            data = fh.read(8192)
+            if not data:
+                break
+            m.update(data)
+        return m.hexdigest()

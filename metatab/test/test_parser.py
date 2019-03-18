@@ -93,10 +93,12 @@ class TestParser(unittest.TestCase):
 
 
     def test_write_line_doc(self):
-        """Convert CSV fiels to text lines and back to text lines"""
+        """Convert CSV files to text lines and back to text lines"""
 
         all = ['example1.csv', 'example2.csv', 'example1-web.csv',
                'children.csv', 'children2.csv', 'issue1.csv' ]
+
+        self.maxDiff = None
 
         for f in all:
 
@@ -105,6 +107,8 @@ class TestParser(unittest.TestCase):
             doc1 = MetatabDoc(path)
 
             doc1_lines = doc1.as_lines()
+
+            print(doc1_lines)
 
             doc2 = MetatabDoc(TextRowGenerator(doc1_lines))
 
@@ -142,7 +146,6 @@ class TestParser(unittest.TestCase):
         rt = list(doc['References'].find('Root.Resource'))[0]
 
         print(type(rt))
-
 
     def test_line_doc_parts(self):
 
