@@ -1,0 +1,215 @@
+{
+    "declare": "http://assets.metatab.org/metatab-0.1.csv",
+    "title": "Registered Voters, By County",
+    "description": "Percent of the eligible population registered to vote and the percent who voted in statewide elections.",
+    "identifier": "cdph.ca.gov-hci-registered_voters-county",
+    "version": "201404",
+    "obsoletes": "cdph.ca.gov-hci-registered_voters-county-201304",
+    "format": "excel",
+    "spatial": "California <04000US06>",
+    "time": "2002-2014",
+    "spatialgrain": "County <05000US>",
+    "datafile": [
+        {
+            "table": "registered_voters",
+            "grain": "County",
+            "title": "The First Example Data File",
+            "url": "http://example.com/example1.csv"
+        },
+        {
+            "table": "registered_voters",
+            "grain": "Tract",
+            "title": "The Second Example Data File",
+            "url": "http://example.com/example2.csv"
+        }
+    ],
+    "homepage": {
+        "table": "Healthy Communities Data and Indicators Project (HCI)",
+        "url": "https://www.cdph.ca.gov/programs/pages/healthycommunityindicators.aspx"
+    },
+    "documentation": [
+        {
+            "table": "Indicator Documentation for Voter Registration / Participation",
+            "description": "Voter Registration/Participation: Percent of the eligible population registered to vote and the percent who voted in statewide elections",
+            "url": "https://www.cdph.ca.gov/programs/Documents/HCI_RegisteredVoters_653_Narrative_and_examples_6-2-14.pdf"
+        },
+        {
+            "title": "Data Bundles Packaging Specification",
+            "url": "https://docs.google.com/document/d/16tb7x73AyF8pJ6e6IBcaIJAioEZCNBGDEksKYTXfdfg/edit#"
+        }
+    ],
+    "creator": {
+        "email": "HCIOHE@cdph.ca.gov",
+        "name": "Office of Health Equity"
+    },
+    "wrangler": {
+        "email": "eric@civicknowledge.com",
+        "name": "Eric Busboom"
+    },
+    "note": "This file is an example of a data bundle, a simple format for linking data to metadata using spreadsheets. See the specification for more details.",
+    "table": {
+        "description": "HCI Indicator 653.0: Percent of adults age 18 years and older who are registered voters",
+        "column": [
+            {
+                "datatype": "int",
+                "valuetype": "year range",
+                "description": "Year or years that indicator was reported",
+                "name": "reportyear"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "dimension",
+                "description": "Type of record",
+                "name": "type"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "gvid",
+                "description": "GVid version of the geotype and geotypeval",
+                "name": "gvid"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "label for gvid",
+                "description": "Census name of geographic area",
+                "name": "geoname"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "label",
+                "description": "Code for type of geographic area",
+                "name": "geotype"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "census",
+                "description": "Census geoid code",
+                "name": "geotypevalue"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "FIPS county code",
+                "description": "County FIPS code",
+                "name": "county_fips"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "label for counrty_fips",
+                "description": "County name",
+                "name": "county_name"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "census code",
+                "description": "Numeric code of region",
+                "name": "region_code"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "label for region_code",
+                "description": "Name of region",
+                "name": "region_name"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "raceth/civick",
+                "description": "Civic Knowledge race / ethnicity code.",
+                "name": "raceth"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "label for raceeth",
+                "description": "Race / Ethnicity Name",
+                "name": "raceth_name"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "raceth/hci",
+                "description": "Race / ethnicity code",
+                "name": "race_eth_code"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "label for race_eth_code",
+                "description": "Race / ethnicity name",
+                "name": "race_eth_name"
+            },
+            {
+                "datatype": "int",
+                "valuetype": "count",
+                "description": "Adults who are registered to vote, or who voted, depending on type of record",
+                "name": "numerator"
+            },
+            {
+                "datatype": "int",
+                "valuetype": "count",
+                "description": "Population of Adults, 18 years or older",
+                "name": "denominator"
+            },
+            {
+                "datatype": "float",
+                "valuetype": "percent of numerator over denominator",
+                "description": "Percent of adults who are registered to vote, or who voted, depending on type of record",
+                "name": "percent"
+            },
+            {
+                "datatype": "float",
+                "valuetype": "ci95l for percent",
+                "description": "Lower bound of 95% confidence interval",
+                "name": "ll_95ci"
+            },
+            {
+                "datatype": "float",
+                "valuetype": "ci95u for percent",
+                "description": "Upper bound of 95% confidence interval",
+                "name": "ul_95ci"
+            },
+            {
+                "datatype": "float",
+                "valuetype": "se for percent",
+                "description": "Standard error",
+                "name": "se"
+            },
+            {
+                "datatype": "float",
+                "valuetype": "rse for percent",
+                "description": "Relative standard error (se/percent * 100) expressed as a percent",
+                "name": "rse"
+            },
+            {
+                "datatype": "float",
+                "valuetype": "decile",
+                "description": "Statewide decile ranking",
+                "name": "ca_decile"
+            },
+            {
+                "datatype": "float",
+                "valuetype": "ratio",
+                "description": "Ratio of indicator to state average",
+                "name": "ca_rr"
+            },
+            {
+                "datatype": "float",
+                "valuetype": "measure",
+                "description": "Voter age population, from CA Department of Finance.",
+                "name": "vap"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "dimension",
+                "name": "ind_id"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "dimension",
+                "name": "ind_definition"
+            },
+            {
+                "datatype": "str",
+                "valuetype": "other",
+                "name": "version"
+            }
+        ],
+        "name": "registered_voters"
+    }
+}

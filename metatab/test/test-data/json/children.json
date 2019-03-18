@@ -1,0 +1,20 @@
+{
+    "note": "This is a note",
+    "parent": [
+        {
+            "prop1": "prop1",
+            "prop2": "prop2",
+            "@value": "parent"
+        },
+        {
+            "prop1": "prop1",
+            "prop2": "prop2",
+            "@value": "parent"
+        },
+        {
+            "prop1": "prop1",
+            "prop2": "prop2",
+            "@value": "parent"
+        }
+    ]
+}

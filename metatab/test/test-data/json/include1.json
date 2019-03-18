@@ -1,0 +1,11 @@
+{
+    "note": [
+        "Include File 1",
+        "Include File 2",
+        "Include File 3"
+    ],
+    "include": [
+        "include2.csv",
+        "https://raw.githubusercontent.com/CivicKnowledge/structured_tables/master/test/data/include3.csv"
+    ]
+}

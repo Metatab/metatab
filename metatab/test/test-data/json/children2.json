@@ -1,0 +1,19 @@
+{
+    "parent": [
+        {
+            "prop1": "prop11",
+            "prop2": "prop12",
+            "@value": "parent"
+        },
+        {
+            "prop1": "prop21",
+            "prop2": "prop22",
+            "@value": "parent"
+        },
+        {
+            "prop1": "prop31",
+            "prop2": "prop32",
+            "@value": "parent"
+        }
+    ]
+}
