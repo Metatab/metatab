@@ -2,8 +2,9 @@
 # MIT License, included in this distribution as LICENSE.txt
 
 """ """
-
+from rowgenerators import Source
 from rowgenerators.source import Source
+from rowgenerators import SourceError
 
 class YamlMetatabSource(Source):
     """Turn a metatab-formated YAML file into Metatab rows."""
@@ -87,3 +88,117 @@ class YamlMetatabSource(Source):
 
         yield from doc.rows
 
+
+class MetatabRowGenerator(Source):
+    """An object that generates rows. The current implementation mostly just a wrapper around
+    csv.reader, but it adds a path property so term interperters know where the terms are coming from
+    """
+
+    def __init__(self, ref, cache=None, working_dir=None, path = None, **kwargs):
+        super().__init__(ref, cache, working_dir, **kwargs)
+
+        self._rows = ref
+        self._path = path or '<none>'
+
+    @property
+    def path(self):
+        return self._path
+
+    def open(self):
+        pass
+
+    def close(self):
+        pass
+
+    def __iter__(self):
+        for row in self._rows:
+            yield row
+
+
+class TextRowGenerator(MetatabRowGenerator):
+    """Return lines of text of a line-oriented metatab file, breaking them to be used as Metatab rows.
+    This is the core of the Lines format implementation"""
+
+    def __init__(self, ref, cache=None, working_dir=None, path = None, **kwargs):
+        super().__init__(ref, cache, working_dir, path, **kwargs)
+
+        while True:
+
+            try:
+                # Pathlib Path
+                with ref.open() as r:
+                    text = r.read()
+                break
+            except:
+                pass
+
+            try:
+                # Filehandle
+                text = ref.read()
+                break
+            except:
+                pass
+
+            try:
+                # Url
+                with ref.inner.fspath.open() as f:
+                    text = f.read()
+                break
+            except:
+
+                pass
+
+            try:
+                # File name
+                with open(ref) as r:
+                    text = r.read()
+                break
+            except:
+                pass
+
+            try:
+                text = ref
+                text.splitlines()
+                break
+            except AttributeError:
+                pass
+
+
+            raise SourceError("Can't handle ref of type {}".format(type(ref)))
+
+        self._text = text
+        self._text_lines = text.splitlines()
+        self._path = path or '<none>'
+
+    @property
+    def path(self):
+        return self._path
+
+    def open(self):
+        pass
+
+    def close(self):
+        pass
+
+    def __iter__(self):
+        import re
+
+        for row in self._text_lines:
+            if re.match(r'^\s*#', row):  # Skip comments
+                continue
+
+            # Special handling for ====, which implies a section:
+            #   ==== Schema
+            # is also
+            #   Section: Schema
+
+            if row.startswith('===='):
+                row = re.sub(r'^=*','Section:', row)
+
+            row = [e.strip() for e in row.split(':', 1)]
+
+            # Pipe characters seperate columns
+            if len(row) > 1:
+                row = [row[0]] + [ e.replace('\|','|') for e in re.split(r'(?<!\\)\|', row[1]) ]
+
+            yield row

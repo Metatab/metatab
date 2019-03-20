@@ -82,7 +82,7 @@ def metatab():
 
         exit(0)
 
-    metadata_url = parse_app_url(args.file)
+    metadata_url = parse_app_url(args.file, proto='metatab')
     try:
         doc = MetatabDoc(metadata_url, cache=cache)
     except IOError as e:

@@ -936,6 +936,34 @@ class SectionTerm(Term):
                 else:
                     yield row
 
+    @property
+    def lines(self):
+        """Iterate over all of the rows as text lines"""
+
+        # Yield the section header
+        if self.name != 'Root':
+            yield ('Section', '|'.join([self.value] + self.property_names))
+
+        # Yield all of the rows for terms in the section
+        for row in self.rows:
+            term, value = row
+
+            if not isinstance(value, (list, tuple)):
+                value = [value]
+
+            term = term.replace('root.', '').title()
+            yield (term, value[0])
+
+            children = list(zip(self.property_names, value[1:]))
+
+            for prop, value in children:
+                if value and value.strip():
+                    child_t = '.' + (prop.title())
+                    yield ("    "+child_t, value)
+
+    def as_lines(self):
+        return '\n'.join( '{}: {}'.format(t,v if v is not None else '') for t, v  in self.lines )
+
     def as_dict(self, replace_value_names=True):
         """Return the whole section as a dict"""
         old_children = self.children

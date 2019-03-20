@@ -9,7 +9,7 @@ from metatab import IncludeError, MetatabDoc, WebResolver, TermParser
 from metatab.terms import Term
 from metatab.test.core import test_data
 from metatab.util import flatten, declaration_path
-from metatab.generate import TextRowGenerator
+from metatab.rowgenerators import TextRowGenerator
 from rowgenerators import parse_app_url
 
 

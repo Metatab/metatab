@@ -4,7 +4,7 @@ import unittest
 from os.path import join, dirname
 
 from metatab import MetatabDoc
-from metatab.generate import TextRowGenerator
+from metatab.rowgenerators import TextRowGenerator
 from metatab.test.core import test_data
 
 

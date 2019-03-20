@@ -16,7 +16,7 @@ from rowgenerators.exceptions import SourceError, AppUrlError
 from metatab import DEFAULT_METATAB_FILE
 from metatab.parser import TermParser
 from metatab.resolver import WebResolver
-from metatab.exc import MetatabError
+from metatab.exc import MetatabError, FormatError
 from metatab.util import slugify, get_cache
 from .terms import SectionTerm, RootSectionTerm, Term
 
@@ -75,6 +75,8 @@ class MetatabDoc(object):
                 self._ref = None
 
             self._term_parser = TermParser(ref, resolver=self.resolver, doc=self)
+
+
             try:
                 self.load_terms(self._term_parser)
             except SourceError as e:
@@ -85,6 +87,7 @@ class MetatabDoc(object):
             self._ref = None
             self._term_parser = None
             self._mtime = time()
+
 
 
     @property
@@ -776,29 +779,7 @@ class MetatabDoc(object):
         """Iterate over all of the rows as text lines"""
 
         for s_name, s in self.sections.items():
-
-            # Yield the section header
-            if s.name != 'Root':
-                yield ('Section', '|'.join([s.value] + s.property_names))
-
-            # Yield all of the rows for terms in the section
-            for row in s.rows:
-                term, value = row
-
-                if not isinstance(value, (list, tuple)):
-                    value = [value]
-
-                term = term.replace('root.', '').title()
-                yield (term, value[0])
-
-                children = list(zip(s.property_names, value[1:]))
-
-                record_term = term.split('.')[-1]
-
-                for prop, value in children:
-                    if value and value.strip():
-                        child_t = record_term + '.' + (prop.title())
-                        yield ("    "+child_t, value)
+            yield from s.lines
 
     @property
     def all_terms(self):
@@ -839,55 +820,77 @@ class MetatabDoc(object):
             if t == 'Section':
                 out_lines.append('')
 
-            out_lines.append('{}: {}'.format(t,v) )
+            out_lines.append('{}: {}'.format(t,v if v is not None else '') )
 
         return '\n'.join(out_lines)
 
 
+    def _write_path(self, path):
 
-    def _write(self, str_f, path=None, ext=None):
+        u = parse_app_url(str(path))
+
+        if u.scheme != 'file':
+            raise MetatabError("Can't write file to URL '{}'".format(str(path)))
+
+
+        path = u.fspath
+
+
+        if path is None:
+
+            try:
+                path = pathlib.Path(self.ref.fspath)
+            except AttributeError:
+
+                if isinstance(self.ref, str):
+                    path = pathlib.Path(self.ref)
+                else:
+                    path = pathlib.Path(DEFAULT_METATAB_FILE)
+
+            return path
+        else:
+            return pathlib.Path(str(path))
+
+    def _write(self, content, path:pathlib.Path, ext=None):
 
         self.cleanse()
 
-        if path is None:
+        debug_logger.debug("writing doc {}".format(str(path)))
 
-            try:
-                path = self.ref.path
-            except AttributeError:
+        with path.open('wb') as f:
+            f.write(content.encode('utf8'))
 
-                if isinstance(self.ref, str):
-                    path = self.ref
-                else:
-                    path = DEFAULT_METATAB_FILE
-
-        u = parse_app_url(path)
-
-        if u.scheme != 'file':
-            raise MetatabError("Can't write file to URL '{}'".format(path))
-
-        debug_logger.debug("writing doc {}".format(u.fspath))
-
-        with open(u.fspath, 'wb') as f:
-            f.write(str_f().encode('utf8'))
-
-        return u.path
+        return path
 
     def write_csv(self, path=None):
-        return self._write(self.as_csv, path)
+        
+        path = self._write_path(path)
+
+        if path.suffix != '.csv':
+            raise MetatabError("Writing CSV file, but extension is wrong: {} ".format(str(path)))
+
+        return self._write(self.as_csv(), path)
 
     def write_lines(self, path=None):
 
-        if path is None:
+        path = self._write_path(path)
 
-            try:
-                path = self.ref.path
-            except AttributeError:
+        if path.suffix != '.txt':
+            raise MetatabError("Writing line (txt) file, but extension is wrong: {} ".format(str(path)))
 
-                if isinstance(self.ref, str):
-                    path = self.ref
-                else:
-                    path = DEFAULT_METATAB_FILE
 
-            path = str(pathlib.Path(path).with_suffix('.txt'))
+        return self._write(self.as_lines(), path)
 
-        return self._write(self.as_lines, path)
+    def write(self, path=None):
+
+        path = self._write_path(path)
+
+        if path.suffix == '.txt':
+            self.write_lines(path)
+        elif path.suffix == '.csv':
+            self.write_csv(path)
+        else:
+            raise FormatError("Can't write to filetype of {}".format(path.suffix))
+
+
+

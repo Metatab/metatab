@@ -39,3 +39,5 @@ class GenerateError(MetatabError):
 class ConversionError(MetatabError):
     pass
 
+class FormatError(MetatabError):
+    pass

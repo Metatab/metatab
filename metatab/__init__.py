@@ -4,7 +4,10 @@
 Record objects for the Simple Data Package format.
 """
 
+# default metadata file
 DEFAULT_METATAB_FILE = 'metadata.csv'
+LINES_METATAB_FILE = 'metadata.txt'
+IPYNB_METATAB_FILE = 'metadata.ipynb'
 
 from .parser import *
 from .exc import *

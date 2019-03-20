@@ -337,8 +337,9 @@ class TermParser(object):
                          col=1,
                          file_name=ref_path, file_type=file_type, doc=self.doc)
 
-                if t.value and str(t.value).startswith('#'): # Comments are ignored
-                    continue
+                # Why did we remove comments from values? It strips out Markdown
+                #if t.value and str(t.value).startswith('#'): # Comments are ignored
+                #    continue
 
                 if t.term_is('include') or t.term_is('declare'):
 

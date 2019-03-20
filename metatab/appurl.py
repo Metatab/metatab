@@ -5,21 +5,17 @@
 
 """
 
-from os.path import basename, join, dirname, exists
-
-from rowgenerators import Url, parse_app_url
-from rowgenerators.appurl.web.web import WebUrl
-from rowgenerators.appurl.file.file import FileUrl
-from rowgenerators.appurl.util import file_ext
-from rowgenerators.exceptions import AppUrlError, DownloadError
-import json
-
 from metatab import DEFAULT_METATAB_FILE
+from os.path import basename, join
+from rowgenerators import Url
+from rowgenerators.appurl.file.file import InnerFile
+from rowgenerators.appurl.util import file_ext
+from rowgenerators.appurl.web.web import WebUrl
 
-
-
-class MetatabUrl(Url):
+class MetatabUrl(InnerFile, Url):
     match_priority = WebUrl.match_priority - 1
+
+    simple_file_formats = ('csv', 'txt', 'ipynb')
 
     def __init__(self, url=None, downloader=None, **kwargs):
         kwargs['proto'] = 'metatab'
@@ -30,7 +26,7 @@ class MetatabUrl(Url):
 
         # If there is no file with an extension in the path, assume that this
         # is a filesystem package, and that the path should have DEFAULT_METATAB_FILE
-        if file_ext(basename(u.path)) not in ('zip', 'xlsx', 'csv'):
+        if file_ext(basename(u.path)) not in ('zip', 'xlsx') + self.simple_file_formats:
             u.path = join(u.path, DEFAULT_METATAB_FILE)
 
         super().__init__(str(u), downloader=downloader, **kwargs)
@@ -39,7 +35,7 @@ class MetatabUrl(Url):
 
         if basename(self.path) == DEFAULT_METATAB_FILE:
             frag = ''
-        elif self.resource_format == 'csv':
+        elif self.resource_format in self.simple_file_formats:
             frag = ''
         elif self.resource_format == 'xlsx':
             frag = 'meta'
@@ -72,7 +68,7 @@ class MetatabUrl(Url):
     def target_file(self):
         if self.path.endswith(DEFAULT_METATAB_FILE):
             return DEFAULT_METATAB_FILE
-        elif self.resource_format == 'csv':
+        elif self.resource_format in self.simple_file_formats:
             return self.resource_file
         elif self.resource_format == 'xlsx':
             return 'meta'
@@ -83,8 +79,8 @@ class MetatabUrl(Url):
 
     @property
     def target_format(self):
-        if self.resource_format == 'csv':
-            return 'csv'
+        if self.resource_format in self.simple_file_formats:
+            return self.resource_format
         elif self.resource_format == 'xlsx':
             return 'xlsx'
         elif self.resource_format == 'zip':
@@ -104,10 +100,13 @@ class MetatabUrl(Url):
 
         from rowgenerators import get_generator
 
-        t = self.get_resource().get_target().inner
+        ##
+        ## Hack! This used to be
+        ## target = self.get_resource().get_target().inner
 
-        return get_generator(t)
+        target = self.get_resource().get_target()
 
+        return get_generator(target)
 
     def get_resource(self):
 
@@ -121,10 +120,6 @@ class MetatabUrl(Url):
     def get_target(self):
         return MetatabUrl(str(self.inner.get_target()), downloader=self._downloader)
 
-
-    #def get_target(self):
-    #    return self.inner.get_target()
-
     def join_target(self, tf):
 
         print("Type=", type(self))
@@ -134,3 +129,5 @@ class MetatabUrl(Url):
         else:
             return self.inner.join_target(tf)
 
+    def exists(self):
+        return self.inner.exists()
