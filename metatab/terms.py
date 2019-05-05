@@ -726,7 +726,7 @@ class SectionTerm(Term):
 
         self.args = [arg_.strip() for arg_ in self.args if arg_.strip()]
 
-        if arg.title() not in self.args:
+        if arg.lower() not in [e.lower() for e in self.args]:
             if prepend:
                 self.args = [arg.title()] + self.args
             else:
