@@ -827,14 +827,15 @@ class MetatabDoc(object):
 
     def _write_path(self, path):
 
-        u = parse_app_url(str(path))
+        if path:
+            u = parse_app_url(str(path))
+        else:
+            u = self.ref
 
         if u.scheme != 'file':
             raise MetatabError("Can't write file to URL '{}'".format(str(path)))
 
-
         path = u.fspath
-
 
         if path is None:
 
