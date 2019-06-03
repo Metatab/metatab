@@ -28,6 +28,7 @@ develop:
 	python setup.py develop 
 	
 publish: 
+	git push --tags origin
 	$(MAKE) clean
 	python setup.py sdist 
 	twine upload dist/*

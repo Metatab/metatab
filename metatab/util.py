@@ -40,7 +40,7 @@ def declaration_path(name):
 def slugify(value):
     """
     Normalizes string, converts to lowercase, removes non-alpha characters,
-    and converts spaces to hyphens.type(
+    and converts spaces to hyphens.
     """
     import re
     import unicodedata
