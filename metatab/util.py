@@ -229,11 +229,14 @@ def import_name_or_class(name):
 def md5_file(filePath):
     import hashlib
 
-    with open(filePath, 'rb') as fh:
-        m = hashlib.md5()
-        while True:
-            data = fh.read(8192)
-            if not data:
-                break
-            m.update(data)
-        return m.hexdigest()
+    try:
+        with open(filePath, 'rb') as fh:
+            m = hashlib.md5()
+            while True:
+                data = fh.read(8192)
+                if not data:
+                    break
+                m.update(data)
+            return m.hexdigest()
+    except (FileNotFoundError, IsADirectoryError):
+        return None

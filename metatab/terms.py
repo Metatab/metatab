@@ -682,7 +682,7 @@ class SectionTerm(Term):
         self.default_term_value_name = '@value'
         section_args = term_args if term_args else self.doc.section_args(value) if self.doc else []
 
-        self.terms = []  # Seperate from children. Sections have contained terms, but no children.
+        self.terms = []  # Separate from children. Sections have contained terms, but no children.
 
         # Ensure it exists before Term.__init__, so the assignment from [] after __init__ isn't considered
         # a new child

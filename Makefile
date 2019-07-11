@@ -1,8 +1,5 @@
 .PHONY: default install reset check test tox readme docs publish clean
-	
-MAKE := $(MAKE) --no-print-directory
-	.PHONY: default install reset check test tox readme docs publish clean
-	
+
 MAKE := $(MAKE) --no-print-directory
 	
 test:

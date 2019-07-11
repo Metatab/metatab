@@ -135,7 +135,7 @@ class TestParser(unittest.TestCase):
         doc.load_terms(tp)
 
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
-        self.assertEqual(150, len(doc.terms))
+        self.assertEqual(152, len(doc.terms))
 
         self.assertEqual(5, len(list(doc['References'])))
 
@@ -166,7 +166,7 @@ class TestParser(unittest.TestCase):
             doc.load_terms(tp)
 
         self.assertEqual('47bc1089-7584-41f0-b804-602ec42f1249', doc.get_value('Root.Identifier'))
-        self.assertEqual(150, len(doc.terms))
+        self.assertEqual(152, len(doc.terms))
 
         self.assertEqual(5, len(list(doc['References'])))
 

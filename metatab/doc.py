@@ -6,7 +6,8 @@ Generate rows from a variety of paths, references or other input
 """
 import collections
 import logging
-from collections import OrderedDict, MutableSequence
+from collections import OrderedDict
+from collections.abc import MutableSequence
 from os.path import dirname, getmtime
 from time import time
 import csv
@@ -311,7 +312,7 @@ class MetatabDoc(object):
         """Dereference a section name"""
 
         # Handle dereferencing a list of sections
-        if isinstance(item, collections.Iterable) and not isinstance(item, str):
+        if isinstance(item, collections.abc.Iterable) and not isinstance(item, str):
             return [ self.__getitem__(e) for e in item ]
 
         else:
