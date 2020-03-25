@@ -5,32 +5,33 @@
 Generate rows from a variety of paths, references or other input
 """
 import collections
+import csv
 import logging
+import pathlib
 from collections import OrderedDict
 from collections.abc import MutableSequence
+from itertools import groupby
 from os.path import dirname, getmtime
 from time import time
-import csv
 
-from rowgenerators import  Url, parse_app_url
-from rowgenerators.exceptions import SourceError, AppUrlError
 from metatab import DEFAULT_METATAB_FILE
+from metatab.exc import MetatabError, FormatError
 from metatab.parser import TermParser
 from metatab.resolver import WebResolver
-from metatab.exc import MetatabError, FormatError
 from metatab.util import slugify, get_cache
-from .terms import SectionTerm, RootSectionTerm, Term
+from rowgenerators import parse_app_url
+from rowgenerators.exceptions import SourceError, AppUrlError
 
-from itertools import groupby
+from .terms import SectionTerm, RootSectionTerm, Term
 from .util import import_name_or_class
-import pathlib
 
 logger = logging.getLogger('doc')
 debug_logger = logging.getLogger('debug')
 
+
 class MetatabDoc(object):
 
-    def __init__(self, ref=None, decl=None, package_url=None, cache=None, resolver = None, clean_cache=False):
+    def __init__(self, ref=None, decl=None, package_url=None, cache=None, resolver=None, clean_cache=False):
 
         self._input_ref = ref
 
@@ -77,7 +78,6 @@ class MetatabDoc(object):
 
             self._term_parser = TermParser(ref, resolver=self.resolver, doc=self)
 
-
             try:
                 self.load_terms(self._term_parser)
             except SourceError as e:
@@ -88,8 +88,6 @@ class MetatabDoc(object):
             self._ref = None
             self._term_parser = None
             self._mtime = time()
-
-
 
     @property
     def ref(self):
@@ -161,7 +159,7 @@ class MetatabDoc(object):
         if not decls:
             return
 
-        extant_decls = [ t.value for t in self.find('Root.Declare') ]
+        extant_decls = [t.value for t in self.find('Root.Declare')]
 
         rg = self.resolver.get_row_generator([['Declare', dcl] for dcl in decls if dcl not in extant_decls],
                                              cache=self._cache)
@@ -171,7 +169,6 @@ class MetatabDoc(object):
         list(term_interp)
 
         dd = term_interp.declare_dict
-
 
         self.decl_terms.update(dd['terms'])
         self.decl_sections.update(dd['sections'])
@@ -196,8 +193,7 @@ class MetatabDoc(object):
             t.section = self.add_section(t.section)
             t.section.add_term(t)
 
-
-        if  not t.child_property_type or t.child_property_type == 'any':
+        if not t.child_property_type or t.child_property_type == 'any':
             t.child_property_type = self.decl_terms \
                 .get(t.join, {}) \
                 .get('childpropertytype', 'any')
@@ -300,9 +296,9 @@ class MetatabDoc(object):
 
         order_lc = [e.lower() for e in order]
 
-        sections = OrderedDict( (k,self.sections[k]) for k in order_lc if k in self.sections)
+        sections = OrderedDict((k, self.sections[k]) for k in order_lc if k in self.sections)
 
-        sections.update( (k,self.sections[k]) for k in self.sections.keys() if k not in order_lc)
+        sections.update((k, self.sections[k]) for k in self.sections.keys() if k not in order_lc)
 
         assert len(self.sections) == len(sections)
 
@@ -313,7 +309,7 @@ class MetatabDoc(object):
 
         # Handle dereferencing a list of sections
         if isinstance(item, collections.abc.Iterable) and not isinstance(item, str):
-            return [ self.__getitem__(e) for e in item ]
+            return [self.__getitem__(e) for e in item]
 
         else:
             return self.get_section(item)
@@ -383,7 +379,7 @@ class MetatabDoc(object):
                 try:
                     # Term is a string
                     term = list(self.derived_terms[term.lower()]) + [term]
-                except AttributeError: # Term is hopefully a list
+                except AttributeError:  # Term is hopefully a list
                     terms = []
                     for t in term:
                         terms.append(term)
@@ -394,7 +390,8 @@ class MetatabDoc(object):
 
         # Find any of a list of terms
         if isinstance(term, (list, tuple)):
-            return list(itertools.chain(*[self.find(e, value=value, section=section, _expand_derived=False) for e in term]))
+            return list(
+                itertools.chain(*[self.find(e, value=value, section=section, _expand_derived=False) for e in term]))
 
         else:
 
@@ -406,9 +403,9 @@ class MetatabDoc(object):
                 term = 'root.' + term
 
             if term.startswith('root.'):
-                term_gen = self.terms # Just the root level terms
+                term_gen = self.terms  # Just the root level terms
             else:
-                term_gen = self.all_terms # All terms, root level and children.
+                term_gen = self.all_terms  # All terms, root level and children.
 
             for t in term_gen:
 
@@ -418,8 +415,8 @@ class MetatabDoc(object):
                 assert t.section or t.join_lc == 'root.root' or t.join_lc == 'root.section', t
 
                 if (t.term_is(term)
-                    and in_section(t, section)
-                    and (value is False or value == t.value)):
+                        and in_section(t, section)
+                        and (value is False or value == t.value)):
                     found.append(t)
 
             return found
@@ -444,7 +441,7 @@ class MetatabDoc(object):
 
     def get(self, term, default=None):
         """Return the first term, returning the default if no term is found"""
-        v =  self.find_first(term)
+        v = self.find_first(term)
 
         if not v:
             return default
@@ -467,7 +464,7 @@ class MetatabDoc(object):
     def load_terms(self, terms):
         """Create a builder from a sequence of terms, usually a TermInterpreter"""
 
-        #if self.root and len(self.root.children) > 0:
+        # if self.root and len(self.root.children) > 0:
         #    raise MetatabError("Can't run after adding terms to document.")
 
         for t in terms:
@@ -492,7 +489,6 @@ class MetatabDoc(object):
                 # parent term that is added to the doc.
                 assert t.parent is not None
 
-
         try:
             dd = terms.declare_dict
 
@@ -502,7 +498,7 @@ class MetatabDoc(object):
             self.super_terms.update(terms.super_terms())
 
             kf = lambda e: e[1]  # Sort on the value
-            self.derived_terms ={ k:set( e[0] for e in g)
+            self.derived_terms = {k: set(e[0] for e in g)
                                   for k, g in groupby(sorted(self.super_terms.items(), key=kf), kf)}
 
         except AttributeError as e:
@@ -520,7 +516,6 @@ class MetatabDoc(object):
         term_interp = TermParser(self, row_generator)
 
         return self.load_terms(term_interp)
-
 
     def cleanse(self):
         """Clean up some terms, like ensuring that the name is a slug"""
@@ -548,14 +543,13 @@ class MetatabDoc(object):
         # Remove unused columns in the schema, and add new ones
         schema_section = self.get_section('Schema')
 
-
         if schema_section:
             used_args = set()
             section_args = [e.lower() for e in schema_section.args]
 
             for table in schema_section.find('Root.Table'):
                 for column in table.find('Table.Column'):
-                    for k,v in column.props.items():
+                    for k, v in column.props.items():
                         if v and v.strip():
                             used_args.add(k)
 
@@ -585,7 +579,7 @@ class MetatabDoc(object):
             identifier = self['Root'].new_term('Root.Identifier', None)
 
         if not identifier.value:
-            identifier.value =  str(uuid4())
+            identifier.value = str(uuid4())
 
         assert identifier is not None and bool(identifier.value)
 
@@ -616,8 +610,10 @@ class MetatabDoc(object):
         if not any([major, minor, patch]):
             return version.value
 
-        #if one of the exists, they all have to exist
-        for term, term_name in ( (major, 'Version.Major'), (minor,'Version.Minor'), (patch, 'Version.Patch')):
+        # if one of the exists, they all have to exist
+        for term, term_name in ((major, 'Version.Major'),
+                                (minor, 'Version.Minor'),
+                                (patch, 'Version.Patch')):
 
             if not term:
                 term = version.new_child(term_name, 0)
@@ -631,12 +627,21 @@ class MetatabDoc(object):
 
         assert all([major, minor, patch])
 
-        version.value = '{}.{}.{}'.format(major.value, minor.value, patch.value)
+        templ =  '{}.{}.{}'
+        values = (major.value, minor.value, patch.value)
+
+        version.value =templ.format(*values)
+
+        build = version.find_first('Version.Build')
+        if build:
+            templ += '.{}'
+            values = values + (build.value,)
+
+        version.value = templ.format(*values)
 
         return version.value
 
-
-    def update_name(self, force=False, create_term=False, report_unchanged=True):
+    def update_name(self, force=False, create_term=False, report_unchanged=True,mod_version=False):
         """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
 
         updates = []
@@ -647,7 +652,7 @@ class MetatabDoc(object):
 
         if not name_term:
             if create_term:
-                name_term = self['Root'].new_term('Root.Name','')
+                name_term = self['Root'].new_term('Root.Name', '')
             else:
                 updates.append("No Root.Name, can't update name")
                 return updates
@@ -660,7 +665,7 @@ class MetatabDoc(object):
 
         if datasetname:
 
-            name = self._generate_identity_name()
+            name = self._generate_identity_name(mod_version=mod_version)
 
             if name != orig_name or force:
                 name_term.value = name
@@ -701,34 +706,42 @@ class MetatabDoc(object):
         self.update_version()
 
         if self._has_semver():
-            ver_value = '{}.{}'.format(self['Root'].get_value('Version.Major'), self['Root'].get_value('Version.Minor'))
+            version = self['Root'].get_value('Version.Patch')
+
         else:
-            ver_value =  self.find_first_value('Root.Version', section='Root')
+            ver_value = self.find_first_value('Root.Version', section='Root')
 
-        # Excel likes to make integers into floats
-        try:
-            if int(ver_value) == float(ver_value):
-                version = int(ver_value)
+            # Excel likes to make integers into floats
+            try:
+                if int(ver_value) == float(ver_value):
+                    version = int(ver_value)
 
-        except (ValueError, TypeError):
-            version = ver_value
+            except (ValueError, TypeError):
+                version = ver_value
 
-        if mod_version is not False and isinstance(mod_version, str) and (mod_version[0] == '+' or mod_version[0] == '-'):
+        if mod_version is not False and isinstance(mod_version, str) and \
+                (mod_version[0] == '+' or mod_version[0] == '-'):
             # Increment the version up or down
+
             try:
                 int(version)
             except ValueError:
                 raise MetatabError(
-                    "When specifying version math, version value in Root.Version term must be an integer")
+                    "When specifying version math, version value in Root.Version or Version.Patch  term must be an integer")
 
             if mod_version[0] == '+':
-                version = str(int(version) + int(mod_version[1:]))
+                version = str(int(version) + int(mod_version[1:] if mod_version[1:] else 1))
             else:
-                version = str(int(version) - int(mod_version[1:]))
+                version = str(int(version) - int(mod_version[1:] if mod_version[1:] else 1))
 
         elif mod_version is not False:
             # Set it to a particular version
             version = mod_version
+
+        if self._has_semver():
+
+            self['Root'].find_first('Version.Patch').value = version
+            version = self.update_version()
 
         parts = [slugify(str(e).replace('-', '_')) for e in (
             origin, datasetname, time, space, grain, variant, version)
@@ -755,7 +768,6 @@ class MetatabDoc(object):
     @property
     def rows(self):
         """Iterate over all of the rows"""
-
 
         for s_name, s in self.sections.items():
 
@@ -815,16 +827,15 @@ class MetatabDoc(object):
         """Return a Lines representation as a string"""
 
         out_lines = []
-        for t,v in self.lines:
+        for t, v in self.lines:
 
             # Make the output prettier
             if t == 'Section':
                 out_lines.append('')
 
-            out_lines.append('{}: {}'.format(t,v if v is not None else '') )
+            out_lines.append('{}: {}'.format(t, v if v is not None else ''))
 
         return '\n'.join(out_lines)
-
 
     def _write_path(self, path):
 
@@ -853,7 +864,7 @@ class MetatabDoc(object):
         else:
             return pathlib.Path(str(path))
 
-    def _write(self, content, path:pathlib.Path, ext=None):
+    def _write(self, content, path: pathlib.Path, ext=None):
 
         self.cleanse()
 
@@ -865,7 +876,7 @@ class MetatabDoc(object):
         return path
 
     def write_csv(self, path=None):
-        
+
         path = self._write_path(path)
 
         if path.suffix != '.csv':
@@ -880,7 +891,6 @@ class MetatabDoc(object):
         if path.suffix != '.txt':
             raise MetatabError("Writing line (txt) file, but extension is wrong: {} ".format(str(path)))
 
-
         return self._write(self.as_lines(), path)
 
     def write(self, path=None):
@@ -893,6 +903,3 @@ class MetatabDoc(object):
             self.write_csv(path)
         else:
             raise FormatError("Can't write to filetype of {}".format(path.suffix))
-
-
-
