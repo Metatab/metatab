@@ -607,16 +607,19 @@ class MetatabDoc(object):
         minor = version.find_first('Version.Minor')
         patch = version.find_first('Version.Patch')
 
+        # If none are defined, this isn't a semantic version
+        # so just return the Version value.
         if not any([major, minor, patch]):
             return version.value
 
-        # if one of the exists, they all have to exist
+        # if one of the exists, they all have to exist,
+        # and this is a semantic version
         for term, term_name in ((major, 'Version.Major'),
                                 (minor, 'Version.Minor'),
                                 (patch, 'Version.Patch')):
 
             if not term:
-                term = version.new_child(term_name, 0)
+                term = version.new_child(term_name, 1)
 
             if term.value is None:
                 term.value = 0
@@ -627,10 +630,10 @@ class MetatabDoc(object):
 
         assert all([major, minor, patch])
 
-        templ =  '{}.{}.{}'
+        templ = '{}.{}.{}'
         values = (major.value, minor.value, patch.value)
 
-        version.value =templ.format(*values)
+        version.value = templ.format(*values)
 
         build = version.find_first('Version.Build')
         if build:
@@ -641,7 +644,7 @@ class MetatabDoc(object):
 
         return version.value
 
-    def update_name(self, force=False, create_term=False, report_unchanged=True,mod_version=False):
+    def update_name(self, force=False, create_term=False, report_unchanged=True, mod_version=False):
         """Generate the Root.Name term from DatasetName, Version, Origin, TIme and Space"""
 
         updates = []
@@ -696,6 +699,10 @@ class MetatabDoc(object):
 
     def _generate_identity_name(self, mod_version=False):
 
+        """mod_version == False -> dpn't change the version
+           mod_version == None -> remove the version
+           mod_version == Something else -> change the versino to somethig else"""
+
         datasetname = self.find_first_value('Root.Dataset', section='Root')
         origin = self.find_first_value('Root.Origin', section='Root')
         time = self.find_first_value('Root.Time', section='Root')
@@ -706,41 +713,58 @@ class MetatabDoc(object):
         self.update_version()
 
         if self._has_semver():
-            version = self['Root'].get_value('Version.Patch')
+            # Modifyable part is the patch
+            mv = self['Root'].get_value('Version.Patch')
+
+            def set_ver(mv):
+                self['Root'].find_first('Version.Patch').value = mv
 
         else:
-            ver_value = self.find_first_value('Root.Version', section='Root')
+            # Modifyable part is the whole version
+            mv = self['Root'].get_value('Version')
 
-            # Excel likes to make integers into floats
+            def set_ver(mv):
+                self['Root'].find_first('Version').value = mv
+
+
+        if mod_version is False:
+            # Don't change the version
+            pass
+        elif mod_version is None:
+            # Set the version to nothing -- the nonver name
+            mv = None
+
+        elif str(mod_version)[0] == '+' or str(mod_version)[0] == '-':
+
+            # Increment or decrement the version
+
             try:
-                if int(ver_value) == float(ver_value):
-                    version = int(ver_value)
-
-            except (ValueError, TypeError):
-                version = ver_value
-
-        if mod_version is not False and isinstance(mod_version, str) and \
-                (mod_version[0] == '+' or mod_version[0] == '-'):
-            # Increment the version up or down
-
-            try:
-                int(version)
+                int(mv)
             except ValueError:
                 raise MetatabError(
                     "When specifying version math, version value in Root.Version or Version.Patch  term must be an integer")
 
+            # Excel likes to make integers into floats
+            try:
+                if int(mv) == float(mv):
+                    mv = int(mv)
+
+            except (ValueError, TypeError):
+                pass
+
             if mod_version[0] == '+':
-                version = str(int(version) + int(mod_version[1:] if mod_version[1:] else 1))
+                mv = str(int(mv) + int(mod_version[1:] if mod_version[1:] else 1))
             else:
-                version = str(int(version) - int(mod_version[1:] if mod_version[1:] else 1))
+                mv = str(int(mv) - int(mod_version[1:] if mod_version[1:] else 1))
 
-        elif mod_version is not False:
-            # Set it to a particular version
-            version = mod_version
+        else:
+            # Set the version to a specific string
+            mv = mod_version
 
-        if self._has_semver():
-
-            self['Root'].find_first('Version.Patch').value = version
+        if mv is None:
+            version = None
+        else:
+            set_ver(mv)
             version = self.update_version()
 
         parts = [slugify(str(e).replace('-', '_')) for e in (
