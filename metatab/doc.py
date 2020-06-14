@@ -555,7 +555,6 @@ class MetatabDoc(object):
 
             for arg in set(section_args) - used_args:
                 try:
-                    print("Removing ", arg.title())
                     schema_section.remove_arg(arg.title())
                 except ValueError as e:
                     pass
