@@ -6,7 +6,6 @@ Parser for the Metatab format. The parser consists of several iterable generator
 objects.
 
 """
-from __future__ import print_function
 
 from rowgenerators import Source, get_generator, Url, parse_app_url
 from rowgenerators.exceptions import DownloadError

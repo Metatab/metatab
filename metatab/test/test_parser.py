@@ -4,13 +4,13 @@ import json
 import unittest
 from os.path import exists
 
+from rowgenerators import parse_app_url
 
 from metatab import IncludeError, MetatabDoc, WebResolver, TermParser
+from metatab.rowgen import TextRowGenerator
 from metatab.terms import Term
 from metatab.test.core import test_data
-from metatab.util import flatten, declaration_path
-from metatab.rowgenerators import TextRowGenerator
-from rowgenerators import parse_app_url
+from metatab.util import flatten
 
 
 class TestParser(unittest.TestCase):
@@ -21,8 +21,8 @@ class TestParser(unittest.TestCase):
 
     def compare_dict(self, a, b):
 
-        fa = set('{}={}'.format(k, v) for k, v in flatten(a));
-        fb = set('{}={}'.format(k, v) for k, v in flatten(b));
+        fa = set('{}={}'.format(k, v) for k, v in flatten(a))
+        fb = set('{}={}'.format(k, v) for k, v in flatten(b))
 
         # The declare lines move around a lot, and rarely indicate an error
         fa = {e for e in fa if not e.startswith('declare=')}
@@ -71,7 +71,7 @@ class TestParser(unittest.TestCase):
 
         for fn in all:
 
-            print('Testing ', fn);
+            print('Testing ', fn)
 
             path = test_data(fn)
 
@@ -79,7 +79,6 @@ class TestParser(unittest.TestCase):
 
             doc = MetatabDoc(path)
             d = doc.as_dict()
-
 
             if not exists(json_path):
                 with open(json_path, 'w') as f:
@@ -91,17 +90,15 @@ class TestParser(unittest.TestCase):
 
             self.compare_dict(d, d2)
 
-
     def test_write_line_doc(self):
         """Convert CSV files to text lines and back to text lines"""
 
         all = ['example1.csv', 'example2.csv', 'example1-web.csv',
-               'children.csv', 'children2.csv', 'issue1.csv' ]
+               'children.csv', 'children2.csv', 'issue1.csv']
 
         self.maxDiff = None
 
         for f in all:
-
             path = test_data(f)
 
             doc1 = MetatabDoc(path)
@@ -116,12 +113,11 @@ class TestParser(unittest.TestCase):
 
             self.assertEqual(doc1_lines, doc2_lines)
 
-            self.compare_dict(doc1.as_dict(),doc2.as_dict())
+            self.compare_dict(doc1.as_dict(), doc2.as_dict())
 
             self.assertEqual(doc1_lines, doc2_lines)
 
             self.assertEqual(doc1.as_csv(), doc2.as_csv())
-
 
     def test_line_doc(self):
 
@@ -141,7 +137,7 @@ class TestParser(unittest.TestCase):
 
         self.assertEqual(5, len(list(doc['References'].find('Root.Reference'))))
 
-        self.assertEqual(5, len(list(doc['References'].find('Root.Resource')))) #References are Resources
+        self.assertEqual(5, len(list(doc['References'].find('Root.Resource'))))  # References are Resources
 
         rt = list(doc['References'].find('Root.Resource'))[0]
 
@@ -156,8 +152,7 @@ class TestParser(unittest.TestCase):
                    'line/line-oriented-doc-references-1.txt',
                    'line/line-oriented-doc-references-2.txt',
                    'line/line-oriented-doc-bib.txt',
-                  ):
-
+                   ):
             with open(test_data(fn)) as f:
                 text = f.read()
 
@@ -170,8 +165,7 @@ class TestParser(unittest.TestCase):
 
         self.assertEqual(5, len(list(doc['References'])))
 
-        self.assertEqual(5,len(list(doc['References'].find('Root.Resource'))))
-
+        self.assertEqual(5, len(list(doc['References'].find('Root.Resource'))))
 
     def test_children(self):
 
@@ -226,8 +220,6 @@ class TestParser(unittest.TestCase):
 
         self.assertTrue('bad_declare.csv' in e[0]['error'])
 
-
-
     def test_headers(self):
         d1 = MetatabDoc(test_data('example1-headers.csv')).root.as_dict()
         d2 = MetatabDoc(test_data('example1.csv')).root.as_dict()
@@ -244,11 +236,11 @@ class TestParser(unittest.TestCase):
 
         self.assertEqual({'root.downloadpage', 'root.supplementarydata', 'root.api', 'root.citation',
                           'root.datafile', 'root.datadictionary', 'root.image', 'root.reference',
-                          'root.documentation', 'root.homepage', 'root.webpage','root.sql', 'root.dsn'},
+                          'root.documentation', 'root.homepage', 'root.webpage', 'root.sql', 'root.dsn'},
                          doc.derived_terms['root.resource'])
 
         self.assertEqual(['example1', 'example10', 'example2', 'example3', 'example4', 'example5', 'example6',
-                'example7', 'example8', 'example9'], sorted([t.name for t in doc.find('root.resource')]))
+                          'example7', 'example8', 'example9'], sorted([t.name for t in doc.find('root.resource')]))
 
         self.assertEquals(['example1', 'example2'], [t.name for t in doc.find('root.datafile')])
 
@@ -285,7 +277,7 @@ class TestParser(unittest.TestCase):
         try:
             dp = datapackage.DataPackage(f.name)
             dp.validate()
-        except:
+        except Exception:
             with open(f.name) as f2:
                 print(f2.read())
             raise
@@ -389,17 +381,19 @@ class TestParser(unittest.TestCase):
 
         # Arg_props not include Author, Title or Year, which are children, but not arg props
         self.assertEquals(sorted(['type', 'month', 'publisher', 'journal', 'version', 'volume',
-                           'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name']),
+                                  'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name']),
                           sorted(list(c.arg_props.keys())))
 
         # Props includes just the children that actually have values
-        self.assertEquals(sorted(['type', 'publisher', 'version', 'accessdate', 'url', 'doi', 'author', 'title', 'year']),
-                          sorted(list(c.props.keys())))
+        self.assertEquals(
+            sorted(['type', 'publisher', 'version', 'accessdate', 'url', 'doi', 'author', 'title', 'year']),
+            sorted(list(c.props.keys())))
 
         # All props includes values for all of the children and all of the property args
         self.assertEquals(sorted(['type', 'month', 'publisher', 'journal', 'version', 'volume',
-                           'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name', 'author', 'title',
-                           'year']),
+                                  'number', 'pages', 'accessdate', 'location', 'url', 'doi', 'issn', 'name', 'author',
+                                  'title',
+                                  'year']),
                           sorted(list(c.all_props.keys())))
 
         # Attribute acessors
@@ -426,7 +420,6 @@ class TestParser(unittest.TestCase):
         self.assertEqual('foobar', c.type)
         self.assertEqual('foobar', c['type'].value)
 
-
     def test_term_subclasses(self):
         from metatab.terms import Term, SectionTerm
         from metatab import WebResolver
@@ -434,13 +427,12 @@ class TestParser(unittest.TestCase):
         doc = MetatabDoc()
         tp = TermParser(test_data('example1.csv'), resolver=WebResolver, doc=doc)
 
-        terms = list(tp)
-
         self.assertEqual(Term, tp.get_term_class('root.summary'))
         self.assertEqual(Term, tp.get_term_class('root.name'))
         self.assertEqual(SectionTerm, tp.get_term_class('root.section'))
-        #self.assertEqual(Resource, tp.get_term_class('root.resource'))
-        #self.assertEqual(Resource, tp.get_term_class('root.homepage'))
+
+        # self.assertEqual(Resource, tp.get_term_class('root.resource'))
+        # self.assertEqual(Resource, tp.get_term_class('root.homepage'))
 
         class TestTermClass(Term):
             pass
@@ -455,8 +447,8 @@ class TestParser(unittest.TestCase):
             self.assertEqual(Term, type(doc.find_first('root.description')))
             self.assertEqual(TestTermClass, type(doc.find_first('root.name')))
 
-            #self.assertEqual(Resource, type(doc.find_first('root.datafile')))
-            #self.assertEqual(Resource, type(doc.find_first('root.homepage')))
+            # self.assertEqual(Resource, type(doc.find_first('root.datafile')))
+            # self.assertEqual(Resource, type(doc.find_first('root.homepage')))
 
         finally:
             # Some test environments seem to run test multipel times in the same interpreter,
@@ -472,6 +464,7 @@ class TestParser(unittest.TestCase):
         print(u)
         print(u.get_resource())
         print(u.get_resource().get_target())
+
 
 if __name__ == '__main__':
     unittest.main()
